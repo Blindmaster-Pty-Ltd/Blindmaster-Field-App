@@ -1,6 +1,6 @@
 // Caches the app shell so it opens quickly and works with a weak signal.
 // Schedule data is cached by the app itself (last loaded day per date).
-var CACHE = 'bm-field-v6';
+var CACHE = 'bm-field-v8';
 var SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'manifest.webmanifest', 'wordmark-white.svg', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {

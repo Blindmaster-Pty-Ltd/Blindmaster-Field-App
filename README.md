@@ -108,6 +108,8 @@ The chat is stored in Firebase (project `blindmaster-field`). Its setup, rules a
 1. Use **Manage deployments › Edit › New version**, and approve the new permissions (Firestore and sending email).
 2. Open the app and load a day. Each appointment with a JR or OPP number gets a **Project chat** link. Everyone on the appointment's crew is added to that chat automatically, and the office sees every chat under **Chats**.
 3. An **Important** message emails the project's members and staff with the `office` or `pm` role.
+4. **Photos and videos:** run `authorizeDrive` once from the editor to approve Drive access. Files go to the appointment's `Project folder:` › Chat, or `Folder:` › Collateral › Chat, or (for test appointments without folders) a **Field App – Chat uploads** folder in your Drive. Photos are resized on the phone before upload; videos are limited to about 30 seconds (30 MB).
+5. **Voice to text:** the microphone button next to the message box. It works in Chrome and Safari; if the phone blocks it, the microphone key on the keyboard does the same job.
 
 ## How appointments are written in the calendar
 The app shows an appointment to everyone who is a **guest** on the event, or who is listed on a `Crew:` line. The event **location** is the address used for maps. The **description** uses one item per line:
@@ -144,4 +146,4 @@ The type is one of: Installation, Service, Warehouse, Site consult, Check measur
 - Stage 3: notes, sketches, photos and video saved to Collateral subfolders, plus receipts.
 - Stage 4: load list lock, confirmations and the 8:00 office alert.
 - Stage 5: proposals from the costing templates.
-- Project chat: photos and videos saved to the project's Drive folder, phone notifications for Important messages, open Important items on the office Overview, and adding someone (e.g. Craig) to a chat by hand.
+- Project chat: phone notifications for Important messages, open Important items on the office Overview, and adding someone (e.g. Craig) to a chat by hand.

@@ -5,7 +5,7 @@ window.FIELD_APP_CONFIG = {
 
   // Google OAuth web client ID for "Sign in with Google"
   // Leave blank to use email-only test sign-in (needs ALLOW_DEV_LOGIN=true in the script)
-  GOOGLE_CLIENT_ID: '',
+  GOOGLE_CLIENT_ID: '109655414089-70sej679mor7qm4kjfs42djvitfjnrjg.apps.googleusercontent.com',
 
   // Shown on the sign-in screen so testers know this is not the live app
   ENVIRONMENT: 'Sandbox',

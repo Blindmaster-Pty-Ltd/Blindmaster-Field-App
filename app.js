@@ -73,6 +73,10 @@
     chart: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
     print: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H3v-8h18v8h-3M6 14h12v7H6z"/></svg>',
     user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+    mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    play: '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+    x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg>'
   };
 
@@ -113,6 +117,16 @@
         }
         return data;
       });
+  }
+
+  /** POST to the script (used for uploads). Plain-text body avoids a CORS preflight, which Apps Script can't answer. */
+  function apiPost(body) {
+    var s = session() || {};
+    var b = Object.assign({}, body);
+    if (s.idToken) b.idToken = s.idToken; else if (s.devEmail) b.devEmail = s.devEmail;
+    return fetch(CFG.API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { if (!data.ok) throw new Error(data.error || 'Upload failed'); return data; });
   }
 
   function loadDay(date, force) {
@@ -177,7 +191,7 @@
     p.setCustomParameters({ login_hint: myEmail(), prompt: 'select_account' }); // no domain lock: contractors use their own Google account
     return chat.auth.signInWithPopup(p);
   }
-  function stopChat() { if (chat.unsub) { chat.unsub(); chat.unsub = null; } }
+  function stopChat() { if (chat.unsub) { chat.unsub(); chat.unsub = null; } if (typeof stopDictation === 'function') stopDictation(); }
 
   function chatKeyOf(a) { return a.chatKey || (a.opp ? 'OPP-' + a.opp : a.jr ? 'JR-' + a.jr : ''); }
   function keyLabel(key, p) {
@@ -350,7 +364,11 @@
             return '<button type="button" role="radio" data-kind="' + o[0] + '" aria-checked="false">' + o[1] + '</button>';
           }).join('') + '</div>' +
         '<p class="small chat-hint" id="chatHint" hidden></p>' +
-        '<div class="chat-input-row"><label class="sr-only" for="chatText">Message</label>' +
+        '<div class="chat-tray" id="chatTray" hidden></div>' +
+        '<div class="chat-input-row">' +
+          '<label class="chat-tool" title="Photo or video"><input type="file" id="chatFile" accept="image/*,video/*" multiple class="sr-only">' + I.camera + '<span class="sr-only">Add a photo or video</span></label>' +
+          (speechSupported() ? '<button class="chat-tool" type="button" id="chatMic" aria-pressed="false" title="Speak your message">' + I.mic + '<span class="sr-only">Voice to text</span></button>' : '') +
+          '<label class="sr-only" for="chatText">Message</label>' +
           '<textarea id="chatText" rows="1" maxlength="4000" placeholder="Message the project team"></textarea>' +
           '<button class="btn btn-dark" id="chatSend" type="submit" disabled>Send</button></div>' +
       '</form></div>';
@@ -401,9 +419,90 @@
     });
   }
 
+  /* ---------- chat media and voice ---------- */
+
+  var MAX_FILES = 6, MAX_VIDEO_BYTES = 30 * 1024 * 1024, IMG_MAX_PX = 1600;
+  function fmtSize(b) { return b >= 1048576 ? (b / 1048576).toFixed(b >= 10485760 ? 0 : 1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+  function mediaSummary(media) {
+    var p = media.filter(function (x) { return !/^video/.test(x.type); }).length, v = media.length - p;
+    return [p ? p + (p === 1 ? ' photo' : ' photos') : '', v ? v + (v === 1 ? ' video' : ' videos') : ''].filter(String).join(' and ') || 'Attachment';
+  }
+  /** Photos are resized to 1600 px JPEG before upload: quicker on a weak signal, still sharp enough for site detail. */
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, IMG_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var t = document.createElement('canvas'), ts = 96 / Math.max(c.width, c.height); t.width = Math.round(c.width * ts); t.height = Math.round(c.height * ts);
+        t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+        c.toBlob(function (blob) { URL.revokeObjectURL(url); blob ? resolve({ blob: blob, thumb: t.toDataURL('image/jpeg', 0.7) }) : reject(new Error('resize')); }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image')); };
+      img.src = url;
+    });
+  }
+  function toBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(String(r.result).split(',')[1]); };
+      r.onerror = function () { reject(new Error('Couldn\'t read the file')); };
+      r.readAsDataURL(blob);
+    });
+  }
+  /** Uploads one file at a time to the project's Drive folder (via the script). Returns [{url, id, name, type}]. */
+  function uploadAll(key, files, progress) {
+    var out = [];
+    return files.reduce(function (p, f, i) {
+      return p.then(function () {
+        progress(i, files.length);
+        var blob = f.blob || f.file;
+        return toBase64(blob).then(function (data) {
+          return apiPost({ action: 'chatUpload', key: key, name: f.name, mime: blob.type || (f.isVideo ? 'video/mp4' : 'image/jpeg'), data: data });
+        }).then(function (r) { out.push({ url: r.url, id: r.id, name: r.name, type: r.mime }); });
+      });
+    }, Promise.resolve()).then(function () { return out; });
+  }
+  function driveId(url) { var m = String(url || '').match(/\/d\/([\w-]{20,})|[?&]id=([\w-]{20,})/); return m ? (m[1] || m[2]) : ''; }
+  function mediaHtml(m) {
+    var items = (m.media && m.media.length ? m.media : (m.mediaUrls || []).map(function (u) { return { url: u }; }));
+    if (!items.length) return '';
+    return '<div class="chat-media-grid">' + items.map(function (x, i) {
+      var id = x.id || driveId(x.url), isImg = /^image/.test(x.type || ''), isVid = /^video/.test(x.type || '');
+      if ((isImg || isVid) && id) {
+        return '<a class="chat-thumb' + (isVid ? ' is-video' : '') + '" href="' + esc(x.url) + '" target="_blank" rel="noopener" aria-label="' + (isVid ? 'Open video' : 'Open photo') + '">' +
+          '<img src="https://drive.google.com/thumbnail?id=' + esc(id) + '&sz=w480" alt="" loading="lazy" onerror="this.remove()">' +
+          '<span class="chat-thumb-label">' + (isVid ? I.play + 'Video' : 'Photo') + '</span></a>';
+      }
+      return '<a class="chat-media" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + I.folder + esc(x.name || 'Attachment ' + (i + 1)) + '</a>';
+    }).join('') + '</div>';
+  }
+
+  var dictation = null;
+  function speechSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+  function stopDictation() { if (dictation) { try { dictation.rec.stop(); } catch (e) {} } }
+  /** Voice to text: words appear in the message box to check before sending (Australian English). */
+  function toggleDictation(btn, ta, sync) {
+    if (dictation) { stopDictation(); return; }
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var rec = new SR(), base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+    rec.lang = 'en-AU'; rec.interimResults = true; rec.continuous = true;
+    dictation = { rec: rec };
+    btn.setAttribute('aria-pressed', 'true'); btn.classList.add('is-listening');
+    rec.onresult = function (e) {
+      var finalText = '', interim = '';
+      for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) finalText += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
+      ta.value = base + finalText + interim; sync();
+    };
+    rec.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') alert('Allow microphone access for this site to use voice to text. You can also use the microphone key on your keyboard.'); };
+    rec.onend = function () { dictation = null; btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('is-listening'); ta.value = ta.value.replace(/^\s+/, ''); sync(); };
+    try { rec.start(); } catch (e) { rec.onend(); }
+  }
+
   function msgHtml(m, me) {
     var t = tsDate(m.createdAt), time = t ? hhmm(t) : '';
-    var media = (m.mediaUrls || []).map(function (u, i) { return '<a class="chat-media" href="' + esc(u) + '" target="_blank" rel="noopener">' + I.folder + 'Attachment ' + (i + 1) + '</a>'; }).join('');
+    var media = mediaHtml(m);
     if (m.kind === 'system') return '<div class="chat-system"><p>' + esc(m.text) + '</p>' + media + '<span class="small">' + esc(time) + '</span></div>';
     var mine = m.authorEmail === me, open = m.kind === 'important' && m.status === 'open';
     var label = m.kind === 'important' ? '<span class="tag ' + (open ? 'tag-dark' : '') + '">' + (open ? 'Important · open' : 'Important · sorted') + '</span>'
@@ -413,7 +512,7 @@
     if (open && !m.pending) foot = '<button class="link-btn chat-sort" type="button" data-sort="' + esc(m.id) + '">Mark sorted</button>';
     return '<div class="chat-msg' + (mine ? ' is-mine' : '') + ' kind-' + esc(m.kind) + (open ? ' is-open' : '') + '">' +
       '<div class="chat-meta"><b>' + esc(mine ? 'You' : m.authorName || nameOf(m.authorEmail)) + '</b>' + (!mine && roleWord(m.authorRole) ? '<span>' + esc(roleWord(m.authorRole)) + '</span>' : '') + '<span>' + esc(m.pending ? 'Sending…' : time) + '</span></div>' +
-      '<div class="chat-bubble">' + label + '<p>' + esc(m.text) + '</p>' + media + foot + '</div></div>';
+      '<div class="chat-bubble">' + label + (m.text ? '<p>' + esc(m.text) + '</p>' : '') + media + foot + '</div></div>';
   }
 
   function drawMessages(key) {
@@ -454,7 +553,30 @@
       send.textContent = k === 'note' ? 'Save note' : k === 'important' ? 'Flag' : 'Send';
       form.classList.toggle('is-important', k === 'important');
     }
-    function sync() { send.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
+    var files = [], busy = false, tray = document.getElementById('chatTray'), fileIn = document.getElementById('chatFile'), mic = document.getElementById('chatMic');
+    function sync() { send.disabled = busy || (!ta.value.trim() && !files.length); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
+    function drawTray() {
+      tray.hidden = !files.length;
+      tray.innerHTML = files.map(function (f, i) {
+        return '<span class="chat-chip">' + (f.thumb ? '<img src="' + f.thumb + '" alt="">' : '<span class="chat-chip-icon">' + (f.isVideo ? I.play : I.folder) + '</span>') +
+          '<span class="chat-chip-name">' + esc(f.isVideo ? 'Video' : 'Photo') + ' · ' + esc(fmtSize(f.size)) + '</span>' +
+          '<button type="button" data-remove="' + i + '" aria-label="Remove">' + I.x + '</button></span>';
+      }).join('');
+      Array.prototype.forEach.call(tray.querySelectorAll('[data-remove]'), function (b) { b.onclick = function () { files.splice(Number(b.getAttribute('data-remove')), 1); drawTray(); sync(); }; });
+    }
+    fileIn.onchange = function () {
+      Array.prototype.forEach.call(fileIn.files, function (f) {
+        if (files.length >= MAX_FILES) return;
+        var isVideo = /^video\//.test(f.type);
+        if (!isVideo && !/^image\//.test(f.type)) return;
+        if (isVideo && f.size > MAX_VIDEO_BYTES) { alert('That video is ' + fmtSize(f.size) + '. Please keep videos under ' + fmtSize(MAX_VIDEO_BYTES) + ' (about 30 seconds).'); return; }
+        var item = { file: f, isVideo: isVideo, size: f.size, name: f.name || (isVideo ? 'video.mp4' : 'photo.jpg') };
+        files.push(item);
+        if (!isVideo) shrinkImage(f).then(function (r) { item.blob = r.blob; item.thumb = r.thumb; item.size = r.blob.size; item.name = item.name.replace(/\.[^.]+$/, '') + '.jpg'; drawTray(); }, function () {});
+      });
+      fileIn.value = ''; drawTray(); sync();
+    };
+    if (mic) mic.onclick = function () { toggleDictation(mic, ta, sync); };
     Array.prototype.forEach.call(form.querySelectorAll('[data-kind]'), function (b) { b.onclick = function () { setKind(b.getAttribute('data-kind')); ta.focus(); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-filter]'), function (b) {
       b.onclick = function () {
@@ -468,19 +590,24 @@
     ta.onkeydown = function (e) { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : form.onsubmit(e); } };
     form.onsubmit = function (e) {
       e.preventDefault();
-      var text = ta.value.trim(), kind = chat.kind;
-      if (!text) return;
-      ta.value = ''; sync();
-      if (kind === 'important') setKind('message');
-      postMessage(key, kind, text).catch(function (err) {
-        ta.value = text; sync(); setKind(kind);
+      var text = ta.value.trim(), kind = chat.kind, sending = files.slice();
+      if ((!text && !sending.length) || busy) return;
+      stopDictation();
+      busy = true; sync();
+      uploadAll(key, sending, function (done, total) { hint.hidden = false; hint.textContent = 'Uploading ' + (done + 1) + ' of ' + total + '…'; }).then(function (media) {
+        ta.value = ''; files = []; drawTray();
+        busy = false; sync(); setKind(kind === 'important' ? 'message' : kind);
+        return postMessage(key, kind, text, media).catch(function (err) { ta.value = text; sync(); setKind(kind); throw err; });
+      }).catch(function (err) {
+        busy = false; sync(); hint.textContent = KIND_HINT[chat.kind]; hint.hidden = !KIND_HINT[chat.kind];
         alert(/permission|insufficient/i.test(err.code + ' ' + err.message) ? 'You can\'t post in this chat yet. You\'re added when you\'re booked on one of its appointments.' : 'Couldn\'t send: ' + (err.message || 'check your connection.'));
       });
     };
     setKind('message');
   }
 
-  function postMessage(key, kind, text) {
+  function postMessage(key, kind, text, media) {
+    media = media || [];
     return chatUser().then(function () {
       var me = myEmail(), u = state.user || {}, p = chat.project || {};
       var FV = firebase.firestore.FieldValue, now = FV.serverTimestamp();
@@ -489,10 +616,11 @@
         oppNumber: p.oppNumber || (/^OPP-/.test(key) ? key.slice(4) : ''),
         jrNumber: p.jrNumber || (/^JR-/.test(key) ? key.slice(3) : ''),
         createdAt: now, authorEmail: me, authorName: u.name || nameFromEmail(me), authorRole: roleForChat(),
-        kind: kind, text: text.slice(0, 4000), mediaUrls: [],
+        kind: kind, text: text.slice(0, 4000), mediaUrls: media.map(function (x) { return x.url; }), media: media,
         status: kind === 'important' ? 'open' : '', sortedBy: '', sortedAt: null, source: 'app'
       };
-      var summary = { lastMessage: { text: m.text.slice(0, 140), authorName: m.authorName, authorEmail: me, at: now, kind: kind }, updatedAt: now };
+      var preview = m.text || mediaSummary(media);
+      var summary = { lastMessage: { text: preview.slice(0, 140), authorName: m.authorName, authorEmail: me, at: now, kind: kind }, updatedAt: now };
       if (kind === 'important') summary.openImportantCount = FV.increment(1);
       var b = chat.db.batch();
       b.set(ref, m);
@@ -640,7 +768,7 @@
         '<div class="body">' +
           (errorMsg ? '<p class="notice error" role="alert">' + esc(errorMsg) + '</p>' : '') +
           (useGoogle
-            ? '<div id="gbtn" style="min-height:48px"></div><p class="small muted" style="margin:0">Use your Blindmaster Google account.</p>'
+            ? '<div id="gbtn" style="min-height:48px"></div><p class="small muted" style="margin:0">Use your Blindmaster Google account. Contractors: use the Google account you gave the office.</p>'
             : '<form id="devform" class="stack" style="gap:16px">' +
                 '<p class="notice" style="margin:0">Test sign-in: enter your Blindmaster email. Google sign-in is switched on once the OAuth client is set up.</p>' +
                 '<div class="field"><label for="email">Work email</label><input id="email" type="email" autocomplete="email" required placeholder="name@blindmaster.com.au"></div>' +
@@ -654,7 +782,7 @@
       var tries = 0;
       (function initGsi() {
         if (!(window.google && google.accounts && google.accounts.id)) { if (tries++ < 50) setTimeout(initGsi, 100); return; }
-        google.accounts.id.initialize({ client_id: CFG.GOOGLE_CLIENT_ID, callback: onGoogleCredential, auto_select: true, hd: 'blindmaster.com.au' });
+        google.accounts.id.initialize({ client_id: CFG.GOOGLE_CLIENT_ID, callback: onGoogleCredential, auto_select: true }); // no domain lock: contractors on the staff list sign in with their own Google account
         var box = document.getElementById('gbtn');
         google.accounts.id.renderButton(box, { theme: 'filled_black', size: 'large', shape: 'rectangular', text: 'continue_with', width: Math.min(box.clientWidth || 320, 400) });
         google.accounts.id.prompt();

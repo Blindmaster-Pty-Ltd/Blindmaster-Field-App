@@ -343,3 +343,23 @@ body.mode-tablet .chat-msgs, body.mode-desktop .chat-msgs { padding: 12px 32px 2
 body.mode-tablet .chat-top, body.mode-desktop .chat-top { padding: 16px 32px; }
 body.mode-tablet .chat-compose, body.mode-desktop .chat-compose { padding: 12px 32px 16px; }
 body.mode-desktop .chat-msg { max-width: 640px; }
+
+/* chat: photos, videos and voice */
+.chat-tool { flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 0; background: var(--sandstone); color: var(--ink); cursor: pointer; }
+.chat-tool:focus-within { outline: 3px solid var(--pastel-blue); outline-offset: 2px; }
+.chat-tool.is-listening { background: var(--monument-grey); color: var(--natural-white); animation: chatPulse 1.2s ease-in-out infinite; }
+@keyframes chatPulse { 50% { box-shadow: 0 0 0 6px rgba(157, 188, 208, .7); } }
+@media (prefers-reduced-motion: reduce) { .chat-tool.is-listening { animation: none; } }
+.chat-input-row { align-items: flex-end; }
+.chat-tray { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.chat-tray[hidden] { display: none; }
+.chat-chip { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 4px; background: var(--sandstone); font-size: 13px; font-weight: 500; }
+.chat-chip img, .chat-chip-icon { width: 40px; height: 40px; object-fit: cover; display: flex; align-items: center; justify-content: center; background: var(--natural-white); }
+.chat-chip button { width: 36px; height: 36px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+.chat-media-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 160px)); gap: 6px; }
+.chat-thumb { position: relative; display: block; width: 160px; max-width: 100%; aspect-ratio: 4 / 3; background: var(--pastel-blue); overflow: hidden; color: var(--ink); text-decoration: none; }
+.chat-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.chat-thumb-label { color: var(--ink); position: absolute; left: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px 2px 4px; background: var(--natural-white); font-size: 12px; font-weight: 700; }
+.chat-thumb:not(.is-video) .chat-thumb-label { padding-left: 8px; }
+.chat-thumb-label svg { width: 16px; height: 16px; }
+.chat-msg.is-mine .chat-thumb { color: var(--ink); }
