@@ -6,7 +6,7 @@ Stage 1 reads a **test Google Calendar** through a **sandbox Apps Script**. It d
 
 ```
 GitHub Pages (this repo)  ──►  Sandbox Apps Script (/exec)  ──►  Test Google Calendar
-   index.html, js/, css/          apps-script/Code.gs              fake appointments
+   index.html, app.js, app.css    Code.gs              fake appointments
 ```
 
 ## Layouts
@@ -43,7 +43,9 @@ Where the numbers come from:
 
 ### 1. Create the repo and turn on GitHub Pages
 1. On GitHub, create **blindmaster-pty-ltd/Blindmaster-Field-App**. Private is fine on a paid plan. On the free plan, Pages needs the repo to be public.
-2. Upload everything in this folder **except** the `apps-script` folder. Keeping the script in the repo is fine too, since it holds no secrets.
+2. Upload every file in this folder. All files sit at the top level, with no subfolders. The `.gs`, `appsscript.json`, `SETUP.md` and `firestore.rules` files don't run on GitHub; they're kept here so everything is in one place, and they hold no secrets.
+
+**Updating the app later:** drag the changed files onto **Add file › Upload files** and commit. Files with the same name are replaced.
 3. Go to Settings › Pages, set Source to *Deploy from a branch*, choose `main` and `/ (root)`, then Save.
 4. The app address will be `https://blindmaster-pty-ltd.github.io/Blindmaster-Field-App/`.
 
@@ -54,8 +56,8 @@ Where the numbers come from:
 
 ### 3. Create the sandbox Apps Script
 1. Go to script.google.com and create a **New project** named **Field App – Sandbox API**. This must be a new project, not your live JR or Daily Installation Report project.
-2. Paste `apps-script/Code.gs` into `Code.gs`. Then add two more script files (**+ › Script**) named `ProjectChat` and `FieldChat`, and paste in `apps-script/ProjectChat.gs` and `apps-script/FieldChat.gs`. They run the project chat.
-3. In Project settings, tick *Show appsscript.json*, then paste in `apps-script/appsscript.json`.
+2. Paste `Code.gs` into `Code.gs`. Then add two more script files (**+ › Script**) named `ProjectChat` and `FieldChat`, and paste in `ProjectChat.gs` and `FieldChat.gs`. They run the project chat.
+3. In Project settings, tick *Show appsscript.json*, then paste in `appsscript.json`.
 4. In Project settings › **Script properties**, add:
 
 | Property | Value |
@@ -82,7 +84,7 @@ Keep this list matching the Firestore `staff` collection for now. A later versio
    - From now on, only use Manage deployments › ✏️ Edit › *New version*. A new deployment changes the URL.
 
 ### 4. Point the app at the script
-Edit `js/config.js` in the repo:
+Edit `config.js` in the repo:
 ```js
 API_URL: 'https://script.google.com/macros/s/XXXX/exec',
 ```
@@ -94,14 +96,14 @@ Use the sign-in client that Firebase already created, so one Google sign-in cove
 1. Go to **console.cloud.google.com**. At the top, choose the project **blindmaster-field**.
 2. Open **APIs & Services › Credentials**. Under OAuth 2.0 Client IDs, click **Web client (auto created by Google Service)**.
 3. Under **Authorised JavaScript origins**, click **Add URI** and add `https://blindmaster-pty-ltd.github.io`. Click **Save**.
-4. Copy the **Client ID** and paste it in two places: `GOOGLE_CLIENT_ID` in `js/config.js`, and the `OAUTH_CLIENT_ID` script property.
+4. Copy the **Client ID** and paste it in two places: `GOOGLE_CLIENT_ID` in `config.js`, and the `OAUTH_CLIENT_ID` script property.
 5. So that Owen can sign in with his Gmail: open **APIs & Services › OAuth consent screen** (it may be called **Google Auth Platform › Audience**). If the user type is **Internal**, change it to **External**, and if it shows **Testing**, click **Publish app**. Only people on your staff list can get in either way.
 6. Set `ALLOW_DEV_LOGIN` to `false`.
 
 Until this is done, testers sign in by email only, and the chat shows a one-time **Sign in with Google** button on each device.
 
 ### 6. Project chat
-The chat is stored in Firebase (project `blindmaster-field`). Its setup, rules and staff list are in the `firebase` folder (`SETUP.md`). Once the script properties above are in place:
+The chat is stored in Firebase (project `blindmaster-field`). Its setup, rules and staff list are in the `SETUP.md` and `firestore.rules`. Once the script properties above are in place:
 
 1. Use **Manage deployments › Edit › New version**, and approve the new permissions (Firestore and sending email).
 2. Open the app and load a day. Each appointment with a JR or OPP number gets a **Project chat** link. Everyone on the appointment's crew is added to that chat automatically, and the office sees every chat under **Chats**.

@@ -157,7 +157,7 @@
 
   /** Signs in to Firebase with the same Google account as the app. Rejects with .connect when a tap is needed. */
   function chatUser() {
-    if (!chatInit()) { var e = new Error('Project chat isn\'t set up yet (FIREBASE in js/config.js).'); e.setup = true; return Promise.reject(e); }
+    if (!chatInit()) { var e = new Error('Project chat isn\'t set up yet (FIREBASE in config.js).'); e.setup = true; return Promise.reject(e); }
     return chat.ready.then(function () {
       var u = chat.auth.currentUser;
       if (u && String(u.email).toLowerCase() === myEmail()) return u;
@@ -562,7 +562,7 @@
     opts = opts || {};
     var left = opts.back
       ? '<a class="back" href="' + esc(opts.back) + '">' + I.back + esc(opts.backLabel || 'Back') + '</a>'
-      : '<img src="assets/wordmark-white.svg" alt="Blindmaster">';
+      : '<img src="wordmark-white.svg" alt="Blindmaster">';
     var right = opts.right != null ? '<span class="meta">' + esc(opts.right) + '</span>'
       : (state.user ? '<a class="avatar" href="#/account" aria-label="Account: ' + esc(state.user.name) + '">' + esc(initials(state.user.name)) + '</a>' : '');
     return '<header class="topbar">' + left + right + '</header>';
@@ -597,7 +597,7 @@
     var items = navItems(date);
     return '<div class="shell">' +
       '<aside class="rail" aria-label="Main">' +
-        '<a class="rail-brand" href="#/day" aria-label="Blindmaster, home"><img src="assets/wordmark-white.svg" alt="Blindmaster"><span class="rail-mark" aria-hidden="true"></span></a>' +
+        '<a class="rail-brand" href="#/day" aria-label="Blindmaster, home"><img src="wordmark-white.svg" alt="Blindmaster"><span class="rail-mark" aria-hidden="true"></span></a>' +
         '<nav class="rail-nav">' + items.map(function (t) {
           return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '>' + t.icon + '<span>' + t.label + '</span></a>';
         }).join('') + '</nav>' +
@@ -625,15 +625,15 @@
   /* ---------- sign in ---------- */
 
   function renderSetupNeeded() {
-    app.innerHTML = '<div class="signin"><div class="signin-card"><div class="plate"><img src="assets/wordmark-white.svg" alt="Blindmaster"></div><div class="band"></div>' +
-      '<div class="body"><h1>Almost ready</h1><p class="muted">Add the sandbox Apps Script URL to <b>js/config.js</b> (API_URL), then reload. The README has the steps.</p></div></div></div>';
+    app.innerHTML = '<div class="signin"><div class="signin-card"><div class="plate"><img src="wordmark-white.svg" alt="Blindmaster"></div><div class="band"></div>' +
+      '<div class="body"><h1>Almost ready</h1><p class="muted">Add the sandbox Apps Script URL to <b>config.js</b> (API_URL), then reload. The README has the steps.</p></div></div></div>';
   }
 
   function renderSignIn(errorMsg) {
     var useGoogle = !!CFG.GOOGLE_CLIENT_ID;
     app.innerHTML =
       '<div class="signin"><div class="signin-card">' +
-        '<div class="plate"><img src="assets/wordmark-white.svg" alt="Blindmaster">' +
+        '<div class="plate"><img src="wordmark-white.svg" alt="Blindmaster">' +
           '<div class="stack"><h1>Sign in to start your day</h1><p style="margin:0">Your schedule, job details and directions in one place.</p></div>' +
           (CFG.ENVIRONMENT ? '<span class="tag tag-blue" style="align-self:flex-start">' + esc(CFG.ENVIRONMENT) + '</span>' : '') +
         '</div><div class="band"></div>' +
