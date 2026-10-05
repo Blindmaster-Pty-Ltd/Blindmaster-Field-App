@@ -48,6 +48,14 @@
   function tel(p) { return 'tel:' + String(p || '').replace(/[^\d+]/g, ''); }
   function ordinal(n) { return n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'); }
   function isOffice() { return !!(state.user && /office|admin/i.test(state.user.role || '')); }
+  /** The job report opens inside the app (same form as the standalone JR, prefilled with the JR number). */
+  function jrTemplate() { return state.jrFormUrl || store('fa-jrtpl') || ''; }
+  function jrFormUrl(jr, date) {
+    var tpl = jrTemplate(); if (!tpl || !jr) return '';
+    return tpl.replace('{jr}', encodeURIComponent(jr)).replace('{email}', encodeURIComponent(myEmailSafe())).replace('{date}', date || todayStr());
+  }
+  function myEmailSafe() { var s = store('fa-session') || {}; return String((state.user && state.user.email) || s.email || s.devEmail || ''); }
+  function jrHref(a, date) { return a.jr ? '#/jr/' + encodeURIComponent(a.jr) + '/' + (date || a.date || todayStr()) : (a.jobReportUrl || ''); }
   function apptHref(a, date) { return '#/appt/' + encodeURIComponent(a.id) + '/' + date; }
   function dayHref(date) { return date === todayStr() ? '#/day' : '#/day/' + date; }
 
@@ -136,6 +144,7 @@
       .then(function (data) {
         state.user = data.user;
         state.cache[date] = { appointments: data.appointments, fetchedAt: Date.now(), offline: false };
+        if (data.jrFormUrl) { state.jrFormUrl = data.jrFormUrl; store('fa-jrtpl', data.jrFormUrl); }
         store('fa-day-' + date, state.cache[date]);
         store('fa-user', data.user);
         return state.cache[date];
@@ -668,11 +677,13 @@
     if (!tokenValid(s)) return renderSignIn();
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
+    if (r.name !== 'jr') state.jrBack = location.hash || '#/day';
     if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
     }
+    if (r.name === 'jr' && r.arg) return renderJobReport(r.arg, r.arg2 || todayStr());
     if (r.name === 'chats') return renderChats();
     if (r.name === 'chat' && r.arg) return renderChat(r.arg);
     if (r.name === 'appt') return wide() ? renderDayWide(r.arg2 || todayStr(), r.arg) : renderAppointment(r.arg2 || todayStr(), r.arg);
@@ -915,7 +926,7 @@
       sms ? '<a class="btn btn-sand action" href="' + sms + '">' + I.msg + 'On my way</a>' : '<span class="btn btn-sand action" aria-disabled="true" style="opacity:.55">' + I.msg + 'On my way</span>'
     ];
     if (isWide && hasReport(a)) {
-      actions.push(a.jobReportUrl ? '<a class="btn btn-dark action" href="' + esc(a.jobReportUrl) + '" target="_blank" rel="noopener">' + I.report + 'Job report</a>'
+      actions.push(jrHref(a, date) ? '<a class="btn btn-dark action" href="' + esc(jrHref(a, date)) + '"' + (a.jr ? '' : ' target="_blank" rel="noopener"') + '>' + I.report + 'Job report</a>'
         : '<span class="btn btn-sand action" aria-disabled="true" style="opacity:.55">' + I.report + 'No JR number</span>');
     }
     html += '<div class="actions" style="grid-template-columns:repeat(' + actions.length + ',minmax(0,1fr))">' + actions.join('') + '</div>';
@@ -1067,7 +1078,7 @@
         (day.offline ? '<div class="offline-bar">Offline: details may be out of date</div>' : '') + '<main>' + apptDetail(a, date, false) + '</main>';
       if (hasReport(a)) {
         html += '<div class="sticky-cta"><div class="inner">' +
-          (a.jobReportUrl ? '<a class="btn btn-dark btn-lg" href="' + esc(a.jobReportUrl) + '" target="_blank" rel="noopener">' + I.report + 'Open job report</a>'
+          (jrHref(a, date) ? '<a class="btn btn-dark btn-lg" href="' + esc(jrHref(a, date)) + '"' + (a.jr ? '' : ' target="_blank" rel="noopener"') + '>' + I.report + 'Open job report</a>'
             : '<button class="btn btn-dark btn-lg" disabled>Job report link not set</button><span class="small muted" style="text-align:center">Add a JR number to the appointment</span>') +
         '</div></div>';
       } else {
@@ -1279,12 +1290,15 @@
           '<td class="bar-col"><span class="hbar-val">' + fmtNum(t.hours, 1) + ' h</span></td><td class="num">' + fmtMins(t.travelMin) + '</td><td class="num">' + fmtNum(t.km) + '</td><td class="num">' + (pct == null ? '–' : pct + '%') + '</td><td class="num">' + fmtNum(t.late) + '</td></tr></tfoot>' +
         '</table></div>' : '<p class="muted">No activity in this period.</p>') + '</section>';
 
+      if (m.jrFormUrl) { state.jrFormUrl = m.jrFormUrl; store('fa-jrtpl', m.jrFormUrl); }
       var kindLabel = { late: 'Late report', incomplete: 'Incomplete', outstanding: 'No report' };
       html += '<section class="ov-section"><h2>Needs attention' + (m.attention.length ? ' <span class="muted" style="font-weight:500">(' + m.attention.length + ')</span>' : '') + '</h2>' +
         (m.attention.length ? '<ul class="attention">' + m.attention.slice(0, 50).map(function (a) {
-          return '<li><span class="tag ' + (a.kind === 'outstanding' ? 'tag-dark' : a.kind === 'incomplete' ? 'tag-blue' : '') + '">' + esc(kindLabel[a.kind]) + '</span>' +
+          var open = a.jr && a.kind === 'outstanding' && a.report !== 'DIR';
+          var inner = '<span class="tag ' + (a.kind === 'outstanding' ? 'tag-dark' : a.kind === 'incomplete' ? 'tag-blue' : '') + '">' + esc(kindLabel[a.kind]) + '</span>' +
             '<span class="att-main"><b>' + esc(a.name) + (a.jr ? ' · JR#' + esc(a.jr) : '') + '</b><span class="small muted">' + esc(a.detail) + '</span></span>' +
-            '<span class="small muted att-date">' + esc(shortDate(a.date)) + '</span></li>';
+            '<span class="small muted att-date">' + esc(shortDate(a.date)) + '</span>' + (open ? '<span class="att-open">Open job report' + I.right + '</span>' : '');
+          return '<li>' + (open ? '<a class="att-link" href="#/jr/' + encodeURIComponent(a.jr) + '/' + esc(a.date) + '">' + inner + '</a>' : inner) + '</li>';
         }).join('') + '</ul>' : '<p class="muted" style="margin:0">Nothing needs attention. Every job has a report and every report was on time.</p>') + '</section>';
 
       html += '<p class="small muted" style="margin:24px 0 0">Snapshot taken ' + new Date(m.generatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) +
@@ -1317,7 +1331,7 @@
 
   function loadWeek(from, force) {
     if (!force && planner.data && planner.data.from === from) return Promise.resolve(planner.data);
-    return api({ action: 'week', from: from }).then(function (d) { state.user = d.user; planner.data = d.week; return d.week; });
+    return api({ action: 'week', from: from }).then(function (d) { state.user = d.user; planner.data = d.week; if (d.week.jrFormUrl) state.jrFormUrl = d.week.jrFormUrl; return d.week; });
   }
 
   function renderPlanner(from) {
@@ -1523,6 +1537,23 @@
   function afterBookingChange(dates) {
     dates.forEach(function (d) { if (d) { delete state.cache[d]; unstore('fa-day-' + d); } });
     loadWeek(planner.from, true).then(drawPlanner, function (e) { showError(e, function () { renderPlanner(planner.from); }); });
+  }
+
+  /* ---------- job report inside the app ---------- */
+
+  function renderJobReport(jr, date) {
+    var url = jrFormUrl(jr, date);
+    var back = state.jrBack && !/^#\/jr\//.test(state.jrBack) ? state.jrBack : '#/day';
+    if (!url) {
+      var msg = '<div class="empty stack"><h2>Job report link not set up</h2><p class="muted" style="margin:0">Add the JR_FORM_URL script property (the job report address with {jr} where the number goes).</p></div>';
+      app.innerHTML = wide() ? shell('day', null, msg) : topbar({ back: back, backLabel: 'Back' }) + '<main>' + msg + '</main>';
+      return;
+    }
+    var bar = '<div class="jr-bar"><a class="jr-back" href="' + esc(back) + '">' + I.back + 'Back</a><b>Job report · JR#' + esc(jr) + '</b>' +
+      '<a class="jr-ext" href="' + esc(url) + '" target="_blank" rel="noopener" title="Open in a new tab">' + I.ext + '<span class="jr-ext-label">New tab</span></a></div>';
+    var frame = '<iframe class="jr-frame" src="' + esc(url) + '" title="Job report JR#' + esc(jr) + '" allow="camera; microphone; geolocation; clipboard-write; fullscreen"></iframe>';
+    if (wide()) app.innerHTML = shell('day', date, '<div class="jr-view">' + bar + frame + '</div>');
+    else app.innerHTML = '<div class="jr-view jr-phone">' + bar + frame + '</div>';
   }
 
   /* ---------- account ---------- */

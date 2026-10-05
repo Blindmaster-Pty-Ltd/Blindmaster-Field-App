@@ -439,3 +439,21 @@ body.mode-desktop .pl-grid { grid-template-columns: repeat(var(--days, 6), minma
 .bk-person span { flex: 1; align-items: flex-start; }
 .bk .bk-person input { width: 20px; height: 20px; min-height: 0; padding: 0; flex-shrink: 0; }
 .pl-dayhead .spread { flex-wrap: wrap; gap: 4px 8px; }
+
+/* job report inside the app */
+.jr-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.jr-phone { position: fixed; inset: 0; z-index: 30; background: var(--natural-white); }
+.jr-bar { flex-shrink: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: env(safe-area-inset-top, 0px) 12px 0 8px; background: var(--monument-grey); color: var(--natural-white); }
+.jr-bar b { flex: 1; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-back, .jr-ext { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 8px; color: var(--natural-white); text-decoration: none; font-weight: 700; font-size: 14px; }
+.jr-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--natural-white); }
+@media (max-width: 420px) { .jr-ext-label { display: none; } }
+
+/* needs attention: open the job report */
+.att-link { display: contents; color: inherit; text-decoration: none; }
+.attention li:has(.att-link) { cursor: pointer; }
+.attention li:has(.att-link):hover { background: var(--sandstone); }
+.att-open { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.att-open svg { width: 16px; height: 16px; }
+.attention li:has(.att-link) { grid-template-columns: 120px 1fr auto auto; }
+@media (max-width: 767px) { .attention li:has(.att-link) { grid-template-columns: 1fr auto; } .attention li:has(.att-link) .att-open { grid-column: 1 / -1; } }
