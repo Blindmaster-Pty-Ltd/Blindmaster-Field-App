@@ -111,6 +111,17 @@ The chat is stored in Firebase (project `blindmaster-field`). Its setup, rules a
 4. **Photos and videos:** run `authorizeDrive` once from the editor to approve Drive access. Files go to the appointment's `Project folder:` › Chat, or `Folder:` › Collateral › Chat, or (for test appointments without folders) a **Field App – Chat uploads** folder in your Drive. Photos are resized on the phone before upload; videos are limited to about 30 seconds (30 MB).
 5. **Voice to text:** the microphone button next to the message box. It works in Chrome and Safari; if the phone blocks it, the microphone key on the keyboard does the same job.
 
+## Office planner
+Office staff and project managers get a **Planner** page. It shows the week with a column per day, weather, and a red/green light on each booking: green means confirmed, red means tentative. Choose a person to see their day: site time plus driving time (warehouse to each stop and back, via Google Maps), flagged over 8 hours.
+
+**+ New appointment** (or **+ Add** on a day) opens the booking panel:
+- **Type:** Sales, Installation, Check measure, Service call or Site meeting.
+- **Booking:** Tentative or Confirmed.
+- The **JR number** fills in the job report link and links the project chat.
+- **Crew** comes from `STAFF_JSON`. Clashes with the crew's other bookings are flagged.
+
+Saving writes the appointment straight into the sandbox calendar in the format below, so the crew see it in their app. Click a booking to edit, confirm or delete it. NetSuite (ready-to-book lists and status updates) comes later.
+
 ## How appointments are written in the calendar
 The app shows an appointment to everyone who is a **guest** on the event, or who is listed on a `Crew:` line. The event **location** is the address used for maps. The **description** uses one item per line:
 

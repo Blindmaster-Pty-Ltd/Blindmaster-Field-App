@@ -73,6 +73,7 @@
     chart: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
     print: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H3v-8h18v8h-3M6 14h12v7H6z"/></svg>',
     user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+    planner: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17"/><path d="M3 9h18M9 9v12M15 9v12M8 2v4M16 2v4"/></svg>',
     mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
     camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     play: '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
@@ -667,7 +668,7 @@
     if (!tokenValid(s)) return renderSignIn();
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
-    if ((r.name === 'chats' || r.name === 'chat') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -677,6 +678,7 @@
     if (r.name === 'appt') return wide() ? renderDayWide(r.arg2 || todayStr(), r.arg) : renderAppointment(r.arg2 || todayStr(), r.arg);
     if (r.name === 'route') return renderRoute(r.arg || todayStr());
     if (r.name === 'team') return renderTeam(r.arg || todayStr());
+    if (r.name === 'planner') return renderPlanner(r.arg || todayStr());
     if (r.name === 'overview') return renderOverview(r.arg || 'today', r.arg2 || todayStr());
     if (!location.hash.replace(/^#\/?/, '') && isOffice()) return renderOverview('today', todayStr());
     if (r.name === 'account') return renderAccount();
@@ -703,6 +705,7 @@
     items.push(
       { key: 'day', href: '#/day' + d, icon: I.cal, label: isOffice() ? 'Schedule' : 'Today' },
       { key: 'route', href: '#/route' + d, icon: I.route, label: 'Route' });
+    if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
     items.push({ key: 'account', href: '#/account', icon: I.user, label: 'Account' });
@@ -712,6 +715,7 @@
   function tabbar(active, date) {
     var items = navItems(date);
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'account'; }); // Account stays on the avatar in the top bar
+    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
     return '<nav class="tabbar" aria-label="Main"><div class="inner" style="grid-template-columns:repeat(' + items.length + ',minmax(0,1fr))">' +
       items.map(function (t) {
         return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '><span class="pill">' + t.icon + '</span>' + t.label + '</a>';
@@ -857,7 +861,7 @@
       var meRole = (user.role === 'sales' && a.isInstall) ? ' · ' + ordinal(crewPosition(a)) + ' installer' : '';
       var who = isOffice() && a.crew.length ? '<span class="sub">' + esc(a.crew.map(function (c) { return firstName(c.name); }).join(', ')) + '</span>' : '';
       return '<li><span class="time">' + esc(a.allDay ? 'All day' : a.startLabel) + '</span>' +
-        '<a class="appt-card' + cls + '" href="' + apptHref(a, date) + '"' + (a.id === selectedId ? ' aria-current="true"' : '') + '>' +
+        '<a class="appt-card' + cls + '" href="' + apptHref(a, date) + '"' + (a.id === selectedId ? ' aria-current="true"' : '') + '>' + lightHtml(a) +
           '<span><span class="tag ' + (i === ni && !selectedId ? 'tag-blue' : tag) + '">' + esc(a.type) + esc(meRole) + '</span>' + (i === ni && isToday ? ' <span class="tag tag-light">Next</span>' : '') + '</span>' +
           '<span class="name">' + esc(a.title) + '</span>' +
           '<span class="sub">' + esc(suburb(a.address)) + (refLabel(a) ? ' · ' + esc(refLabel(a)) : '') + '</span>' + who +
@@ -898,7 +902,7 @@
   /** The appointment details, used full-screen on phones and in the right-hand pane on tablet/desktop. */
   function apptDetail(a, date, isWide) {
     var html = '<section class="hero">' +
-      '<div class="row" style="gap:8px;flex-wrap:wrap"><span class="tag tag-dark">' + esc(a.type) + '</span><span style="font-weight:700;font-size:14px">' + esc(a.allDay ? 'All day' : a.startLabel + ' – ' + a.endLabel) + '</span>' +
+      '<div class="row" style="gap:8px;flex-wrap:wrap">' + lightHtml(a) + '<span class="tag tag-dark">' + esc(a.type) + '</span>' + (a.status === 'Tentative' ? '<span class="tag tag-light">Tentative, not confirmed</span>' : '') + '<span style="font-weight:700;font-size:14px">' + esc(a.allDay ? 'All day' : a.startLabel + ' – ' + a.endLabel) + '</span>' +
         (isWide && refLabel(a) ? '<span class="small" style="font-weight:500;margin-left:auto">' + esc(refLabel(a)) + '</span>' : '') + '</div>' +
       '<h1>' + esc(a.title) + '</h1>' +
       (a.address ? '<p style="margin:0;font-weight:500">' + esc(a.address) + '</p>' : '') +
@@ -1290,6 +1294,235 @@
       document.getElementById('printSnap').onclick = function () { window.print(); };
       document.getElementById('refreshOv').onclick = function () { loadMetrics(r.from, r.to, true).then(function () { renderOverview(period, anchor); }, function (e) { showError(e, render); }); };
     }, function (err) { showError(err, function () { renderOverview(period, anchor); }); });
+  }
+
+  /* ---------- office planner (sandbox: writes straight to the calendar) ---------- */
+
+  var planner = { from: null, data: null, person: '', editing: null };
+  var APPT_TYPES = ['Sales', 'Installation', 'Check measure', 'Service call', 'Site meeting'];
+  function canSchedule() {
+    var u = state.user || {};
+    return [u.role].concat(u.roles || []).some(function (r) { return /office|admin|pm/i.test(r || ''); });
+  }
+  function weekStart(dateStr) { // Monday
+    var d = new Date(dateStr + 'T12:00:00'), wd = (d.getDay() + 6) % 7;
+    return addDays(dateStr, -wd);
+  }
+  function lightHtml(a) {
+    var t = a.status === 'Tentative';
+    return '<span class="light ' + (t ? 'is-red' : 'is-green') + '" role="img" aria-label="' + (t ? 'Not confirmed (tentative)' : 'Confirmed booking') + '" title="' + (t ? 'Not confirmed (tentative)' : 'Confirmed booking') + '"></span>';
+  }
+  function fmtHM(mins) { if (mins == null) return '–'; var h = Math.floor(mins / 60), m = Math.round(mins % 60); return h + 'h' + (m ? ' ' + String(m).padStart(2, '0') : ''); }
+  function durOf(a) { return Math.round((new Date(a.end) - new Date(a.start)) / 60000); }
+
+  function loadWeek(from, force) {
+    if (!force && planner.data && planner.data.from === from) return Promise.resolve(planner.data);
+    return api({ action: 'week', from: from }).then(function (d) { state.user = d.user; planner.data = d.week; return d.week; });
+  }
+
+  function renderPlanner(from) {
+    if (!canSchedule()) { location.hash = '#/day'; return; }
+    from = weekStart(from || todayStr());
+    planner.from = from;
+    loading('Loading the week…');
+    loadWeek(from).then(function (w) { drawPlanner(w); }, function (err) { showError(err, function () { renderPlanner(from); }); });
+  }
+
+  function drawPlanner(w) {
+    var from = w.from, days = [];
+    for (var i = 0; i < 7; i++) days.push(addDays(from, i));
+    var person = planner.person;
+    var appts = w.appointments.filter(function (a) { return !person || a.crew.some(function (c) { return c.email === person; }); });
+    var showSun = appts.some(function (a) { return a.date === days[6]; });
+    if (!showSun) days = days.slice(0, 6);
+    var label = shortDate(days[0]) + ' – ' + shortDate(days[days.length - 1]);
+    var head = '<div class="pl-head">' +
+      '<div class="stack" style="gap:2px"><h1 style="font-size:24px">Planner</h1><span class="small muted">' + esc(label) + ' · Sandbox calendar</span></div>' +
+      '<div class="pl-tools">' +
+        '<div class="pl-weeknav"><button type="button" id="plPrev" aria-label="Previous week">' + I.left + '</button><button type="button" id="plThis">This week</button><button type="button" id="plNext" aria-label="Next week">' + I.right + '</button></div>' +
+        '<label class="sr-only" for="plPerson">Show</label><select id="plPerson" class="pl-select"><option value="">Everyone</option>' +
+          w.staff.map(function (s) { return '<option value="' + esc(s.email) + '"' + (s.email === person ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select>' +
+        '<button type="button" class="btn btn-dark" id="plNew">+ New appointment</button>' +
+      '</div></div>' +
+      '<p class="pl-legend small"><span class="light is-green"></span> Confirmed booking <span class="light is-red" style="margin-left:12px"></span> Not confirmed (tentative)</p>';
+
+    var cols = days.map(function (d) {
+      var list = appts.filter(function (a) { return a.date === d; });
+      var tot = (w.days || {})[d] || { siteMin: 0, people: {} };
+      var totals;
+      if (person) {
+        var p = tot.people[person] || { siteMin: 0, travelMin: 0 };
+        var dayMin = p.siteMin + (p.travelMin || 0);
+        totals = '<span class="pl-tot' + (dayMin > 480 ? ' is-over' : '') + '">' + fmtHM(p.siteMin) + ' site + ' + fmtHM(p.travelMin) + ' travel = <b>' + fmtHM(dayMin) + '</b>' + (dayMin > 480 ? ' · over 8 h' : '') + '</span>';
+      } else {
+        totals = '<span class="pl-tot">' + list.length + (list.length === 1 ? ' appointment' : ' appointments') + (tot.siteMin ? ' · ' + fmtHM(tot.siteMin) + ' on site' : '') + '</span>';
+      }
+      return '<section class="pl-day' + (d === todayStr() ? ' is-today' : '') + '">' +
+        '<header class="pl-dayhead"><div class="spread"><b>' + esc(shortDate(d)) + '</b><span class="pl-wx" data-date="' + d + '"></span></div>' + totals + '</header>' +
+        '<div class="pl-cards">' + (list.length ? list.map(function (a) {
+          return '<button type="button" class="pl-card' + (a.status === 'Tentative' ? ' is-tentative' : '') + '" data-edit="' + esc(a.id) + '">' + lightHtml(a) +
+            '<span class="pl-time">' + esc(a.allDay ? 'All day' : a.startLabel + '–' + a.endLabel) + '</span>' +
+            '<span class="tag ' + (a.isSales ? '' : 'tag-blue') + '">' + esc(a.type) + '</span>' +
+            '<span class="pl-title">' + esc(a.title) + '</span>' +
+            '<span class="pl-sub">' + esc([suburb(a.address), refLabel(a)].filter(String).join(' · ')) + '</span>' +
+            (a.crew.length ? '<span class="pl-crew">' + a.crew.map(function (c) { return '<span class="pl-ini" title="' + esc(c.name) + '">' + esc(initials(c.name)) + '</span>'; }).join('') + '</span>' : '<span class="pl-sub" style="color:#8a3b2e">No crew assigned</span>') +
+          '</button>';
+        }).join('') : '<p class="small muted" style="margin:0;padding:4px 2px">Nothing booked</p>') +
+        '<button type="button" class="pl-add" data-add="' + d + '">+ Add</button></div></section>';
+    }).join('');
+
+    var body = '<div class="pl">' + head + '<div class="pl-grid" style="--days:' + days.length + '">' + cols + '</div></div>';
+    app.innerHTML = wide() ? shell('planner', null, body) : topbar() + '<main>' + body + '</main>' + tabbar('planner');
+    document.getElementById('plPrev').onclick = function () { location.hash = '#/planner/' + addDays(planner.from, -7); };
+    document.getElementById('plNext').onclick = function () { location.hash = '#/planner/' + addDays(planner.from, 7); };
+    document.getElementById('plThis').onclick = function () { location.hash = '#/planner'; };
+    document.getElementById('plPerson').onchange = function () { planner.person = this.value; drawPlanner(planner.data); };
+    document.getElementById('plNew').onclick = function () { openBooking(null, d0()); };
+    function d0() { var t = todayStr(); return t >= days[0] && t <= days[days.length - 1] ? t : days[0]; }
+    Array.prototype.forEach.call(app.querySelectorAll('[data-add]'), function (b) { b.onclick = function () { openBooking(null, b.getAttribute('data-add')); }; });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-edit]'), function (b) {
+      b.onclick = function () { openBooking(w.appointments.filter(function (a) { return a.id === b.getAttribute('data-edit'); })[0]); };
+    });
+    fillPlannerWeather(days);
+  }
+
+  function fillPlannerWeather(days) {
+    var first = days[0], last = days[days.length - 1];
+    if (daysAhead(last) < 0 || daysAhead(first) > 13) return;
+    var s = daysAhead(first) < 0 ? todayStr() : first, e = daysAhead(last) > 13 ? addDays(todayStr(), 13) : last;
+    wxFetch('https://api.open-meteo.com/v1/forecast?latitude=' + (CFG.WEATHER_LAT || -33.75) + '&longitude=' + (CFG.WEATHER_LON || 151.28) +
+      '&daily=weather_code,temperature_2m_max,wind_gusts_10m_max&timezone=Australia%2FSydney&start_date=' + s + '&end_date=' + e).then(function (d) {
+      planner.wx = {};
+      (d.daily.time || []).forEach(function (t, i) { planner.wx[t] = { code: d.daily.weather_code[i], max: d.daily.temperature_2m_max[i], gust: d.daily.wind_gusts_10m_max[i] }; });
+      Array.prototype.forEach.call(document.querySelectorAll('.pl-wx'), function (el) {
+        var x = planner.wx[el.getAttribute('data-date')]; if (!x) return;
+        var info = wxInfo(x.code), warn = info.storm || x.gust >= WX_LIMIT;
+        el.innerHTML = wxIcon(info.icon, info.label, 18) + '<span>' + Math.round(x.max) + '°</span>' + (warn ? '<span class="pl-warn" title="' + esc(info.storm ? 'Thunderstorms' : 'Gusts ' + Math.round(x.gust) + ' km/h') + '">' + (info.storm ? 'Storm' : 'Wind ' + Math.round(x.gust)) + '</span>' : '');
+      });
+    }).catch(function () {});
+  }
+
+  /* booking panel */
+
+  function openBooking(a, date) {
+    var w = planner.data, isNew = !a;
+    var defType = 'Installation';
+    var v = a ? {
+      id: a.id, type: APPT_TYPES.indexOf(a.type) >= 0 ? a.type : (a.isSales ? 'Sales' : 'Installation'), status: a.status || 'Confirmed',
+      date: a.date, start: a.startLabel, durationMin: durOf(a), customer: a.customer, phone: a.phone, address: a.address,
+      jr: a.jr, opp: a.opp, crew: a.crew.map(function (c) { return c.email; }), access: a.access, notes: a.notes,
+      requirements: (a.requirements || []).join('\n'), folderUrl: a.folderUrl, projectFolderUrl: a.projectFolderUrl, title: a.title
+    } : { type: defType, status: 'Tentative', date: date, start: '08:00', durationMin: 120, crew: [], title: '' };
+    planner.editing = v;
+    var durOpts = []; for (var m = 30; m <= 600; m += 30) durOpts.push(m);
+    var html = '<div class="bk-backdrop" id="bkBack"></div><aside class="bk" role="dialog" aria-modal="true" aria-labelledby="bkTitle">' +
+      '<header class="bk-head"><h2 id="bkTitle">' + (isNew ? 'New appointment' : 'Edit appointment') + '</h2><button type="button" class="bk-x" id="bkClose" aria-label="Close">' + I.x + '</button></header>' +
+      '<form class="bk-body" id="bkForm" autocomplete="off">' +
+        '<div class="field"><span class="bk-label">Type</span><div class="seg bk-types" role="radiogroup">' + APPT_TYPES.map(function (t) {
+          return '<button type="button" role="radio" data-type="' + esc(t) + '" aria-checked="' + (v.type === t) + '">' + esc(t) + '</button>'; }).join('') + '</div></div>' +
+        '<div class="field"><span class="bk-label">Booking</span><div class="seg" role="radiogroup">' +
+          '<button type="button" role="radio" data-status="Tentative" aria-checked="' + (v.status === 'Tentative') + '"><span class="light is-red"></span> Tentative</button>' +
+          '<button type="button" role="radio" data-status="Confirmed" aria-checked="' + (v.status === 'Confirmed') + '"><span class="light is-green"></span> Confirmed</button></div>' +
+          '<span class="small muted bk-hint" id="bkStatusHint"></span></div>' +
+        '<div class="bk-row3">' +
+          '<div class="field"><label for="bkDate">Date</label><input id="bkDate" type="date" required value="' + esc(v.date) + '"></div>' +
+          '<div class="field"><label for="bkStart">Start</label><input id="bkStart" type="time" step="900" required value="' + esc(v.start) + '"></div>' +
+          '<div class="field"><label for="bkDur">Length</label><select id="bkDur">' + durOpts.map(function (m) { return '<option value="' + m + '"' + (m === v.durationMin ? ' selected' : '') + '>' + fmtHM(m) + '</option>'; }).join('') +
+            (durOpts.indexOf(v.durationMin) < 0 ? '<option value="' + v.durationMin + '" selected>' + fmtHM(v.durationMin) + '</option>' : '') + '</select></div>' +
+        '</div>' +
+        '<div id="bkWx"></div>' +
+        '<div class="bk-row2">' +
+          '<div class="field"><label for="bkJr">JR number</label><input id="bkJr" inputmode="numeric" placeholder="e.g. 28874" value="' + esc(v.jr || '') + '"></div>' +
+          '<div class="field"><label for="bkOpp">OPP number</label><input id="bkOpp" inputmode="numeric" placeholder="e.g. 1042" value="' + esc(v.opp || '') + '"></div>' +
+        '</div>' +
+        '<div id="bkJrLink" class="bk-jr"></div>' +
+        '<div class="field"><label for="bkCustomer">Customer</label><input id="bkCustomer" placeholder="Name" value="' + esc(v.customer || '') + '"></div>' +
+        '<div class="bk-row2">' +
+          '<div class="field"><label for="bkPhone">Phone</label><input id="bkPhone" type="tel" value="' + esc(v.phone || '') + '"></div>' +
+          '<div class="field"><label for="bkAccess">Access</label><input id="bkAccess" placeholder="Side gate, code…" value="' + esc(v.access || '') + '"></div>' +
+        '</div>' +
+        '<div class="field"><label for="bkAddress">Site address</label><input id="bkAddress" placeholder="Street, suburb NSW postcode" value="' + esc(v.address || '') + '"></div>' +
+        '<div class="field"><span class="bk-label">Crew</span><div class="bk-crew">' + w.staff.map(function (s) {
+          return '<label class="bk-person"><input type="checkbox" value="' + esc(s.email) + '"' + (v.crew.indexOf(s.email) >= 0 ? ' checked' : '') + '><span>' + esc(s.name) + '<small>' + esc(roleLabelList(s)) + '</small></span></label>'; }).join('') +
+          (w.staff.length ? '' : '<p class="small muted" style="margin:0">Add the team to STAFF_JSON in the script settings to pick them here.</p>') +
+          '</div><span class="small bk-warn" id="bkClash"></span></div>' +
+        '<div class="field"><label for="bkReq">Job requirements <small class="muted">(one per line)</small></label><textarea id="bkReq" rows="3">' + esc(v.requirements || '') + '</textarea></div>' +
+        '<div class="field"><label for="bkNotes">Notes</label><textarea id="bkNotes" rows="2">' + esc(v.notes || '') + '</textarea></div>' +
+        '<details class="bk-more"' + (v.folderUrl || v.projectFolderUrl ? ' open' : '') + '><summary>Drive folders and title</summary>' +
+          '<div class="field"><label for="bkFolder">Opportunity folder link</label><input id="bkFolder" type="url" value="' + esc(v.folderUrl || '') + '"></div>' +
+          '<div class="field"><label for="bkProj">Project folder link</label><input id="bkProj" type="url" value="' + esc(v.projectFolderUrl || '') + '"></div>' +
+          '<div class="field"><label for="bkTitleIn">Calendar title <small class="muted">(blank: customer · type)</small></label><input id="bkTitleIn" value="' + esc(isNew ? '' : v.title || '') + '"></div>' +
+        '</details>' +
+        '<p class="notice error" id="bkErr" hidden></p>' +
+      '</form>' +
+      '<footer class="bk-foot">' + (isNew ? '' : '<button type="button" class="btn btn-outline" id="bkDelete">Delete</button>') +
+        '<button type="button" class="btn btn-sand" id="bkCancel">Cancel</button><button type="button" class="btn btn-dark" id="bkSave">' + (isNew ? 'Book' : 'Save changes') + '</button></footer>' +
+    '</aside>';
+    var host = document.createElement('div'); host.id = 'bkHost'; host.innerHTML = html; document.body.appendChild(host);
+    document.body.classList.add('bk-open');
+    var $ = function (id) { return document.getElementById(id); };
+    function close() { host.remove(); document.body.classList.remove('bk-open'); }
+    $('bkClose').onclick = $('bkCancel').onclick = $('bkBack').onclick = close;
+    host.onkeydown = function (e) { if (e.key === 'Escape') close(); };
+    function pick(sel, attr, val) { Array.prototype.forEach.call(host.querySelectorAll(sel), function (b) { b.setAttribute('aria-checked', String(b.getAttribute(attr) === val)); }); }
+    Array.prototype.forEach.call(host.querySelectorAll('[data-type]'), function (b) { b.onclick = function () { v.type = b.getAttribute('data-type'); pick('[data-type]', 'data-type', v.type); refresh(); }; });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-status]'), function (b) { b.onclick = function () { v.status = b.getAttribute('data-status'); pick('[data-status]', 'data-status', v.status); refresh(); }; });
+    ['bkDate', 'bkStart', 'bkDur', 'bkJr'].forEach(function (id) { $(id).oninput = $(id).onchange = refresh; });
+    Array.prototype.forEach.call(host.querySelectorAll('.bk-crew input'), function (c) { c.onchange = refresh; });
+
+    function refresh() {
+      // status hint
+      $('bkStatusHint').textContent = v.status === 'Tentative' ? 'Shows red in the installers\' app until it is confirmed.' : 'Shows green: the job is going ahead.';
+      // JR link, filled in from the JR number
+      var jr = $('bkJr').value.replace(/[^\d]/g, ''), tpl = w.jrFormUrl || '';
+      $('bkJrLink').innerHTML = jr && tpl ? I.report + '<span>Job report link ready: <a href="' + esc(tpl.replace('{jr}', jr).replace('{email}', '').replace('{date}', $('bkDate').value)) + '" target="_blank" rel="noopener">JR#' + esc(jr) + '</a>. The crew open it from the appointment.</span>'
+        : (jr ? '' : '<span class="small muted">Add the JR number and the job report link fills in automatically. The JR number also links the project chat.</span>');
+      // weather for the day
+      var x = planner.wx && planner.wx[$('bkDate').value], outdoor = /Installation|Service call/.test(v.type);
+      $('bkWx').innerHTML = x && (wxInfo(x.code).storm || x.gust >= WX_LIMIT) && outdoor ? wxWarning(wxInfo(x.code).storm ? 'Storms forecast this day' : 'Gusts up to ' + Math.round(x.gust) + ' km/h forecast', 'Check before booking awnings or outdoor blinds.', wxInfo(x.code).storm ? 'storm' : null) : '';
+      // crew clashes
+      var d = $('bkDate').value, st = $('bkStart').value, dur = Number($('bkDur').value);
+      var s0 = st ? Number(st.slice(0, 2)) * 60 + Number(st.slice(3, 5)) : 0, e0 = s0 + dur;
+      var crew = Array.prototype.filter.call(host.querySelectorAll('.bk-crew input'), function (c) { return c.checked; }).map(function (c) { return c.value; });
+      var clashes = [];
+      w.appointments.forEach(function (o) {
+        if (o.id === v.id || o.date !== d || o.allDay) return;
+        var s1 = Number(o.startLabel.slice(0, 2)) * 60 + Number(o.startLabel.slice(3, 5)), e1 = s1 + durOf(o);
+        if (s1 < e0 && s0 < e1) o.crew.forEach(function (c) { if (crew.indexOf(c.email) >= 0) clashes.push(firstName(c.name) + ' is booked ' + o.startLabel + '–' + o.endLabel + ' (' + o.title + ')'); });
+      });
+      $('bkClash').textContent = clashes.length ? 'Clash: ' + clashes.join('; ') : '';
+    }
+    refresh();
+    setTimeout(function () { $('bkCustomer').focus(); }, 50);
+
+    $('bkSave').onclick = function () {
+      var appt = {
+        id: v.id || '', type: v.type, status: v.status, date: $('bkDate').value, start: $('bkStart').value, durationMin: Number($('bkDur').value),
+        jr: $('bkJr').value, opp: $('bkOpp').value, customer: $('bkCustomer').value.trim(), phone: $('bkPhone').value.trim(), access: $('bkAccess').value.trim(),
+        address: $('bkAddress').value.trim(), notes: $('bkNotes').value.trim(), requirements: $('bkReq').value, folderUrl: $('bkFolder').value.trim(),
+        projectFolderUrl: $('bkProj').value.trim(), title: $('bkTitleIn').value.trim(),
+        crew: Array.prototype.filter.call(host.querySelectorAll('.bk-crew input'), function (c) { return c.checked; }).map(function (c) { return c.value; })
+      };
+      var err = !appt.date || !appt.start ? 'Choose a date and start time.' : !appt.customer && !appt.title ? 'Add the customer name.' : '';
+      if (err) { $('bkErr').textContent = err; $('bkErr').hidden = false; return; }
+      $('bkSave').disabled = true; $('bkSave').textContent = 'Saving…';
+      apiPost({ action: 'saveAppt', appt: appt }).then(function () {
+        close(); afterBookingChange([v.date, appt.date]);
+      }, function (e) { $('bkSave').disabled = false; $('bkSave').textContent = isNew ? 'Book' : 'Save changes'; $('bkErr').textContent = e.message; $('bkErr').hidden = false; });
+    };
+    if ($('bkDelete')) $('bkDelete').onclick = function () {
+      if (!confirm('Delete this appointment? It will disappear from the crew\'s app.')) return;
+      $('bkDelete').disabled = true;
+      apiPost({ action: 'deleteAppt', id: v.id }).then(function () { close(); afterBookingChange([v.date]); }, function (e) { $('bkDelete').disabled = false; $('bkErr').textContent = e.message; $('bkErr').hidden = false; });
+    };
+  }
+  function roleLabelList(s) {
+    var r = (s.roles && s.roles.length ? s.roles : [s.role]).map(function (x) { return { office: 'Office', pm: 'PM', installer: 'Installer', sales: 'Sales', warehouse: 'Warehouse', marketing: 'Marketing', admin: 'Admin' }[x] || x; });
+    return r.join(' · ');
+  }
+  function afterBookingChange(dates) {
+    dates.forEach(function (d) { if (d) { delete state.cache[d]; unstore('fa-day-' + d); } });
+    loadWeek(planner.from, true).then(drawPlanner, function (e) { showError(e, function () { renderPlanner(planner.from); }); });
   }
 
   /* ---------- account ---------- */
