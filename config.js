@@ -1,7 +1,7 @@
 // Field app settings. Edit these after setting up the sandbox (see README).
 window.FIELD_APP_CONFIG = {
   // Sandbox Apps Script web app URL (ends in /exec)
-  API_URL: 'PASTE_YOUR_SANDBOX_EXEC_URL_HERE',
+  API_URL: 'https://script.google.com/macros/s/AKfycby8NMk1Bs9bwDznUcBFfhYP5kr2JkDIDi2_Oe8kHKwl2ZFJxBfRrTaCS3n-is8HAkGwnA/exec',
 
   // Google OAuth web client ID for "Sign in with Google"
   // Leave blank to use email-only test sign-in (needs ALLOW_DEV_LOGIN=true in the script)
