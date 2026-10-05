@@ -1,0 +1,85 @@
+rules_version = '2';
+
+// BM Project Chat: Firestore access rules
+// Paste into Firebase console › Firestore Database › Rules, then Publish.
+//
+// Who can do what:
+//  · Anyone signed in with a verified Google account that is listed in /staff (active) is "staff".
+//    The staff list is the gatekeeper: Blindmaster accounts and contractors' own accounts (e.g. Owen's Gmail) both work.
+//  · Office (role "office" or "admin", in `role` or the `roles` list): read and post in every project chat, manage staff and projects.
+//  · Installers / PM / sales: read and post only in projects where their email is in memberEmails.
+//  · Nobody can delete or edit a message. Important messages can only be marked "sorted".
+//  · Server scripts (the JR / DIR Apps Scripts) write with Google credentials and are not limited by these rules.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
+    }
+    function me() { return request.auth.token.email.lower(); }
+    function staffPath() { return /databases/$(database)/documents/staff/$(me()); }
+    function isStaff() {
+      return signedIn() && exists(staffPath()) && get(staffPath()).data.get('active', true) == true;
+    }
+    // role can be a single "role" field and/or a "roles" list, e.g. ["installer", "pm", "sales"]
+    function hasRole(list) {
+      return get(staffPath()).data.get('role', '') in list
+        || get(staffPath()).data.get('roles', []).hasAny(list);
+    }
+    function isOffice() { return isStaff() && hasRole(['office', 'admin']); }
+    function isMember(projectKey) {
+      return isStaff()
+        && me() in get(/databases/$(database)/documents/projects/$(projectKey)).data.get('memberEmails', []);
+    }
+
+    // Staff list: email (lower case) → { name, role, active }
+    match /staff/{email} {
+      allow read: if isStaff();
+      allow write: if isOffice();
+    }
+
+    // JR number → project key lookup
+    match /jrIndex/{jr} {
+      allow read: if isStaff();
+      allow write: if isOffice();
+    }
+
+    match /projects/{projectKey} {
+      allow read: if isOffice() || (isStaff() && me() in resource.data.get('memberEmails', []));
+      allow create, delete: if isOffice();
+      // Members may only refresh the summary fields shown in chat lists
+      allow update: if isOffice()
+        || (isMember(projectKey)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['lastMessage', 'updatedAt', 'openImportantCount']));
+
+      match /messages/{messageId} {
+        allow read: if isOffice() || isMember(projectKey);
+
+        allow create: if (isOffice() || isMember(projectKey))
+          && request.resource.data.authorEmail == me()
+          && request.resource.data.kind in ['message', 'note', 'important']
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 4000
+          && (request.resource.data.kind != 'important' || request.resource.data.status == 'open');
+
+        // The only change allowed: marking an Important message as sorted
+        allow update: if (isOffice() || isMember(projectKey))
+          && resource.data.kind == 'important'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'sortedBy', 'sortedAt'])
+          && request.resource.data.status == 'sorted'
+          && request.resource.data.sortedBy == me();
+
+        allow delete: if false;
+      }
+
+      // Per-person "last read" marker for unread counts
+      match /reads/{email} {
+        allow read, write: if isStaff() && email == me() && (isOffice() || isMember(projectKey));
+      }
+    }
+  }
+}
