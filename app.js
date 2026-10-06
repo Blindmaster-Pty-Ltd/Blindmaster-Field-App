@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '10'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '14'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -93,6 +93,10 @@
     camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     play: '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+    doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
+    grid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
+    video: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12"/><path d="M16 10l5-3v10l-5-3z"/></svg>',
     report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg>'
   };
 
@@ -701,6 +705,8 @@
     if (r.name === 'overview') return renderOverview(r.arg || 'today', r.arg2 || todayStr());
     if (!location.hash.replace(/^#\/?/, '') && isOffice()) return renderOverview('today', todayStr());
     if (r.name === 'account') return renderAccount();
+    if (r.name === 'collateral' && r.arg) return renderCollateral(r.arg, r.arg2 || todayStr());
+    if (r.name === 'receipts') return renderReceipts(r.arg);
     var date = r.name === 'day' && r.arg ? r.arg : todayStr();
     return wide() ? renderDayWide(date, null) : renderDay(date);
   }
@@ -727,6 +733,7 @@
     if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
+    items.push({ key: 'receipts', href: '#/receipts', icon: I.receipt, label: 'Receipts' });
     items.push({ key: 'account', href: '#/account', icon: I.user, label: 'Account' });
     return items;
   }
@@ -735,6 +742,7 @@
     var items = navItems(date);
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'account'; }); // Account stays on the avatar in the top bar
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
+    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'receipts'; }); // office phones: receipts are on the Account page
     return '<nav class="tabbar" aria-label="Main"><div class="inner" style="grid-template-columns:repeat(' + items.length + ',minmax(0,1fr))">' +
       items.map(function (t) {
         return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '><span class="pill">' + t.icon + '</span>' + t.label + '</a>';
@@ -952,6 +960,8 @@
     if (a.crew.length) info += '<section class="section stack" style="gap:8px"><span class="small muted" style="font-weight:700">Crew</span><div class="chips">' + a.crew.map(function (c, i) { return '<span class="tag" style="padding:6px 12px;font-size:13px">' + esc(c.name) + (c.me ? ' (you)' : '') + (a.isInstall && a.crew.length > 2 && i >= 2 ? ' · ' + ordinal(i + 1) : '') + '</span>'; }).join('') + '</div></section>';
     info += chatLink(a);
     var folders = '';
+    if (a.projectFolderUrl || a.folderUrl) folders += '<a class="linkrow" href="#/collateral/' + encodeURIComponent(a.id) + '/' + date + '">' + I.grid +
+      '<span class="text"><b>Collateral</b><span>Photos, sketches, quotes and documents for this job</span></span>' + I.right + '</a>';
     if (a.projectFolderUrl) folders += linkRow(a.projectFolderUrl, I.folder, 'Project folder', a.jr ? 'Project ' + a.jr : 'Google Drive');
     if (a.folderUrl) folders += linkRow(a.folderUrl, I.folder, 'Opportunity folder', a.opp ? 'OPP-' + a.opp + ' · Collateral and project' : 'Google Drive');
     if (folders) info += '<section class="section stack" style="gap:8px"><h2 style="margin-bottom:4px">Files</h2>' + folders + '</section>';
@@ -1580,6 +1590,244 @@
     });
   }
 
+  /* ---------- collateral (design no. 5) ---------- */
+
+  function renderCollateral(id, date) {
+    loading('Loading collateral…');
+    var back = '#/appt/' + encodeURIComponent(id) + '/' + date;
+    api({ action: 'collateral', id: id, date: date }).then(function (d) {
+      var c = d.collateral, a = c.appointment;
+      var photos = c.files.filter(function (f) { return f.kind === 'photo'; });
+      var videos = c.files.filter(function (f) { return f.kind === 'video' || f.kind === 'audio'; });
+      var docs = c.files.filter(function (f) { return ['photo', 'video', 'audio'].indexOf(f.kind) < 0; });
+      var kindLabel = { pdf: 'PDF', sheet: 'Spreadsheet', doc: 'Document', slides: 'Slides', other: 'File' };
+      function short(folder) { var parts = String(folder).split(' › '); return parts.length > 1 ? parts.slice(1).join(' › ') : parts[0]; }
+      function fileRow(f) {
+        return '<a class="linkrow" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + (f.kind === 'video' ? I.video : I.doc) +
+          '<span class="text"><b>' + esc(f.name) + '</b><span>' + esc((kindLabel[f.kind] || (f.kind === 'video' ? 'Video' : 'Audio')) + ' · ' + short(f.folder) + ' · ' + shortDate(f.updated)) + '</span></span>' + I.ext + '</a>';
+      }
+      var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc([a.type, a.jr ? 'JR#' + a.jr : '', a.opp ? 'OPP-' + a.opp : ''].filter(String).join(' · ')) + '</span>' +
+        '<h1>Collateral</h1><p style="margin:0;font-weight:500">' + esc(a.title) + '</p></section>';
+      if (c.problems.length) body += '<p class="notice" style="margin:16px 20px 0">' + esc(c.problems.join(' ')) + '</p>';
+      var tab = state.colTab === 'add' && c.destinations && c.destinations.length ? 'add' : 'files';
+      if (c.sources.length) body += '<div class="col-tabs" role="tablist">' +
+        '<button type="button" role="tab" data-tab="files" aria-selected="' + (tab === 'files') + '">Files</button>' +
+        '<button type="button" role="tab" data-tab="add" aria-selected="' + (tab === 'add') + '"' + (c.destinations && c.destinations.length ? '' : ' disabled') + '>Add collateral</button></div>';
+      if (c.sources.length) {
+        var dests = c.destinations || [];
+        var defDest = state.colDest && dests.some(function (x) { return x.id === state.colDest; }) ? state.colDest : (dests[0] && dests[0].id);
+        body += '<section class="section stack col-add" id="colAdd"' + (tab === 'add' ? '' : ' hidden') + ' style="gap:14px;max-width:640px">' +
+          '<div class="field"><label for="colDest">Save to</label><select id="colDest">' + dests.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === defDest ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select></div>' +
+          '<label class="col-drop" id="colDrop" for="colFile" tabindex="0">' + I.folder + '<b>' + (wide() ? 'Drag files here, or click to choose' : 'Choose files') + '</b>' +
+            '<span class="small muted">Photos, videos, PDFs, quotes, drawings: any file up to 30 MB. ' + (wide() ? '' : 'From your photos, camera or files.') + '</span></label>' +
+          '<input type="file" id="colFile" multiple hidden>' +
+          '<ul class="col-queue" id="colQueue"></ul></section>';
+      }
+      body += '<div id="colFiles"' + (tab === 'files' ? '' : ' hidden') + '>';
+      if (!c.sources.length) {
+        body += '<div class="empty stack"><h2>No Drive folders on this appointment</h2><p class="muted" style="margin:0">Add the project or opportunity folder link to the appointment (Planner › edit › Drive folders).</p></div>';
+      } else {
+        body += '<section class="section stack" style="gap:8px"><h2>Documents' + (docs.length ? ' · ' + docs.length : '') + '</h2>' +
+          (docs.length ? docs.map(fileRow).join('') : '<p class="muted small" style="margin:0">No documents in the folders yet.</p>') + '</section>';
+        body += '<section class="section stack" style="gap:10px"><h2>Photos' + (photos.length ? ' · ' + photos.length : '') + '</h2>' +
+          (photos.length ? '<div class="col-grid">' + photos.map(function (f) {
+            return '<a class="col-photo" href="' + esc(f.url) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '">' +
+              (f.thumb ? '<img src="' + esc(f.thumb) + '" alt="' + esc(f.name) + '" loading="lazy">' : '<span>' + esc(f.name) + '</span>') +
+              '<small>' + esc(short(f.folder)) + '</small></a>';
+          }).join('') + '</div>' : '<p class="muted small" style="margin:0">No photos yet.</p>') + '</section>';
+        if (videos.length) body += '<section class="section stack" style="gap:8px"><h2>Videos and voice notes · ' + videos.length + '</h2>' + videos.map(fileRow).join('') + '</section>';
+        if (c.truncated) body += '<p class="small muted" style="margin:12px 20px 0">Showing the first ' + c.files.length + ' files. Open the folder in Drive to see everything.</p>';
+        body += '<section class="section stack" style="gap:8px"><h2>NetSuite</h2><p class="small muted" style="margin:0">Order confirmations, signed quotes and files attached in NetSuite will show here once NetSuite is connected.</p></section>';
+        body += '<section class="section stack" style="gap:8px">' + c.sources.map(function (s) { return linkRow(s.url, I.folder, 'Open ' + s.label.toLowerCase() + ' in Drive', s.name); }).join('') + '</section>';
+      }
+      body += '</div><div style="height:32px"></div>';
+      if (wide()) app.innerHTML = shell('day', date, '<div class="pane-solo"><a class="back-link" href="' + back + '">' + I.left + 'Back to appointment</a>' + body + '</div>');
+      else app.innerHTML = topbar({ back: back, backLabel: 'Job', right: a.jr ? 'JR#' + a.jr : '' }) + '<main>' + body + '</main>';
+      window.scrollTo(0, 0);
+      bindCollateralUpload(id, date);
+    }, function (err) { showError(err, function () { renderCollateral(id, date); }); });
+  }
+
+  var COL_MAX_BYTES = 30 * 1024 * 1024;
+  function bindCollateralUpload(id, date) {
+    Array.prototype.forEach.call(document.querySelectorAll('.col-tabs button'), function (b) {
+      b.onclick = function () {
+        state.colTab = b.getAttribute('data-tab');
+        Array.prototype.forEach.call(document.querySelectorAll('.col-tabs button'), function (x) { x.setAttribute('aria-selected', String(x === b)); });
+        document.getElementById('colAdd').hidden = state.colTab !== 'add';
+        document.getElementById('colFiles').hidden = state.colTab === 'add';
+      };
+    });
+    var input = document.getElementById('colFile'), drop = document.getElementById('colDrop'), sel = document.getElementById('colDest'), queue = document.getElementById('colQueue');
+    if (!input) return;
+    sel.onchange = function () { state.colDest = sel.value; };
+    var busy = 0, done = 0;
+    function addFiles(list) {
+      Array.prototype.forEach.call(list, function (f) {
+        var li = document.createElement('li');
+        li.innerHTML = '<span class="col-q-name"></span><span class="col-q-state small"></span>';
+        li.querySelector('.col-q-name').textContent = f.name + ' · ' + fmtSize(f.size);
+        var st = li.querySelector('.col-q-state');
+        queue.insertBefore(li, queue.firstChild);
+        if (f.size > COL_MAX_BYTES) { st.textContent = 'Too big (over 30 MB). Add it in Drive instead.'; li.className = 'is-bad'; return; }
+        var dest = sel.value, destLabel = sel.options[sel.selectedIndex].text;
+        st.textContent = 'Waiting…';
+        chain = chain.then(function () {
+          busy++; st.textContent = 'Uploading…'; li.className = 'is-busy';
+          return toBase64(f).then(function (b64) {
+            return apiPost({ action: 'collateralUpload', id: id, date: date, dest: dest, name: f.name, mime: f.type || 'application/octet-stream', data: b64 });
+          }).then(function () { st.textContent = 'Saved to ' + destLabel; li.className = 'is-ok'; done++; },
+            function (e) { st.textContent = 'Not saved: ' + (e.message || 'upload failed') + '. Try again.'; li.className = 'is-bad'; })
+            .then(function () { busy--; if (!busy && done) markStale(); });
+        });
+      });
+    }
+    var chain = Promise.resolve();
+    function markStale() {
+      if (document.getElementById('colRefresh')) return;
+      var b = document.createElement('button'); b.type = 'button'; b.id = 'colRefresh'; b.className = 'btn btn-sand'; b.textContent = 'Done: show files';
+      b.onclick = function () { state.colTab = 'files'; renderCollateral(id, date); };
+      queue.parentNode.appendChild(b);
+    }
+    input.onchange = function () { if (input.files && input.files.length) addFiles(input.files); input.value = ''; };
+    drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+    ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('is-over'); }); });
+    ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('is-over'); }); });
+    drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+  }
+
+  /* ---------- receipts (design no. 8) ---------- */
+
+  var rcForm = { photo: null, amount: '', purpose: '', paidWith: '', job: '', date: '', scanNote: '' };
+
+  function money(n) { return '$' + Number(n || 0).toFixed(2); }
+
+  function renderReceipts(month) {
+    loading('Loading receipts…');
+    var today = todayStr();
+    Promise.all([api({ action: 'receipts', month: month || today.slice(0, 7) }), loadDay(today).catch(function () { return { appointments: [] }; })]).then(function (res) {
+      var d = res[0], appts = (res[1].appointments || []).filter(function (a) { return a.jr; });
+      state.user = d.user || state.user;
+      rcCache = { d: d, appts: appts };
+      drawReceipts(d, appts);
+    }, function (err) { showError(err, function () { renderReceipts(month); }); });
+  }
+
+  var rcCache = null;
+  function drawReceipts(d, appts) {
+    var today = todayStr();
+    (function () {
+      var list = d.receipts, total = 0, own = 0;
+      list.forEach(function (r) { total += r.amount; if (r.paidWith === 'Personally paid') own += r.amount; });
+      var monthLabel = new Date(d.month + '-01T12:00:00').toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+      if (!rcForm.date) rcForm.date = today;
+
+      var body = '<section class="hero rc-hero"><span class="small" style="font-weight:700">' + esc(monthLabel) + (d.locked ? ' · sent to accounts' : '') + '</span><h1>My work receipts</h1>' +
+        '<div class="rc-stats"><div><b>' + list.length + '</b><span>receipts</span></div><div><b>' + money(total) + '</b><span>total spend</span></div><div><b>' + money(own) + '</b><span>to reimburse</span></div></div></section>';
+
+      body += '<section class="section stack" style="gap:8px">' + (list.length ? list.map(function (r) {
+        return '<div class="rc-item"><span class="rc-icon">' + I.receipt + '</span><span class="rc-text"><b>' + esc(r.purpose) + '</b><span>' +
+          esc(shortDate(r.date) + ' · ' + (r.paidWith === 'Personally paid' ? 'Paid myself' : 'Work card') + ' · ' + r.job) + '</span></span>' +
+          '<b class="rc-amt">' + money(r.amount) + '</b>' +
+          (r.photoUrl ? '<a class="icon-btn" href="' + esc(r.photoUrl) + '" target="_blank" rel="noopener" aria-label="Open receipt photo">' + I.ext + '</a>' : '') +
+          (d.locked ? '' : '<button type="button" class="icon-btn rc-del" data-id="' + esc(r.id) + '" data-date="' + esc(r.date) + '" aria-label="Remove receipt: ' + esc(r.purpose) + '">' + I.x + '</button>') + '</div>';
+      }).join('') : '<p class="muted small" style="margin:0">No receipts yet this month.</p>') + '</section>';
+
+      var jobOpts = '<option value="">General / van</option>' + appts.map(function (a) {
+        return '<option value="' + esc(a.id) + '"' + (rcForm.job === a.id ? ' selected' : '') + '>JR#' + esc(a.jr) + ' · ' + esc(a.title) + '</option>';
+      }).join('');
+      body += '<section class="section stack rc-form" style="gap:16px;max-width:560px"><h2>Add a receipt</h2>' +
+        '<div class="field"><span class="lbl">Receipt photo <span class="req">*</span></span>' +
+          (rcForm.photo
+            ? '<div class="rc-photo">' + (rcForm.photo.thumb ? '<img src="' + rcForm.photo.thumb + '" alt="Receipt photo">' : '<span class="rc-pdf">PDF</span>') +
+              '<span class="stack" style="gap:2px;flex:1"><b>Photo added</b><span class="small muted" id="rcScan">' + esc(rcForm.scanNote) + '</span></span>' +
+              '<button type="button" class="btn btn-sand" id="rcRetake">Retake</button></div>'
+            : '<label class="rc-take" for="rcFile">' + I.camera + '<span>Take photo of receipt</span></label>') +
+          '<input type="file" id="rcFile" accept="image/*,application/pdf" hidden></div>' +
+        '<div class="field"><label for="rcAmount">Amount, inc. GST <span class="req">*</span></label><input id="rcAmount" inputmode="decimal" placeholder="0.00" value="' + esc(rcForm.amount) + '"></div>' +
+        '<div class="field"><label for="rcPurpose">What was it for <span class="req">*</span></label><input id="rcPurpose" placeholder="e.g. fixings from Bunnings, fuel, parking in Mosman" value="' + esc(rcForm.purpose) + '"></div>' +
+        '<div class="field"><label for="rcPaid">Paid with <span class="req">*</span></label><select id="rcPaid"><option value="">Choose</option>' +
+          '<option value="Work credit card"' + (rcForm.paidWith === 'Work credit card' ? ' selected' : '') + '>Work credit card</option>' +
+          '<option value="Personally paid"' + (rcForm.paidWith === 'Personally paid' ? ' selected' : '') + '>Paid myself, reimburse me</option></select></div>' +
+        '<div class="field"><label for="rcJob">Job</label><select id="rcJob">' + jobOpts + '</select><span class="small muted">Today\'s jobs. A copy of the photo is saved in that job\'s folder.</span></div>' +
+        '<div class="field"><label for="rcDate">Date on the receipt</label><input id="rcDate" type="date" max="' + today + '" value="' + esc(rcForm.date) + '"></div>' +
+        '<p class="notice error" id="rcErr" role="alert" hidden></p>' +
+        '<button type="button" class="btn btn-dark btn-lg" id="rcAdd">Add receipt</button>' +
+        '<span class="small muted">Saved straight away to the receipts sheet. Accounts get the month\'s receipts on the 1st.</span></section>';
+
+      body += '<div style="height:32px"></div>';
+      app.innerHTML = wide() ? shell('receipts', null, '<div class="pane-solo">' + body + '</div>') : topbar() + '<main>' + body + '</main>' + tabbar('receipts');
+      bindReceipts(appts);
+    })();
+  }
+
+  function bindReceipts(appts) {
+    function keep() {
+      ['Amount', 'Purpose', 'Paid', 'Job', 'Date'].forEach(function (k) { var el = document.getElementById('rc' + k); if (el) rcForm[{ Amount: 'amount', Purpose: 'purpose', Paid: 'paidWith', Job: 'job', Date: 'date' }[k]] = el.value; });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.rc-form input, .rc-form select'), function (el) { el.addEventListener('input', keep); el.addEventListener('change', keep); });
+    var file = document.getElementById('rcFile');
+    var take = document.querySelector('.rc-take');
+    var retake = document.getElementById('rcRetake');
+    if (retake) retake.onclick = function () { file.click(); };
+    file.onchange = function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      keep();
+      var isPdf = /pdf/.test(f.type);
+      (isPdf ? Promise.resolve({ blob: f, thumb: '' }) : shrinkImage(f)).then(function (img) {
+        return toBase64(img.blob).then(function (b64) {
+          rcForm.photo = { data: b64, mime: isPdf ? 'application/pdf' : 'image/jpeg', thumb: img.thumb };
+          rcForm.scanNote = isPdf ? 'Type in the total from the receipt.' : 'Reading the total from the receipt…';
+          renderReceiptsKeepScroll();
+          if (isPdf) return;
+          apiPost({ action: 'receiptScan', data: b64, mime: 'image/jpeg' }).then(function (r) {
+            if (!rcForm.photo || rcForm.photo.data !== b64) return;
+            if (r.found) {
+              if (!rcForm.amount) { rcForm.amount = r.amount; rcForm.scanNote = 'Amount read from the photo. Check it matches the receipt.'; }
+              else rcForm.scanNote = Number(rcForm.amount) === Number(r.amount) ? 'Matches the receipt total.' : 'The receipt looks like $' + r.amount + ', but $' + rcForm.amount + ' is entered. Check which is right.';
+            } else rcForm.scanNote = 'Couldn\'t read the total' + (r.error ? ' (' + r.error + ')' : '') + '. Please type it in.';
+            var a = document.getElementById('rcAmount'); if (a && !a.value) a.value = rcForm.amount;
+            var n = document.getElementById('rcScan'); if (n) n.textContent = rcForm.scanNote;
+          }, function () { var n = document.getElementById('rcScan'); rcForm.scanNote = 'Couldn\'t read the total. Please type it in.'; if (n) n.textContent = rcForm.scanNote; });
+        });
+      }, function () { alert('That photo couldn\'t be read. Try taking it again.'); });
+    };
+    if (take) take.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+    if (take) take.setAttribute('tabindex', '0');
+
+    document.getElementById('rcAdd').onclick = function () {
+      keep();
+      var err = document.getElementById('rcErr'), btn = this;
+      var miss = [];
+      if (!rcForm.photo) miss.push('a photo');
+      if (!(Number(String(rcForm.amount).replace(/[^\d.]/g, '')) > 0)) miss.push('the amount');
+      if (!rcForm.purpose.trim()) miss.push('what it was for');
+      if (!rcForm.paidWith) miss.push('how it was paid');
+      if (miss.length) { err.textContent = 'Add ' + miss.join(', ').replace(/, ([^,]*)$/, ' and $1') + '.'; err.hidden = false; return; }
+      var a = appts.filter(function (x) { return x.id === rcForm.job; })[0];
+      btn.disabled = true; btn.textContent = 'Saving…'; err.hidden = true;
+      apiPost({ action: 'receiptAdd', data: rcForm.photo.data, mime: rcForm.photo.mime, amount: rcForm.amount, purpose: rcForm.purpose.trim(), paidWith: rcForm.paidWith,
+        date: rcForm.date, jr: a ? a.jr : '', client: a ? a.title + (a.address ? ', ' + a.address : '') : '', projectFolderUrl: a ? a.projectFolderUrl : '' })
+        .then(function () {
+          var keepDate = rcForm.date;
+          rcForm = { photo: null, amount: '', purpose: '', paidWith: '', job: '', date: keepDate, scanNote: '' };
+          renderReceipts();
+        }, function (e) { btn.disabled = false; btn.textContent = 'Add receipt'; err.textContent = e.message || 'Couldn\'t save the receipt. Try again.'; err.hidden = false; });
+    };
+
+    Array.prototype.forEach.call(document.querySelectorAll('.rc-del'), function (b) {
+      b.onclick = function () {
+        if (!confirm('Remove this receipt?')) return;
+        b.disabled = true;
+        apiPost({ action: 'receiptDelete', id: b.getAttribute('data-id'), date: b.getAttribute('data-date') }).then(function () { renderReceipts(); },
+          function (e) { b.disabled = false; alert(e.message || 'Couldn\'t remove it.'); });
+      };
+    });
+  }
+
+  function renderReceiptsKeepScroll() { var y = window.scrollY; if (rcCache) drawReceipts(rcCache.d, rcCache.appts); else renderReceipts(); window.scrollTo(0, y); }
+
   /* ---------- account ---------- */
 
   function renderAccount() {
@@ -1589,6 +1837,7 @@
         '<div class="stack" style="gap:2px"><h2>' + esc(u.name || '') + '</h2><span class="small muted">' + esc(u.email || '') + '</span></div></div>' +
         (u.role ? '<span class="tag" style="align-self:flex-start">' + esc(roleLabel(u.role)) + '</span>' : '') +
         (CFG.ENVIRONMENT ? '<p class="notice" style="margin:0">You are using the <b>' + esc(CFG.ENVIRONMENT) + '</b> version. Appointments here are test data.</p>' : '') +
+        '<a class="btn btn-sand btn-lg" href="#/receipts">' + I.receipt + 'My work receipts</a>' +
         '<button class="btn btn-outline btn-lg" id="signout">Sign out</button>' +
         '<p class="small muted" style="margin:0">App version ' + APP_VERSION + '</p>' +
         '<p class="small muted" style="margin:0">Add this app to your home screen: in Safari tap Share, then Add to Home Screen. In Chrome tap the menu, then Install app.</p>' +

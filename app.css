@@ -476,3 +476,42 @@ body.mode-desktop .pl-grid { grid-template-columns: repeat(var(--days, 6), minma
 .rep-banner.is-warn { background: #F6E3DF; }
 .rep-banner.is-todo { background: var(--sandstone); }
 .pane-detail .rep-banner { margin: 0 24px 16px; }
+
+/* collateral (no. 5) and receipts (no. 8) */
+.pane-solo { max-width: 860px; }
+.back-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 8px 20px 0; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 14px; }
+.icon-btn { width: 44px; height: 44px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--ink); cursor: pointer; text-decoration: none; }
+.col-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.col-photo { position: relative; display: flex; align-items: center; justify-content: center; height: 128px; background: var(--sandstone); overflow: hidden; text-decoration: none; color: var(--ink); font-size: 12px; text-align: center; }
+.col-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.col-photo span { padding: 8px; overflow-wrap: anywhere; }
+.col-photo small { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px; background: rgba(64,65,65,.82); color: var(--natural-white); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.rc-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 6px; }
+.rc-stats div { display: flex; flex-direction: column; gap: 2px; }
+.rc-stats b { font-size: 22px; line-height: 1.1; }
+.rc-stats span { font-size: 12px; font-weight: 500; }
+.rc-item { display: flex; align-items: center; gap: 10px; padding: 8px 4px 8px 10px; background: var(--sandstone); }
+.rc-icon { width: 40px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--natural-white); }
+.rc-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rc-text b { font-size: 15px; overflow-wrap: anywhere; }
+.rc-text span { font-size: 12px; color: var(--ink-muted); }
+.rc-amt { font-size: 15px; white-space: nowrap; }
+.rc-form .lbl { font-size: 13px; font-weight: 700; }
+.rc-form select, .rc-form input[type=date] { min-height: 48px; padding: 0 12px; border: 0; background: var(--sandstone); font-size: 16px; font-family: inherit; color: var(--ink); }
+.rc-take { min-height: 120px; border: 2px dashed var(--monument-grey); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; cursor: pointer; }
+.rc-photo { display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--sandstone); }
+.rc-photo img, .rc-pdf { width: 64px; height: 84px; object-fit: cover; flex-shrink: 0; background: var(--natural-white); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.req { color: inherit; }
+.col-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 16px 20px 0; border: 2px solid var(--monument-grey); }
+.col-tabs button { min-height: 44px; border: 0; background: var(--natural-white); color: var(--ink); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+.col-tabs button[aria-selected="true"] { background: var(--monument-grey); color: var(--natural-white); }
+.col-tabs button:disabled { opacity: .5; cursor: default; }
+.col-add select { min-height: 48px; padding: 0 12px; border: 0; background: var(--sandstone); font-size: 16px; font-family: inherit; color: var(--ink); }
+.col-drop { min-height: 150px; border: 2px dashed var(--monument-grey); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; cursor: pointer; }
+.col-drop.is-over { background: var(--pastel-blue); border-style: solid; }
+.col-queue { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.col-queue li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--sandstone); border-left: 4px solid var(--sandstone); }
+.col-queue li.is-busy { border-left-color: var(--pastel-blue); }
+.col-queue li.is-ok { border-left-color: #2E7D4F; }
+.col-queue li.is-bad { border-left-color: #B3261E; }
+.col-q-name { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
