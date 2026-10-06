@@ -116,6 +116,13 @@ h2 { margin: 0; font-size: 18px; font-weight: 700; }
 .signin .plate { background: var(--monument-grey); color: var(--natural-white); padding: calc(48px + env(safe-area-inset-top, 0px)) 24px 32px; display: flex; flex-direction: column; gap: 32px; }
 .signin .plate img { height: 16px; width: auto; align-self: flex-start; }
 .signin .band { height: 16px; background: var(--pastel-blue); }
+.signin .si-hero { position: relative; height: 360px; flex-shrink: 0; background: var(--monument-grey); }
+.signin .hero-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.signin .hero-bar { position: absolute; left: 0; right: 0; bottom: 0; background: var(--monument-grey); color: var(--natural-white); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+.signin .hero-bar img { width: 126px; height: auto; display: block; }
+.signin .hero-bar span { font-size: 12px; font-weight: 500; }
+.signin h1 { font-size: 28px; line-height: 1.15; margin: 0; }
+@media (max-height: 700px) { .signin .si-hero { height: 260px; } }
 .signin .body { flex: 1; padding: 32px 24px; display: flex; flex-direction: column; gap: 20px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 13px; font-weight: 700; }
@@ -196,6 +203,7 @@ body.mode-desktop .team-head .section, body.mode-desktop .team-head .daybar { pa
 body.mode-tablet .signin, body.mode-desktop .signin { align-items: center; justify-content: center; padding: 32px; background: var(--sandstone); }
 body.mode-tablet .signin-card, body.mode-desktop .signin-card { flex: none; width: 100%; max-width: 480px; background: var(--natural-white); }
 body.mode-tablet .signin .plate, body.mode-desktop .signin .plate { padding-top: 40px; }
+body.mode-tablet .signin .si-hero, body.mode-desktop .signin .si-hero { height: 300px; }
 
 /* iPad portrait: narrower list, actions in two rows */
 @media (max-width: 1023px) {
@@ -457,3 +465,14 @@ body.mode-desktop .pl-grid { grid-template-columns: repeat(var(--days, 6), minma
 .att-open svg { width: 16px; height: 16px; }
 .attention li:has(.att-link) { grid-template-columns: 120px 1fr auto auto; }
 @media (max-width: 767px) { .attention li:has(.att-link) { grid-template-columns: 1fr auto; } .attention li:has(.att-link) .att-open { grid-column: 1 / -1; } }
+
+/* job report status */
+.rep-ok, .rep-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; }
+.rep-ok svg { width: 14px; height: 14px; }
+.rep-warn { color: #8a3b2e; }
+.appt-card.is-next .rep-warn, .appt-card.is-selected .rep-warn { color: #F2B8AE; }
+.rep-banner { display: flex; align-items: center; gap: 10px; margin: 0 16px 16px; padding: 12px 14px; font-size: 14px; }
+.rep-banner.is-ok { background: #E3F0E8; }
+.rep-banner.is-warn { background: #F6E3DF; }
+.rep-banner.is-todo { background: var(--sandstone); }
+.pane-detail .rep-banner { margin: 0 24px 16px; }

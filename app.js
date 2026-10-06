@@ -10,6 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
+  var APP_VERSION = '10'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -49,13 +50,19 @@
   function ordinal(n) { return n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'); }
   function isOffice() { return !!(state.user && /office|admin/i.test(state.user.role || '')); }
   /** The job report opens inside the app (same form as the standalone JR, prefilled with the JR number). */
-  function jrTemplate() { return state.jrFormUrl || store('fa-jrtpl') || ''; }
-  function jrFormUrl(jr, date) {
-    var tpl = jrTemplate(); if (!tpl || !jr) return '';
-    return tpl.replace('{jr}', encodeURIComponent(jr)).replace('{email}', encodeURIComponent(myEmailSafe())).replace('{date}', date || todayStr());
-  }
+  function jrBase() { return state.jrBase || store('fa-jrbase') || 'https://blindmaster-pty-ltd.github.io/Blindmaster-Job-Report/blindmaster-job-report.html'; }
+  /** JR link from just a job number (e.g. from Needs attention). From an appointment, the script sends the full link (client, address, crew, calendar IDs). */
+  function jrFormUrl(jr, date) { return jr ? jrBase() + '?ref=' + encodeURIComponent(jr) + '&date=' + encodeURIComponent(date || todayStr()) : ''; }
   function myEmailSafe() { var s = store('fa-session') || {}; return String((state.user && state.user.email) || s.email || s.devEmail || ''); }
-  function jrHref(a, date) { return a.jr ? '#/jr/' + encodeURIComponent(a.jr) + '/' + (date || a.date || todayStr()) : (a.jobReportUrl || ''); }
+  function jrHref(a, date) {
+    date = date || a.date || todayStr();
+    if (a.jobReportUrl) return '#/jrappt/' + encodeURIComponent(a.id) + '/' + date;
+    return a.jr ? '#/jr/' + encodeURIComponent(a.jr) + '/' + date : '';
+  }
+  function reportLine(a) {
+    if (!a.report) return '';
+    return a.report.complete ? '<span class="rep-ok">' + I.check + 'Job report submitted</span>' : '<span class="rep-warn">Not finished: return visit needed</span>';
+  }
   function apptHref(a, date) { return '#/appt/' + encodeURIComponent(a.id) + '/' + date; }
   function dayHref(date) { return date === todayStr() ? '#/day' : '#/day/' + date; }
 
@@ -144,7 +151,7 @@
       .then(function (data) {
         state.user = data.user;
         state.cache[date] = { appointments: data.appointments, fetchedAt: Date.now(), offline: false };
-        if (data.jrFormUrl) { state.jrFormUrl = data.jrFormUrl; store('fa-jrtpl', data.jrFormUrl); }
+        if (data.jrBaseUrl) { state.jrBase = data.jrBaseUrl; store('fa-jrbase', data.jrBaseUrl); }
         store('fa-day-' + date, state.cache[date]);
         store('fa-user', data.user);
         return state.cache[date];
@@ -677,13 +684,14 @@
     if (!tokenValid(s)) return renderSignIn();
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
-    if (r.name !== 'jr') state.jrBack = location.hash || '#/day';
+    if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
     if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
     }
-    if (r.name === 'jr' && r.arg) return renderJobReport(r.arg, r.arg2 || todayStr());
+    if (r.name === 'jr' && r.arg) return renderJobReport(jrFormUrl(r.arg, r.arg2), 'JR#' + r.arg, r.arg2 || todayStr());
+    if (r.name === 'jrappt' && r.arg) return renderJobReportForAppt(r.arg, r.arg2 || todayStr());
     if (r.name === 'chats') return renderChats();
     if (r.name === 'chat' && r.arg) return renderChat(r.arg);
     if (r.name === 'appt') return wide() ? renderDayWide(r.arg2 || todayStr(), r.arg) : renderAppointment(r.arg2 || todayStr(), r.arg);
@@ -745,7 +753,7 @@
           return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '>' + t.icon + '<span>' + t.label + '</span></a>';
         }).join('') + '</nav>' +
         '<a class="rail-user" href="#/account"><span class="avatar">' + esc(initials(u.name)) + '</span><span class="rail-user-text"><b>' + esc(u.name || '') + '</b><span>' + esc(roleLabel(u.role)) + '</span></span></a>' +
-        (CFG.ENVIRONMENT ? '<span class="rail-env">' + esc(CFG.ENVIRONMENT) + '</span>' : '') +
+        (CFG.ENVIRONMENT ? '<span class="rail-env">' + esc(CFG.ENVIRONMENT) + ' · v' + APP_VERSION + '</span>' : '') +
       '</aside>' +
       '<div class="content">' + content + '</div>' +
     '</div>';
@@ -776,11 +784,11 @@
     var useGoogle = !!CFG.GOOGLE_CLIENT_ID;
     app.innerHTML =
       '<div class="signin"><div class="signin-card">' +
-        '<div class="plate"><img src="wordmark-white.svg" alt="Blindmaster">' +
-          '<div class="stack"><h1>Sign in to start your day</h1><p style="margin:0">Your schedule, job details and directions in one place.</p></div>' +
-          (CFG.ENVIRONMENT ? '<span class="tag tag-blue" style="align-self:flex-start">' + esc(CFG.ENVIRONMENT) + '</span>' : '') +
-        '</div><div class="band"></div>' +
+        '<div class="si-hero"><img class="hero-img" src="signin-hero.jpg" alt="Light falling through outdoor shading">' +
+          '<div class="hero-bar"><img src="wordmark-white.svg" alt="Blindmaster"><span>' + esc(CFG.ENVIRONMENT || 'Field app') + '</span></div>' +
+        '</div>' +
         '<div class="body">' +
+          '<div class="stack" style="gap:6px"><h1>Sign in to start your day</h1><p class="muted" style="margin:0">Your schedule, job details and reports for today, in one place.</p></div>' +
           (errorMsg ? '<p class="notice error" role="alert">' + esc(errorMsg) + '</p>' : '') +
           (useGoogle
             ? '<div id="gbtn" style="min-height:48px"></div><p class="small muted" style="margin:0">Use your Blindmaster Google account. Contractors: use the Google account you gave the office.</p>'
@@ -875,7 +883,7 @@
         '<a class="appt-card' + cls + '" href="' + apptHref(a, date) + '"' + (a.id === selectedId ? ' aria-current="true"' : '') + '>' + lightHtml(a) +
           '<span><span class="tag ' + (i === ni && !selectedId ? 'tag-blue' : tag) + '">' + esc(a.type) + esc(meRole) + '</span>' + (i === ni && isToday ? ' <span class="tag tag-light">Next</span>' : '') + '</span>' +
           '<span class="name">' + esc(a.title) + '</span>' +
-          '<span class="sub">' + esc(suburb(a.address)) + (refLabel(a) ? ' · ' + esc(refLabel(a)) : '') + '</span>' + who +
+          '<span class="sub">' + esc(suburb(a.address)) + (refLabel(a) ? ' · ' + esc(refLabel(a)) : '') + '</span>' + who + reportLine(a) +
         '</a></li>';
     }).join('') + '</ol>';
   }
@@ -926,10 +934,13 @@
       sms ? '<a class="btn btn-sand action" href="' + sms + '">' + I.msg + 'On my way</a>' : '<span class="btn btn-sand action" aria-disabled="true" style="opacity:.55">' + I.msg + 'On my way</span>'
     ];
     if (isWide && hasReport(a)) {
-      actions.push(jrHref(a, date) ? '<a class="btn btn-dark action" href="' + esc(jrHref(a, date)) + '"' + (a.jr ? '' : ' target="_blank" rel="noopener"') + '>' + I.report + 'Job report</a>'
+      actions.push(jrHref(a, date) ? '<a class="btn btn-dark action" href="' + esc(jrHref(a, date)) + '">' + I.report + (a.report ? 'View report' : 'Job report') + '</a>'
         : '<span class="btn btn-sand action" aria-disabled="true" style="opacity:.55">' + I.report + 'No JR number</span>');
     }
     html += '<div class="actions" style="grid-template-columns:repeat(' + actions.length + ',minmax(0,1fr))">' + actions.join('') + '</div>';
+    if (a.report) html += '<div class="rep-banner ' + (a.report.complete ? 'is-ok' : 'is-warn') + '">' + (a.report.complete ? I.check : '') +
+      '<span><b>' + esc(a.report.complete ? 'Job report submitted' : 'Job not finished') + '</b>' + esc(a.report.complete ? '' : ' · ' + (a.report.outstanding || 'return visit needed')) + '</span></div>';
+    else if (hasReport(a) && new Date(a.end).getTime() < Date.now()) html += '<div class="rep-banner is-todo"><span><b>Job report not done yet</b></span></div>';
     html += '<div class="wx-appt" data-id="' + esc(a.id) + '" data-date="' + date + '"></div>';
 
     var info = '';
@@ -1078,7 +1089,7 @@
         (day.offline ? '<div class="offline-bar">Offline: details may be out of date</div>' : '') + '<main>' + apptDetail(a, date, false) + '</main>';
       if (hasReport(a)) {
         html += '<div class="sticky-cta"><div class="inner">' +
-          (jrHref(a, date) ? '<a class="btn btn-dark btn-lg" href="' + esc(jrHref(a, date)) + '"' + (a.jr ? '' : ' target="_blank" rel="noopener"') + '>' + I.report + 'Open job report</a>'
+          (jrHref(a, date) ? '<a class="btn btn-dark btn-lg" href="' + esc(jrHref(a, date)) + '">' + I.report + (a.report ? 'View or update job report' : 'Open job report') + '</a>'
             : '<button class="btn btn-dark btn-lg" disabled>Job report link not set</button><span class="small muted" style="text-align:center">Add a JR number to the appointment</span>') +
         '</div></div>';
       } else {
@@ -1290,7 +1301,7 @@
           '<td class="bar-col"><span class="hbar-val">' + fmtNum(t.hours, 1) + ' h</span></td><td class="num">' + fmtMins(t.travelMin) + '</td><td class="num">' + fmtNum(t.km) + '</td><td class="num">' + (pct == null ? '–' : pct + '%') + '</td><td class="num">' + fmtNum(t.late) + '</td></tr></tfoot>' +
         '</table></div>' : '<p class="muted">No activity in this period.</p>') + '</section>';
 
-      if (m.jrFormUrl) { state.jrFormUrl = m.jrFormUrl; store('fa-jrtpl', m.jrFormUrl); }
+      if (m.jrBaseUrl) { state.jrBase = m.jrBaseUrl; store('fa-jrbase', m.jrBaseUrl); }
       var kindLabel = { late: 'Late report', incomplete: 'Incomplete', outstanding: 'No report' };
       html += '<section class="ov-section"><h2>Needs attention' + (m.attention.length ? ' <span class="muted" style="font-weight:500">(' + m.attention.length + ')</span>' : '') + '</h2>' +
         (m.attention.length ? '<ul class="attention">' + m.attention.slice(0, 50).map(function (a) {
@@ -1331,7 +1342,7 @@
 
   function loadWeek(from, force) {
     if (!force && planner.data && planner.data.from === from) return Promise.resolve(planner.data);
-    return api({ action: 'week', from: from }).then(function (d) { state.user = d.user; planner.data = d.week; if (d.week.jrFormUrl) state.jrFormUrl = d.week.jrFormUrl; return d.week; });
+    return api({ action: 'week', from: from }).then(function (d) { state.user = d.user; planner.data = d.week; if (d.week.jrBaseUrl) state.jrBase = d.week.jrBaseUrl; return d.week; });
   }
 
   function renderPlanner(from) {
@@ -1488,8 +1499,8 @@
       // status hint
       $('bkStatusHint').textContent = v.status === 'Tentative' ? 'Shows red in the installers\' app until it is confirmed.' : 'Shows green: the job is going ahead.';
       // JR link, filled in from the JR number
-      var jr = $('bkJr').value.replace(/[^\d]/g, ''), tpl = w.jrFormUrl || '';
-      $('bkJrLink').innerHTML = jr && tpl ? I.report + '<span>Job report link ready: <a href="' + esc(tpl.replace('{jr}', jr).replace('{email}', '').replace('{date}', $('bkDate').value)) + '" target="_blank" rel="noopener">JR#' + esc(jr) + '</a>. The crew open it from the appointment.</span>'
+      var jr = $('bkJr').value.replace(/[^\d]/g, ''), tpl = w.jrBaseUrl || jrBase();
+      $('bkJrLink').innerHTML = jr && tpl ? I.report + '<span>Job report link ready: <a href="' + esc(tpl + '?ref=' + encodeURIComponent(jr) + '&date=' + $('bkDate').value) + '" target="_blank" rel="noopener">JR#' + esc(jr) + '</a>. The crew open it from the appointment.</span>'
         : (jr ? '' : '<span class="small muted">Add the JR number and the job report link fills in automatically. The JR number also links the project chat.</span>');
       // weather for the day
       var x = planner.wx && planner.wx[$('bkDate').value], outdoor = /Installation|Service call/.test(v.type);
@@ -1541,19 +1552,32 @@
 
   /* ---------- job report inside the app ---------- */
 
-  function renderJobReport(jr, date) {
-    var url = jrFormUrl(jr, date);
-    var back = state.jrBack && !/^#\/jr\//.test(state.jrBack) ? state.jrBack : '#/day';
+  function renderJobReportForAppt(id, date) {
+    loading('Opening job report…');
+    loadDay(date).then(function (day) {
+      var a = day.appointments.filter(function (x) { return x.id === id; })[0];
+      if (!a) { showError(new Error('Appointment not found. It may have been moved.'), function () { history.back(); }); return; }
+      renderJobReport(a.jobReportUrl || jrFormUrl(a.jr, date), refLabel(a) || a.title, date);
+    }, function (err) { showError(err, function () { renderJobReportForAppt(id, date); }); });
+  }
+
+  function renderJobReport(url, label, date) {
+    var back = state.jrBack && !/^#\/jr/.test(state.jrBack) ? state.jrBack : '#/day';
     if (!url) {
       var msg = '<div class="empty stack"><h2>Job report link not set up</h2><p class="muted" style="margin:0">Add the JR_FORM_URL script property (the job report address with {jr} where the number goes).</p></div>';
       app.innerHTML = wide() ? shell('day', null, msg) : topbar({ back: back, backLabel: 'Back' }) + '<main>' + msg + '</main>';
       return;
     }
-    var bar = '<div class="jr-bar"><a class="jr-back" href="' + esc(back) + '">' + I.back + 'Back</a><b>Job report · JR#' + esc(jr) + '</b>' +
+    var bar = '<div class="jr-bar"><a class="jr-back" id="jrBack" href="' + esc(back) + '">' + I.back + 'Back</a><b>Job report · ' + esc(label) + '</b>' +
       '<a class="jr-ext" href="' + esc(url) + '" target="_blank" rel="noopener" title="Open in a new tab">' + I.ext + '<span class="jr-ext-label">New tab</span></a></div>';
-    var frame = '<iframe class="jr-frame" src="' + esc(url) + '" title="Job report JR#' + esc(jr) + '" allow="camera; microphone; geolocation; clipboard-write; fullscreen"></iframe>';
+    var frame = '<iframe class="jr-frame" src="' + esc(url) + '" title="Job report ' + esc(label) + '" allow="camera; microphone; geolocation; clipboard-write; fullscreen"></iframe>';
     if (wide()) app.innerHTML = shell('day', date, '<div class="jr-view">' + bar + frame + '</div>');
     else app.innerHTML = '<div class="jr-view jr-phone">' + bar + frame + '</div>';
+    // coming back: reload that day and the overview so a just-submitted report shows as done
+    document.getElementById('jrBack').addEventListener('click', function () {
+      Object.keys(state.cache).forEach(function (k) { if (k === date || k.indexOf('m:') === 0) delete state.cache[k]; });
+      unstore('fa-day-' + date);
+    });
   }
 
   /* ---------- account ---------- */
@@ -1566,6 +1590,7 @@
         (u.role ? '<span class="tag" style="align-self:flex-start">' + esc(roleLabel(u.role)) + '</span>' : '') +
         (CFG.ENVIRONMENT ? '<p class="notice" style="margin:0">You are using the <b>' + esc(CFG.ENVIRONMENT) + '</b> version. Appointments here are test data.</p>' : '') +
         '<button class="btn btn-outline btn-lg" id="signout">Sign out</button>' +
+        '<p class="small muted" style="margin:0">App version ' + APP_VERSION + '</p>' +
         '<p class="small muted" style="margin:0">Add this app to your home screen: in Safari tap Share, then Add to Home Screen. In Chrome tap the menu, then Install app.</p>' +
       '</section>';
     app.innerHTML = wide() ? shell('account', null, body) : topbar() + '<main>' + body + '</main>' + tabbar('account');
