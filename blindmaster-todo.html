@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#404141">
+<link rel="icon" type="image/svg+xml" href="icons/todo-icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/todo-icon-32.png">
+<link rel="apple-touch-icon" href="icons/todo-icon-180.png">
+<link rel="manifest" href="blindmaster-todo.webmanifest">
+<meta name="apple-mobile-web-app-title" content="My To Do">
+<title>Blindmaster | My To Do</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  /* Blindmaster design guide tokens */
+  :root {
+    --monument-grey: #404141; --pastel-blue: #9DBCD0; --sandstone: #E9E6E0; --natural-white: #FAFAFA;
+    --black: #000000; --white: #FFFFFF;
+    --space-inset: 28px; --space-gutter: 29px; --space-margin: 24px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Manrope, system-ui, sans-serif; font-weight: 400; font-size: 16px; line-height: 22px; background: var(--natural-white); color: var(--black); padding-bottom: 48px; }
+  button, input, select { font-family: inherit; font-size: 16px; }
+  :focus-visible { outline: 3px solid var(--monument-grey); outline-offset: 2px; }
+  .hidden { display: none !important; }
+  svg.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; display: block; }
+
+  /* Header: JobReportHeader component */
+  .header { background: var(--monument-grey); color: var(--white); padding: 32px var(--space-margin) 44px; position: relative; overflow: hidden; }
+  .header::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--pastel-blue); }
+  .header-inner { max-width: 880px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; }
+  .brand-logo { height: 26px; width: auto; display: block; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; color: var(--white); }
+  #status { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--pastel-blue); margin-top: 2px; min-height: 18px; }
+  .who { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--sandstone); margin-top: 4px; }
+  .who .name { font-weight: 700; color: var(--white); }
+  .who button { background: none; border: none; color: var(--sandstone); text-decoration: underline; cursor: pointer; font-size: 13px; font-weight: 500; padding: 8px 0; }
+  .header :focus-visible { outline-color: var(--pastel-blue); }
+  @media (max-width: 600px) { .header-inner { flex-direction: column; align-items: flex-start; } .doc-title { text-align: left; } .doc-title h1 { font-size: 22px; line-height: 28px; } }
+
+  .wrap { max-width: 880px; margin: 24px auto 0; padding: 0 var(--space-margin); }
+  .card { background: var(--sandstone); padding: var(--space-inset); margin-bottom: 16px; }
+  @media (max-width: 600px) { .card { padding: 18px; } }
+
+  .notice { padding: 14px 16px; font-size: 14px; line-height: 20px; font-weight: 500; margin-bottom: 16px; }
+  .notice.info { background: var(--pastel-blue); color: var(--monument-grey); }
+  .notice.warn, .notice.err { background: var(--monument-grey); color: var(--white); }
+
+  /* sign in */
+  #signin { text-align: left; }
+  #signin h2 { margin: 0 0 8px; font-size: 24px; line-height: 32px; font-weight: 700; }
+  #signin p { margin: 0 0 20px; color: var(--monument-grey); font-weight: 500; max-width: 60ch; }
+  #gsiBtn { display: inline-block; min-height: 44px; }
+
+  /* controls */
+  .add-row { display: flex; gap: 8px; }
+  .add-row input[type=text] { flex: 1; min-width: 0; }
+  input[type=text], input[type=date], select { width: 100%; padding: 12px; border: 2px solid var(--monument-grey); border-radius: 0; color: var(--black); background: var(--white); min-height: 48px; }
+  input[type=text]::placeholder { color: var(--monument-grey); opacity: .75; }
+  .btn { border: none; border-radius: 0; padding: 12px 20px; font-weight: 700; cursor: pointer; min-height: 48px; }
+  .btn-accent { background: var(--pastel-blue); color: var(--monument-grey); }
+  .btn-accent:hover { background: var(--monument-grey); color: var(--white); }
+  .btn-dark { background: var(--monument-grey); color: var(--white); }
+  .btn-dark:hover { background: var(--black); }
+  .btn-plain { background: var(--white); color: var(--monument-grey); border: 2px solid var(--monument-grey); }
+  .btn-mic { background: var(--monument-grey); color: var(--white); width: 48px; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .btn-mic.recording { background: var(--black); outline: 3px solid var(--pastel-blue); outline-offset: 0; animation: pulse 1.4s infinite; }
+  @keyframes pulse { 50% { outline-color: var(--monument-grey); } }
+  @media (prefers-reduced-motion: reduce) { .btn-mic.recording { animation: none; } }
+  .link-btn { background: none; border: none; color: var(--monument-grey); font-size: 14px; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 12px 0 0; }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .fields .full { grid-column: 1 / -1; }
+  .fields label { display: block; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--monument-grey); margin-bottom: 6px; }
+  .fields .check { display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--black); margin: 0; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--monument-grey); }
+  .fields .check input { width: 22px; height: 22px; flex-shrink: 0; }
+  @media (max-width: 520px) { .fields { grid-template-columns: 1fr; } }
+
+  /* tabs & filters */
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab { flex: 1; background: var(--sandstone); border: none; border-radius: 0; padding: 12px; font-weight: 700; color: var(--monument-grey); cursor: pointer; min-height: 48px; }
+  .tab.active { background: var(--monument-grey); color: var(--white); }
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .seg { background: var(--white); border: none; border-radius: 0; padding: 8px 16px; font-size: 14px; font-weight: 700; color: var(--monument-grey); cursor: pointer; min-height: 40px; }
+  .seg.active { background: var(--monument-grey); color: var(--white); }
+  .active-filter { background: var(--pastel-blue); border: none; border-radius: 0; color: var(--monument-grey); padding: 8px 14px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 40px; }
+
+  /* tasks: white rows on the sandstone panel */
+  #taskList, #sharedTasks { display: flex; flex-direction: column; gap: 8px; }
+  .task { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; background: var(--white); }
+  .tick { width: 28px; height: 28px; border-radius: 0; border: 2px solid var(--monument-grey); background: var(--white); color: var(--white); cursor: pointer; flex-shrink: 0; margin-top: 0; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .tick .icon { width: 18px; height: 18px; stroke-width: 3; }
+  .tick.done { background: var(--monument-grey); }
+  .tick:disabled { cursor: default; }
+  .task-main { flex: 1; min-width: 0; }
+  .task-text { font-size: 16px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; background: none; border: none; text-align: left; padding: 0; width: 100%; color: var(--black); cursor: pointer; }
+  .task.is-done .task-text { text-decoration: line-through; color: var(--monument-grey); }
+  .task-text.readonly { cursor: default; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+  .chip { font-size: 13px; line-height: 18px; font-weight: 500; padding: 2px 10px; background: var(--sandstone); color: var(--monument-grey); border: none; border-radius: 0; }
+  .chip.link { background: var(--pastel-blue); color: var(--monument-grey); font-weight: 700; cursor: pointer; }
+  span.chip.link { cursor: default; }
+  .chip.due.overdue { background: var(--monument-grey); color: var(--white); font-weight: 700; }
+  .chip.due.today { background: var(--pastel-blue); color: var(--monument-grey); font-weight: 700; }
+  .chip.high { background: var(--black); color: var(--white); font-weight: 700; }
+  a.open-link { font-size: 13px; font-weight: 700; color: var(--monument-grey); }
+  .editor { margin-top: 12px; padding: var(--space-inset); background: var(--sandstone); }
+  @media (max-width: 600px) { .editor { padding: 14px; } }
+  .editor .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .empty { text-align: left; color: var(--monument-grey); font-weight: 500; padding: 4px 0; }
+
+  /* sharing */
+  details.share summary { cursor: pointer; font-weight: 700; font-size: 16px; min-height: 28px; }
+  .share-opt { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; font-weight: 700; }
+  .share-opt input { width: 22px; height: 22px; margin: 0; flex-shrink: 0; }
+  .share-opt small { display: block; color: var(--monument-grey); font-weight: 500; font-size: 14px; line-height: 20px; margin-top: 2px; }
+  .people { margin: 0 0 8px 34px; display: none; }
+  .people.show { display: block; }
+  .people label { display: flex; gap: 10px; align-items: center; padding: 6px 0; font-weight: 500; }
+  .people input { width: 22px; height: 22px; }
+
+  .owners { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .owner-btn { background: var(--white); border: none; border-radius: 0; padding: 10px 16px; font-weight: 700; color: var(--monument-grey); cursor: pointer; min-height: 48px; }
+  .owner-btn.active { background: var(--monument-grey); color: var(--white); }
+
+  body.embed .header, body.embed .footer-note { display: none; }
+  body.embed .wrap { margin-top: 12px; }
+  .footer-note { max-width: 880px; margin: 32px auto 0; padding: 0 var(--space-margin); font-size: 13px; line-height: 18px; font-weight: 500; color: var(--monument-grey); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="brand-mark">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NTUgNjIiIHdpZHRoPSI1NTUiIGhlaWdodD0iNjIiPjx0aXRsZT5CbGluZG1hc3RlcjwvdGl0bGU+PGcgZmlsbD0iI2ZmZmZmZiI+PHBhdGggZmlsbC1ydWxlPSJub256ZXJvIiBkPSJNNTQ4Ljc1MCAwLjIzNUM1NTAuMzIxIDAuMjM1IDU1MS42NjggMC43ODAgNTUyLjc5MSAxLjkzNUM1NTMuOTEzIDMuMDU3IDU1NC40OTEgNC40MDQgNTU0LjQ5MSA1Ljk3NUM1NTQuNDkxIDcuNTQ3IDU1My45NDUgOC44OTQgNTUyLjc5MSAxMC4wMTZDNTUxLjY2OCAxMS4xMzkgNTUwLjMyMSAxMS42ODQgNTQ4Ljc1MCAxMS42ODRDNTQ3LjE3OSAxMS42ODQgNTQ1LjgzMiAxMS4xMzkgNTQ0LjcwOSAxMC4wMTZDNTQzLjU4NyA4Ljg5NCA1NDMuMDQxIDcuNTQ3IDU0My4wNDEgNS45NzVDNTQzLjA0MSA0LjQwNCA1NDMuNTg3IDMuMDU3IDU0NC43MDkgMS45MzVDNTQ1LjgzMiAwLjgxMiA1NDcuMTc5IDAuMjM1IDU0OC43NTAgMC4yMzVNNTQ4Ljc1MCAxMC43MjJDNTUwLjA2NSAxMC43MjIgNTUxLjE4NyAxMC4yNDEgNTUyLjExNyA5LjMxMUM1NTMuMDQ4IDguMzgxIDU1My41MjkgNy4yNTggNTUzLjUyOSA1Ljk0M0M1NTMuNTI5IDQuNjI4IDU1My4wODAgMy41MDYgNTUyLjExNyAyLjU3NkM1NTEuMTg3IDEuNjE0IDU1MC4wNjUgMS4xNjUgNTQ4Ljc1MCAxLjE2NUM1NDcuNDM1IDEuMTY1IDU0Ni4zMTMgMS42MTQgNTQ1LjM4MyAyLjU3NkM1NDQuNDUzIDMuNTA2IDU0My45NzIgNC42MjggNTQzLjk3MiA1Ljk0M0M1NDMuOTcyIDcuMjU4IDU0NC40NTMgOC4zODEgNTQ1LjM4MyA5LjMxMUM1NDYuMzEzIDEwLjI0MSA1NDcuNDM1IDEwLjcyMiA1NDguNzUwIDEwLjcyMk01NTAuNDgyIDYuOTA2TDU1MS44NjEgOC43OThMNTUwLjI4OSA4Ljc5OEw1NDkuMTAzIDcuMjI2TDU0Ny41OTUgNy4yMjZMNTQ3LjU5NSA4Ljc5OEw1NDYuMTg0IDguNzk4TDU0Ni4xODQgMi45NjFMNTQ5LjM1OSAyLjk2MUM1NDkuOTY5IDIuOTYxIDU1MC40NTAgMy4xODUgNTUwLjg2NyAzLjYwMkM1NTEuMjg0IDQuMDE5IDU1MS41MDggNC41MzIgNTUxLjUwOCA1LjExMEM1NTEuNTA4IDUuOTQzIDU1MS4xNTUgNi41NTMgNTUwLjQ1MCA2Ljk3MEw1NTAuNDgyIDYuOTA2TTU1MC4xNjEgNS4wNDVDNTUwLjE2MSA0LjYyOCA1NDkuODA4IDQuMzA4IDU0OS4zOTEgNC4zMDhMNTQ3LjYyOCA0LjMwOEw1NDcuNjI4IDUuNzgzTDU0OS4zOTEgNS43ODNDNTQ5LjgwOCA1Ljc4MyA1NTAuMTYxIDUuNDYyIDU1MC4xNjEgNS4wNDUiPjwvcGF0aD48cGF0aCBmaWxsLXJ1bGU9Im5vbnplcm8iIGQ9Ik00MC42MjkgMzkuMjY1QzQyLjI5NyA0MS4yODIgNDMuMTUwIDQzLjc2NSA0My4xNTAgNDYuNzEzQzQzLjE1MCA1MC41NTQgNDEuNzU0IDUzLjkyOSAzOS4wMDAgNTYuNjgzQzM2LjI0NSA1OS40MzcgMzMuMDI1IDYwLjc1NiAyOS4xODUgNjAuNzU2TC0wLjQ5MSA2MC43NTZMLTAuNDkxIDExLjY4NEwyNy44MjcgMTEuNjg0QzMxLjU1MSAxMS42ODQgMzQuNjE2IDEzLjAwMyAzNy4yMTUgMTUuNjAyQzM5LjgxNCAxOC4yMDEgNDEuMTMzIDIxLjI2NiA0MS4xMzMgMjQuOTkwQzQxLjEzMyAyOS40OTAgMzguMTA3IDMzLjEzNiAzNS4zMTQgMzQuODgyQzM3LjIxNSAzNS44MTMgMzguOTYxIDM3LjIwOSA0MC41OTAgMzkuMjI3TDQwLjYyOSAzOS4yNjVNMzQuMTEyIDQ1LjkzOEMzNC4xMTIgNDIuMjkxIDMxLjE2MyAzOS40MjAgMjcuNTE3IDM5LjQyMEwxNC41OTkgMzkuNDIwTDE3LjM1MyAzMS41MDdMMjYuMDQzIDMxLjUwN0MyOS4zNDAgMzEuNTA3IDMxLjg2MiAyOC45MDggMzEuODYyIDI1Ljc2NkMzMS44NjIgMjIuNjIzIDI5LjE4NSAxOS45NDcgMjYuMDQzIDE5Ljk0N0w4LjI3NiAxOS45NDdMOC4yNzYgNTIuNTcxTDI3LjQ3OCA1Mi41NzFDMzEuMTI1IDUyLjU3MSAzNC4wNzMgNDkuNjIzIDM0LjA3MyA0NS45NzZMMzQuMTEyIDQ1LjkzOCI+PC9wYXRoPjxwYXRoIGZpbGwtcnVsZT0ibm9uemVybyIgZD0iTTg3LjM3MyA2MC43MThMNTIuOTI2IDYwLjcxOEw1Mi45MjYgMTEuNjg1TDYxLjk2NSAxMS42ODVMNjEuOTY1IDUyLjIyM0w4Ny4zNzMgNTIuMjIzTDg3LjM3MyA2MC43MTgiPjwvcGF0aD48cGF0aCBmaWxsLXJ1bGU9Im5vbnplcm8iIGQ9Ik05Ni44MDAgNjAuNzE4TDk2LjgwMCAxMS42ODVMMTA1LjgzOSAxMS42ODVMMTA1LjgzOSA2MC43MThMOTYuODAwIDYwLjcxOCI+PC9wYXRoPjxwYXRoIGZpbGwtcnVsZT0ibm9uemVybyIgZD0iTTE2NS4wMzYgNjAuNzE4TDE1NC41MjMgNjAuNzE4TDEyOC40OTMgMjguMjQ5TDEyOC40OTMgNjAuNzE4TDExOS40NTUgNjAuNzE4TDExOS40NTUgMTEuNjg1TDEyNS43MDAgMTEuNjg1TDE2NS4wMzYgNjAuNzE4TTE1NC45ODkgNDQuNTAzTDE1NC45ODkgMTEuNjg1TDE2NC4wMjcgMTEuNjg1TDE2NC4wMjcgNDQuNTAzTDE1NC45ODkgNDQuNTAzIj48L3BhdGg+PHBhdGggZmlsbC1ydWxlPSJub256ZXJvIiBkPSJNMjE1LjIzMyAxOC44NjFDMjE5LjkyNyAyMy42MzMgMjIyLjMzMiAyOS4zNzQgMjIyLjMzMiAzNi4yMDFDMjIyLjMzMiA0My4wMjkgMjE5LjkyNyA0OC43NzAgMjE1LjIzMyA1My41ODBDMjEwLjUzOSA1OC4zNTIgMjA0LjgzNyA2MC43MTggMTk4LjIwMyA2MC43MThMMTc3LjEwMCA2MC43MThMMTc3LjEwMCAyNi41ODFMMTg2LjEzOSAyOS42ODRMMTg2LjEzOSA1MS45OTBMMTk3LjkzMSA1MS45OTBDMjAyLjE5OSA1MS45OTAgMjA1Ljc2OCA1MC40MzggMjA4Ljc5MyA0Ny4zNzRDMjExLjgxOSA0NC4yNzAgMjEzLjMzMiA0MC41ODUgMjEzLjMzMiAzNi4yMDFDMjEzLjMzMiAzMS44MTggMjExLjc4MCAyOC4xMzMgMjA4Ljc5MyAyNS4wMjlDMjA1Ljc2OCAyMS45MjYgMjAyLjE5OSAyMC40MTMgMTk3LjkzMSAyMC40MTNMMTc3LjEwMCAyMC40MTNMMTc3LjEwMCAxMS42ODVMMTk4LjIwMyAxMS42ODVDMjA0Ljg3NSAxMS42ODUgMjEwLjUzOSAxNC4wNTEgMjE1LjIzMyAxOC44MjNMMjE1LjIzMyAxOC44NjEiPjwvcGF0aD48cGF0aCBmaWxsLXJ1bGU9Im5vbnplcm8iIGQ9Ik0yODYuNDk0IDExLjY4NUwyNjAuODE0IDQ5Ljk3M0wyNTUuODQ5IDQ5Ljk3M0wyNDAuODM2IDI4Ljc5MkwyNDAuODM2IDYwLjcxOEwyMzEuNzk3IDYwLjcxOEwyMzEuNzk3IDExLjY4NUwyMzguNzQxIDExLjY4NUwyNTguMjU0IDM5LjExMUwyNzYuNjgwIDExLjY4NUwyODYuNDk0IDExLjY4NU0yNzYuNDA4IDYwLjcxOEwyNzYuNDA4IDMxLjMxNEwyODUuMzY5IDMxLjMxNEwyODUuMzY5IDYwLjcxOEwyNzYuNDA4IDYwLjcxOCI+PC9wYXRoPjxwYXRoIGZpbGwtcnVsZT0ibm9uemVybyIgZD0iTTM0My45NDYgNjAuNzE4TDMzNC41OTcgNjAuNzE4TDMzMC4xNzQgNDkuNzAxTDMwNi43NDQgNDkuNzAxTDMwMi4zMjEgNjAuNzE4TDI5Mi45NzIgNjAuNzE4TDMxMy4yNjEgMTAuMjg4TDMyMi41MzIgMTAuMjg4TDMxMC4wNDEgNDEuNTE2TDMyNi45NTUgNDEuNTE2TDMxOS45MzMgMjMuOTgxTDMyOS4yMDQgMjMuOTgxTDM0My45NDYgNjAuNzE4Ij48L3BhdGg+PHBhdGggZmlsbC1ydWxlPSJub256ZXJvIiBkPSJNMzc1Ljk4OCAzMy44NzRDMzc3LjMwNyAzNC4zNzggMzc4Ljg1OSAzNS4wNzYgMzgwLjYwNSAzNS45NjlDMzgyLjQyOCAzNi45MDAgMzgzLjgyNCAzNy43OTIgMzg0Ljc5NCAzOC43NjJDMzg2LjgxMSA0MC42NjMgMzg4LjU5NiA0My43MjcgMzg4LjU5NiA0Ny4zMzVDMzg4LjU5NiA1OC4xOTcgMzc4LjQzMiA2MS43NjYgMzY3Ljc2NCA2MS43NjZDMzYwLjY2NSA2MS43NjYgMzUzLjk1NCA1OS45NDIgMzQ3LjcwOSA1Ni4zNzNMMzUyLjI4NiA0OS4xNThDMzU3Ljc1NiA1Mi4xODQgMzYzLjAzMiA1My42NTggMzY4LjE1MiA1My42NThDMzc1LjUyMyA1My42NTggMzc5LjI0NyA1MS42ODAgMzc5LjI0NyA0Ny44MzlDMzc5LjI0NyA0NS44MjIgMzc4LjEyMiA0NC4xMTUgMzc1LjYwMCA0Mi45MTJDMzczLjA3OSA0MS41OTQgMzcxLjQxMSA0MS4wMTIgMzY3LjQ1NCAzOS44MDlDMzY3LjI2MCAzOS43MzIgMzY2Ljk1MCAzOS42MTUgMzY2Ljc1NiAzOS42MTVDMzY0LjQyOCAzOC45MTcgMzYyLjY4MiAzOC4zMzUgMzYxLjQ4MCAzNy45NDdDMzYwLjI3NyAzNy41MjAgMzU4LjY4NyAzNi45MDAgMzU2Ljc4NiAzNS45NjlDMzU0Ljg4NSAzNS4wMzggMzUzLjQ4OSAzNC4wNjggMzUyLjUxOSAzMy4xNzZDMzUwLjU0MSAzMS4xOTcgMzQ4LjcxNyAyOC4wNTUgMzQ4LjcxNyAyNC4yMTVDMzQ4LjcxNyAyMC4zNzQgMzUwLjM0NyAxNy4wNzcgMzUzLjY0NCAxNC41OTRDMzU3LjIxMyAxMS45OTUgMzYyLjIxNyAxMC43MTUgMzY4LjczNCAxMC43MTVDMzc1LjI1MSAxMC43MTUgMzgxLjQxOSAxMi41MzggMzg3LjY2NSAxNi4xMDdMMzgzLjI0MiAyMy4xMjhDMzc3Ljk2NyAyMC4yNTggMzczLjAwMSAxOC43ODQgMzY4LjMwNyAxOC43ODRDMzYxLjYzNSAxOC43ODQgMzU4LjE0NCAyMC43NjIgMzU4LjE0NCAyMy44MjdDMzU4LjQ5MyAyNi41ODEgMzU5Ljc3MyAyNy45NzcgMzYzLjA3MCAyOS40OTBMMzY2LjEzNSAzMC42OTNMMzY5Ljg1OSAzMS44MThMMzcwLjk4NCAzMi4xNjdDMzczLjA3OSAzMi43ODggMzc0Ljc4NiAzMy4zNzAgMzc2LjAyNyAzMy44MzVMMzc1Ljk4OCAzMy44NzQiPjwvcGF0aD48cGF0aCBmaWxsLXJ1bGU9Im5vbnplcm8iIGQ9Ik0zOTYuMjM4IDIwLjEwMkwzOTYuMjM4IDExLjY4NUw0MzkuNTY5IDExLjY4NUw0MzkuNTY5IDIwLjEwMkwzOTYuMjM4IDIwLjEwMk00MTMuNDIzIDI4LjcxNEw0MjIuMzg0IDI1LjYxMUw0MjIuMzg0IDYwLjY3OUw0MTMuNDIzIDYwLjY3OUw0MTMuNDIzIDI4LjcxNCI+PC9wYXRoPjxwYXRoIGZpbGwtcnVsZT0ibm9uemVybyIgZD0iTTQ4OS42MTEgMjAuMTAzTDQ1OS4xNTkgMjAuMTAzTDQ1OS4xNTkgNTIuMjIzTDQ4OS42MTEgNTIuMjIzTDQ4OS42MTEgNjAuNzE4TDQ1MC4xMjAgNjAuNzE4TDQ1MC4xMjAgMTEuNjg1TDQ4OS42MTEgMTEuNjg1TDQ4OS42MTEgMjAuMTAzTTQ2NS4wNTUgNDAuNDMwTDQ2Ny45MjYgMzEuOTM0TDQ4NC4zMzUgMzEuOTM0TDQ4NC4zMzUgNDAuNDMwTDQ2NS4wNTUgNDAuNDMwIj48L3BhdGg+PHBhdGggZmlsbC1ydWxlPSJub256ZXJvIiBkPSJNNTEwLjQ0MiA2MC43MThMNTAxLjQwNCA2MC43MThMNTAxLjQwNCAxMS42ODRMNTI3LjIwMSAxMS42MDZDNTMxLjg5NCAxMS42MDYgNTM1Ljk2OCAxMy4yNzUgNTM5LjI2NSAxNi41NzJDNTQyLjY0MCAxOS44NjkgNTQ0LjMwOCAyMy44NjUgNTQ0LjMwOCAyOC41NTlDNTQ0LjMwOCAzMi4xMjggNTQzLjE4MyAzNS4zNDcgNTQxLjAxMSAzOC4xNzlDNTM4LjgzOCA0MC45NzIgNTM2LjA0NSA0Mi45NTEgNTMyLjQzOCA0My45OThMNTQ2Ljc1MiA2MC42NzlMNTM1LjU0MSA2MC42NzlMNTE2LjEwNiAzNy45NDZMNTIzLjA1MCAzNy45NDZDNTMwLjM0MyAzNy45NDYgNTM1LjI2OSAzNC4xNDUgNTM1LjI2OSAyOC41NTlDNTM1LjI2OSAyNi4zODYgNTM0LjQ5MyAyNC40ODYgNTMyLjg2NCAyMi45MzRDNTMxLjMxMyAyMS4zODIgNTI5LjQxMiAyMC42MDYgNTI3LjIwMSAyMC42MDZMNTEwLjQ0MiAyMC42MDZMNTEwLjQ0MiA2MC43MTgiPjwvcGF0aD48L2c+PC9zdmc+" alt="Blindmaster" class="brand-logo">
+    </div>
+    <div class="doc-title">
+      <h1>My To Do</h1>
+      <div id="status"></div>
+      <div class="who hidden" id="who">
+        <span class="name" id="whoName"></span> &nbsp;&middot;&nbsp; <button type="button" id="signOutBtn">Sign out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div id="setupNotice" class="notice err hidden"></div>
+  <div id="banner" class="notice hidden"></div>
+
+  <!-- SIGN IN -->
+  <div id="signin" class="card hidden">
+    <h2>Sign in to see your list</h2>
+    <p>Use your Blindmaster Google account. Your list is private to you unless you choose to share it.</p>
+    <div id="gsiBtn"></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+
+    <div id="reauth" class="notice warn hidden">
+      <div style="margin-bottom:8px;">Sign in again to sync. Your changes are saved on this device and will upload once you're signed in.</div>
+      <div id="gsiBtn2"></div>
+    </div>
+
+    <div class="tabs">
+      <button type="button" class="tab active" id="tabMine">My list</button>
+      <button type="button" class="tab" id="tabShared">Shared with me</button>
+    </div>
+
+    <!-- MY LIST -->
+    <div id="viewMine">
+      <div class="card">
+        <div class="add-row">
+          <input type="text" id="newText" placeholder="Add a task…" autocomplete="off" enterkeyhint="done" aria-label="New task">
+          <button type="button" class="btn btn-mic" id="micBtn" title="Fill by voice" aria-label="Fill by voice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3"/></svg></button>
+          <button type="button" class="btn btn-accent" id="addBtn">Add</button>
+        </div>
+        <button type="button" class="link-btn" id="detailsToggle">Add date, link or priority</button>
+        <div id="addDetails" class="hidden"></div>
+      </div>
+
+      <div class="card">
+        <div class="filters">
+          <button type="button" class="seg active" data-filter="open">Open</button>
+          <button type="button" class="seg" data-filter="done">Done</button>
+          <button type="button" class="seg" data-filter="all">All</button>
+          <button type="button" class="active-filter hidden" id="linkFilterChip"></button>
+        </div>
+        <div id="taskList"></div>
+      </div>
+
+      <div class="card">
+        <details class="share" id="shareBox">
+          <summary id="shareSummary">Who can see my list</summary>
+          <div id="shareBody" style="margin-top:10px;"></div>
+        </details>
+      </div>
+    </div>
+
+    <!-- SHARED -->
+    <div id="viewShared" class="hidden">
+      <div class="card">
+        <div id="ownerList" class="owners"></div>
+        <div id="sharedStatus" class="empty"></div>
+        <div id="sharedTasks"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="footer-note">
+  Blindmaster Pty Ltd &nbsp;&middot;&nbsp; Showroom: 28 Sydenham Road, Brookvale NSW 2100<br>
+  T 02 9909 6700 &nbsp;&middot;&nbsp; info@blindmaster.com.au &nbsp;&middot;&nbsp; ABN 87 002 515 157 &nbsp;&middot;&nbsp; Lic. 250658C
+</div>
+
+<script>
+/* ===================== CONFIG — edit these two lines ===================== */
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwpeA_w5NYS8TNUH0tcI_boDIPUiS4UYBiS8obkBYsW5LciVkWhjxc6cNkceXi0P7kJCA/exec';                       // the /exec URL from the To Do Apps Script
+const GOOGLE_CLIENT_ID = '109655414089-70sej679mor7qm4kjfs42djvitfjnrjg.apps.googleusercontent.com';
+/* ========================================================================= */
+
+const LINK_TYPES = ['Project', 'Opportunity', 'Quotation', 'Sales Order'];
+
+// Where a record's "Open" link goes. Projects open a Drive search for the JR#
+// folder. Fill in the others once you know the NetSuite URL pattern, e.g.
+//   'Quotation': ref => 'https://3815965.app.netsuite.com/...' + encodeURIComponent(ref)
+const LINK_URLS = {
+  'Project': ref => 'https://drive.google.com/drive/search?q=' + encodeURIComponent('JR#' + ref),
+  'Opportunity': null,
+  'Quotation': null,
+  'Sales Order': null
+};
+
+const configured = !ENDPOINT.startsWith('PASTE') && !GOOGLE_CLIENT_ID.startsWith('PASTE');
+
+/* ---------------- small helpers ---------------- */
+function $(id) { return document.getElementById(id); }
+function el(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => {
+    if (v === false || v === null || v === undefined) return;
+    if (k === 'class') node.className = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+    else if (k === 'text') node.textContent = v;
+    else node.setAttribute(k, v === true ? '' : v);
+  });
+  kids.flat().forEach(c => { if (c !== null && c !== undefined && c !== false) node.append(c.nodeType ? c : document.createTextNode(c)); });
+  return node;
+}
+function icon(name) {
+  const d = document.createElement('span');
+  d.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>';
+  return d.firstChild;
+}
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+}
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function parseDay(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function dueInfo(due) {
+  if (!due) return null;
+  const diff = Math.round((parseDay(due) - parseDay(todayStr())) / 86400000);
+  const label = parseDay(due).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  if (diff < 0) return { text: 'Overdue · ' + label, cls: 'overdue' };
+  if (diff === 0) return { text: 'Due today', cls: 'today' };
+  if (diff === 1) return { text: 'Due tomorrow', cls: '' };
+  return { text: 'Due ' + label, cls: '' };
+}
+
+/* ---------------- state ---------------- */
+let session = { token: '', email: '', name: '', exp: 0 };
+let store = emptyStore();
+let filter = 'open';
+let linkFilter = null;       // { type, ref }
+let editingId = null;
+let lastSynced = null;
+let syncing = false, syncAgain = false, authProblem = false;
+let viewing = { owner: '', name: '', tasks: null, error: '', loading: false };
+let addFields = null, keepLink = false;
+
+function emptyStore() { return { tasks: [], sharing: { mode: 'private', people: [] }, staff: [], sharedWithMe: [], queue: [], meName: '' }; }
+function cacheKey(email) { return 'bm_todo_state_' + email; }
+function persist() { if (session.email) try { localStorage.setItem(cacheKey(session.email), JSON.stringify(store)); } catch (e) {} }
+function loadCache(email) {
+  try { const raw = localStorage.getItem(cacheKey(email)); if (raw) return Object.assign(emptyStore(), JSON.parse(raw)); } catch (e) {}
+  return emptyStore();
+}
+
+/* ---------------- sign-in (Google Identity Services) ---------------- */
+function decodeJwt(token) {
+  const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function sessionValid() { return !!session.token && session.exp * 1000 > Date.now() + 30000; }
+
+function onCredential(resp) {
+  try {
+    const p = decodeJwt(resp.credential);
+    session = { token: resp.credential, email: String(p.email || '').toLowerCase(), name: p.name || '', exp: p.exp || 0 };
+    try { localStorage.setItem('bm_todo_last_email', session.email); } catch (e) {}
+    authProblem = false;
+    store = loadCache(session.email);
+    showApp();
+    sync();
+  } catch (e) { showBanner('err', 'Sign-in failed. Please try again.'); }
+}
+
+function initGoogle() {
+  if (!configured) return;
+  if (!(window.google && google.accounts && google.accounts.id)) { setTimeout(initGoogle, 200); return; }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true, cancel_on_tap_outside: false });
+  google.accounts.id.renderButton($('gsiBtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'rectangular' });
+  google.accounts.id.renderButton($('gsiBtn2'), { theme: 'filled_blue', size: 'medium', text: 'signin_with', shape: 'rectangular' });
+  if (!sessionValid()) google.accounts.id.prompt();
+}
+
+$('signOutBtn').addEventListener('click', () => {
+  if (store.queue.length && !confirm(store.queue.length + ' change(s) have not synced yet and will be lost if you sign out. Sign out anyway?')) return;
+  try { localStorage.removeItem(cacheKey(session.email)); localStorage.removeItem('bm_todo_last_email'); } catch (e) {}
+  if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  session = { token: '', email: '', name: '', exp: 0 };
+  store = emptyStore();
+  viewing = { owner: '', name: '', tasks: null, error: '', loading: false };
+  $('app').classList.add('hidden'); $('who').classList.add('hidden');
+  $('signin').classList.remove('hidden');
+  setStatus();
+});
+
+/* ---------------- network ---------------- */
+async function api(payload) {
+  const res = await fetch(ENDPOINT, { method: 'POST', body: JSON.stringify(Object.assign({ idToken: session.token }, payload)) });
+  let data;
+  try { data = await res.json(); } catch (e) { throw Object.assign(new Error('The server sent back an unexpected response.'), { code: 'bad' }); }
+  if (!data.ok) throw Object.assign(new Error(data.error || 'Something went wrong.'), { code: data.code || 'error' });
+  return data;
+}
+
+function applyOp(tasks, op) {
+  if (op.type === 'delete') { const i = tasks.findIndex(t => t.id === op.id); if (i > -1) tasks.splice(i, 1); }
+  else if (op.type === 'upsert') { const i = tasks.findIndex(t => t.id === op.task.id); if (i > -1) tasks[i] = op.task; else tasks.push(op.task); }
+}
+
+function absorbState(res) {
+  store.tasks = res.tasks; store.sharing = res.sharing; store.staff = res.staff;
+  store.sharedWithMe = res.sharedWithMe; store.meName = res.me.name;
+}
+
+async function sync() {
+  if (!session.email) return;
+  if (!navigator.onLine || !sessionValid()) { setStatus(); if (!sessionValid() && session.email) needSignIn(); return; }
+  if (syncing) { syncAgain = true; return; }
+  syncing = true; setStatus();
+  try {
+    const sent = store.queue.slice();
+    const res = await api({ action: 'sync', ops: sent });
+    store.queue.splice(0, sent.length);
+    absorbState(res);
+    store.queue.forEach(op => applyOp(store.tasks, op));   // anything added while the request was in flight
+    lastSynced = new Date(); authProblem = false;
+    $('reauth').classList.add('hidden');
+    persist(); render();
+  } catch (err) {
+    if (err.code === 'auth') { session.token = ''; needSignIn(); }
+    else if (err.code === 'forbidden') showBanner('err', err.message);
+    else if (navigator.onLine) showBanner('warn', 'Couldn\u2019t sync just now (' + err.message + '). Your changes are safe on this device and will retry.');
+  } finally {
+    syncing = false; setStatus();
+    if (syncAgain) { syncAgain = false; sync(); }
+  }
+}
+
+function needSignIn() {
+  authProblem = true;
+  $('reauth').classList.remove('hidden');
+  if (window.google && google.accounts) google.accounts.id.prompt();
+  setStatus();
+}
+
+let syncTimer = null;
+function queueSync() { clearTimeout(syncTimer); syncTimer = setTimeout(sync, 400); }
+function mutate(op) {
+  applyOp(store.tasks, op);
+  store.queue.push(op);
+  persist(); render(); setStatus(); queueSync();
+}
+
+window.addEventListener('online', sync);
+window.addEventListener('offline', setStatus);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(); });
+
+function setStatus() {
+  const n = store.queue.length;
+  let s = '';
+  if (!session.email) s = '';
+  else if (!navigator.onLine) s = 'Offline' + (n ? ' · ' + n + ' change' + (n > 1 ? 's' : '') + ' waiting' : '');
+  else if (authProblem || !sessionValid()) s = n ? n + ' change' + (n > 1 ? 's' : '') + ' waiting · sign in to sync' : 'Sign in to sync';
+  else if (syncing) s = 'Syncing…';
+  else if (n) s = n + ' change' + (n > 1 ? 's' : '') + ' waiting';
+  else if (lastSynced) s = 'Synced ' + lastSynced.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+  $('status').textContent = s;
+}
+
+function showBanner(kind, msg) {
+  const b = $('banner');
+  b.className = 'notice ' + (kind === 'err' ? 'err' : kind === 'info' ? 'info' : 'warn');
+  b.textContent = msg;
+  if (kind !== 'err') setTimeout(() => { if (b.textContent === msg) b.classList.add('hidden'); }, 7000);
+}
+
+/* ---------------- task fields (shared by Add and Edit) ---------------- */
+function buildFields(t) {
+  const due = el('input', { type: 'date', value: t.due || '' });
+  const priority = el('select', {},
+    el('option', { value: 'normal', text: 'Normal' }),
+    el('option', { value: 'high', text: 'High priority' }));
+  priority.value = t.priority || 'normal';
+  const linkType = el('select', {}, el('option', { value: '', text: 'No link' }), LINK_TYPES.map(x => el('option', { value: x, text: x })));
+  linkType.value = t.linkType || '';
+  const linkRef = el('input', { type: 'text', placeholder: 'Number, e.g. 28643', value: t.linkRef || '', inputmode: 'text', autocomplete: 'off' });
+  const priv = el('input', { type: 'checkbox' });
+  priv.checked = !!t.private;
+
+  const root = el('div', { class: 'fields' },
+    el('div', {}, el('label', { text: 'Due date' }), due),
+    el('div', {}, el('label', { text: 'Priority' }), priority),
+    el('div', {}, el('label', { text: 'Linked to' }), linkType),
+    el('div', {}, el('label', { text: 'Record number' }), linkRef),
+    el('div', { class: 'full' }, el('label', { class: 'check' }, priv, 'Keep this task private even when my list is shared')));
+
+  return {
+    root,
+    get() {
+      let lt = linkType.value, lr = linkRef.value.trim();
+      if (!lt || !lr) { lt = ''; lr = ''; }
+      return { due: due.value, priority: priority.value, linkType: lt, linkRef: lr, private: priv.checked };
+    },
+    set(v) { due.value = v.due || ''; priority.value = v.priority || 'normal'; linkType.value = v.linkType || ''; linkRef.value = v.linkRef || ''; priv.checked = !!v.private; }
+  };
+}
+
+/* ---------------- add ---------------- */
+function resetAddFields() {
+  const keep = keepLink && addFields ? addFields.get() : {};
+  addFields = buildFields(keepLink ? { linkType: keep.linkType, linkRef: keep.linkRef } : {});
+  const box = $('addDetails'); box.innerHTML = ''; box.append(addFields.root);
+}
+$('detailsToggle').addEventListener('click', () => {
+  const box = $('addDetails'); box.classList.toggle('hidden');
+  $('detailsToggle').textContent = box.classList.contains('hidden') ? 'Add date, link or priority' : 'Hide details';
+});
+function addTask() {
+  const text = $('newText').value.trim();
+  if (!text) { $('newText').focus(); return; }
+  const f = addFields.get();
+  const task = Object.assign({ id: uuid(), text, done: false, created: new Date().toISOString(), updated: '', doneAt: '' }, f);
+  mutate({ type: 'upsert', task });
+  $('newText').value = '';
+  resetAddFields();
+  $('newText').focus();
+}
+$('addBtn').addEventListener('click', addTask);
+$('newText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } });
+
+/* ---------------- voice ---------------- */
+let rec = null, recOn = false;
+$('micBtn').addEventListener('click', () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showBanner('warn', 'Voice input isn\u2019t supported in this browser. Try Chrome on Android or desktop, or Safari on iPhone.'); return; }
+  if (recOn) { rec.stop(); return; }
+  rec = new SR(); rec.lang = 'en-AU'; rec.interimResults = false; rec.continuous = false;
+  rec.onresult = ev => {
+    const said = Array.from(ev.results).map(r => r[0].transcript).join(' ').trim();
+    const cur = $('newText').value.trim();
+    $('newText').value = (cur ? cur + ' ' : '') + said;
+  };
+  rec.onend = () => { recOn = false; $('micBtn').classList.remove('recording'); };
+  rec.onerror = () => { recOn = false; $('micBtn').classList.remove('recording'); };
+  rec.start(); recOn = true; $('micBtn').classList.add('recording');
+});
+
+/* ---------------- list rendering ---------------- */
+function sortTasks(list) {
+  return list.slice().sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    if (a.done) return (b.doneAt || '').localeCompare(a.doneAt || '');
+    if (a.due !== b.due) { if (!a.due) return 1; if (!b.due) return -1; return a.due.localeCompare(b.due); }
+    if (a.priority !== b.priority) return a.priority === 'high' ? -1 : 1;
+    return (b.created || '').localeCompare(a.created || '');
+  });
+}
+
+function linkChips(t, interactive) {
+  if (!t.linkType || !t.linkRef) return [];
+  const chip = interactive
+    ? el('button', { type: 'button', class: 'chip link', title: 'Show everything linked to this record', onclick: () => { linkFilter = { type: t.linkType, ref: t.linkRef }; filter = 'all'; render(); } }, t.linkType + ' ' + t.linkRef)
+    : el('span', { class: 'chip link' }, t.linkType + ' ' + t.linkRef);
+  const out = [chip];
+  const urlFn = LINK_URLS[t.linkType];
+  if (urlFn) out.push(el('a', { class: 'open-link', href: urlFn(t.linkRef), target: '_blank', rel: 'noopener' }, 'Open'));
+  return out;
+}
+
+function taskRow(t, opts) {
+  const d = dueInfo(t.done ? '' : t.due);
+  const meta = el('div', { class: 'meta' },
+    d ? el('span', { class: 'chip due ' + d.cls }, d.text) : (t.due && t.done ? el('span', { class: 'chip' }, 'Was due ' + parseDay(t.due).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })) : null),
+    t.priority === 'high' ? el('span', { class: 'chip high' }, 'High priority') : null,
+    linkChips(t, opts.interactive),
+    t.private && opts.interactive ? el('span', { class: 'chip priv' }, 'Private') : null);
+
+  const tick = el('button', {
+    type: 'button', class: 'tick' + (t.done ? ' done' : ''), disabled: !opts.interactive,
+    'aria-label': t.done ? 'Mark as not done' : 'Mark as done', 'aria-pressed': String(t.done),
+    onclick: () => mutate({ type: 'upsert', task: Object.assign({}, t, { done: !t.done, doneAt: !t.done ? new Date().toISOString() : '' }) })
+  }, t.done ? icon('check') : null);
+
+  const text = opts.interactive
+    ? el('button', { type: 'button', class: 'task-text', onclick: () => { editingId = editingId === t.id ? null : t.id; render(); } }, t.text)
+    : el('div', { class: 'task-text readonly' }, t.text);
+
+  const main = el('div', { class: 'task-main' }, text, meta);
+
+  if (opts.interactive && editingId === t.id) {
+    const textIn = el('input', { type: 'text', value: t.text, 'aria-label': 'Task text' });
+    const f = buildFields(t);
+    main.append(el('div', { class: 'editor' },
+      textIn, f.root,
+      el('div', { class: 'actions' },
+        el('button', { type: 'button', class: 'btn btn-dark', onclick: () => {
+          const txt = textIn.value.trim(); if (!txt) { textIn.focus(); return; }
+          editingId = null; mutate({ type: 'upsert', task: Object.assign({}, t, { text: txt }, f.get()) });
+        } }, 'Save'),
+        el('button', { type: 'button', class: 'btn btn-plain', onclick: () => { editingId = null; render(); } }, 'Cancel'),
+        el('button', { type: 'button', class: 'btn btn-plain btn-danger', onclick: () => { if (confirm('Delete this task?')) { editingId = null; mutate({ type: 'delete', id: t.id }); } } }, 'Delete'))));
+  }
+  return el('div', { class: 'task' + (t.done ? ' is-done' : '') }, tick, main);
+}
+
+function renderMine() {
+  let list = store.tasks;
+  if (linkFilter) list = list.filter(t => t.linkType === linkFilter.type && t.linkRef === linkFilter.ref);
+  if (filter === 'open') list = list.filter(t => !t.done);
+  if (filter === 'done') list = list.filter(t => t.done);
+
+  document.querySelectorAll('.seg').forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+  const chip = $('linkFilterChip');
+  if (linkFilter) { chip.textContent = linkFilter.type + ' ' + linkFilter.ref + '  \u00D7'; chip.classList.remove('hidden'); } else chip.classList.add('hidden');
+
+  const box = $('taskList'); box.innerHTML = '';
+  if (!list.length) {
+    box.append(el('div', { class: 'empty' }, linkFilter ? 'Nothing here for that record.' : filter === 'done' ? 'No completed tasks yet.' : 'Nothing to do. Add a task above as things come up.'));
+  } else sortTasks(list).forEach(t => box.append(taskRow(t, { interactive: true })));
+}
+
+$('linkFilterChip').addEventListener('click', () => { linkFilter = null; render(); });
+document.querySelectorAll('.seg').forEach(b => b.addEventListener('click', () => { filter = b.dataset.filter; render(); }));
+
+/* ---------------- sharing panel ---------------- */
+const SHARE_LABELS = { private: 'Only me', people: 'Specific people', office: 'Office', everyone: 'Everyone at Blindmaster' };
+function renderShare() {
+  const s = store.sharing || { mode: 'private', people: [] };
+  const summary = s.mode === 'people' ? 'Shared with ' + (s.people.length || 'no') + ' ' + (s.people.length === 1 ? 'person' : 'people') : s.mode === 'private' ? 'Private to me' : 'Shared with: ' + SHARE_LABELS[s.mode];
+  $('shareSummary').textContent = 'Who can see my list \u2014 ' + summary;
+
+  const body = $('shareBody'); body.innerHTML = '';
+  const opts = [
+    ['private', 'Only me', 'Nobody else can see your list.'],
+    ['people', 'Specific people', 'Pick who can see it.'],
+    ['office', 'Office', 'Jan and the project managers.'],
+    ['everyone', 'Everyone at Blindmaster', 'Every signed-in staff member.']
+  ];
+  const peopleBox = el('div', { class: 'people' + (s.mode === 'people' ? ' show' : '') },
+    store.staff.map(p => el('label', {}, el('input', { type: 'checkbox', value: p.email, checked: s.people.includes(p.email) }), p.name)));
+
+  opts.forEach(([val, title, hint]) => {
+    const radio = el('input', { type: 'radio', name: 'shareMode', value: val, checked: s.mode === val, onchange: () => peopleBox.classList.toggle('show', val === 'people') });
+    body.append(el('label', { class: 'share-opt' }, radio, el('span', {}, title, el('small', {}, hint))));
+    if (val === 'people') body.append(peopleBox);
+  });
+  body.append(el('div', { class: 'notice info', style: 'margin-top:12px;' }, 'People you share with can look, not edit. Tasks you mark \u201Cprivate\u201D are never shown to anyone else.'));
+  body.append(el('button', { type: 'button', class: 'btn btn-dark', onclick: async () => {
+    const mode = (body.querySelector('input[name=shareMode]:checked') || {}).value || 'private';
+    const people = Array.from(peopleBox.querySelectorAll('input:checked')).map(i => i.value);
+    if (!navigator.onLine || !sessionValid()) { showBanner('warn', 'You need to be online and signed in to change sharing.'); return; }
+    try { absorbState(await api({ action: 'setSharing', mode, people })); persist(); render(); showBanner('info', 'Sharing updated.'); }
+    catch (err) { showBanner('err', err.message); }
+  } }, 'Save sharing'));
+}
+
+/* ---------------- shared with me ---------------- */
+function renderShared() {
+  const n = store.sharedWithMe.length;
+  $('tabShared').textContent = 'Shared with me' + (n ? ' (' + n + ')' : '');
+  const owners = $('ownerList'); owners.innerHTML = '';
+  store.sharedWithMe.forEach(o => owners.append(el('button', {
+    type: 'button', class: 'owner-btn' + (viewing.owner === o.email ? ' active' : ''), onclick: () => openShared(o)
+  }, o.name + (o.openCount ? ' \u00B7 ' + o.openCount + ' open' : ''))));
+
+  const status = $('sharedStatus'), list = $('sharedTasks'); list.innerHTML = '';
+  if (!n) { status.className = 'empty'; status.textContent = 'Nobody has shared their list with you yet.'; return; }
+  if (!viewing.owner) { status.className = 'empty'; status.textContent = 'Pick a person to see their list.'; return; }
+  if (viewing.loading) { status.className = 'empty'; status.textContent = 'Loading…'; return; }
+  if (viewing.error) { status.className = 'notice err'; status.textContent = viewing.error; return; }
+  const tasks = viewing.tasks || [];
+  status.className = 'empty';
+  status.textContent = tasks.length ? '' : viewing.name + ' has nothing on their shared list.';
+  if (tasks.length) {
+    list.append(el('div', { class: 'notice info' }, viewing.name + '\u2019s list \u2014 view only.'));
+    sortTasks(tasks).forEach(t => list.append(taskRow(t, { interactive: false })));
+  }
+}
+async function openShared(o) {
+  viewing = { owner: o.email, name: o.name, tasks: null, error: '', loading: true };
+  renderShared();
+  if (!navigator.onLine || !sessionValid()) { viewing.loading = false; viewing.error = 'You need to be online and signed in to view someone else\u2019s list.'; renderShared(); return; }
+  try { const res = await api({ action: 'viewList', owner: o.email }); viewing.tasks = res.tasks; }
+  catch (err) { viewing.error = err.message; }
+  viewing.loading = false; renderShared();
+}
+
+/* ---------------- tabs & app shell ---------------- */
+function setTab(which) {
+  $('tabMine').classList.toggle('active', which === 'mine');
+  $('tabShared').classList.toggle('active', which === 'shared');
+  $('viewMine').classList.toggle('hidden', which !== 'mine');
+  $('viewShared').classList.toggle('hidden', which !== 'shared');
+  if (which === 'shared') { if (viewing.owner) openShared({ email: viewing.owner, name: viewing.name }); else renderShared(); }
+}
+$('tabMine').addEventListener('click', () => setTab('mine'));
+$('tabShared').addEventListener('click', () => setTab('shared'));
+
+function render() { renderMine(); renderShare(); renderShared(); }
+
+function showApp() {
+  $('signin').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').classList.remove('hidden');
+  $('whoName').textContent = store.meName || session.name || session.email;
+  $('reauth').classList.toggle('hidden', !authProblem);
+  render(); setStatus();
+}
+
+/* ---------------- start up ---------------- */
+function applyUrlPrefill() {
+  // e.g. blindmaster-todo.html?linkType=Project&linkRef=28643&text=Order%20brackets
+  const p = new URLSearchParams(location.search);
+  const lt = p.get('linkType'), lr = p.get('linkRef'), tx = p.get('text');
+  if (lt && LINK_TYPES.includes(lt) && lr) {
+    keepLink = true;
+    addFields.set({ linkType: lt, linkRef: lr });
+    $('addDetails').classList.remove('hidden'); $('detailsToggle').textContent = 'Hide details';
+    linkFilter = { type: lt, ref: lr }; filter = 'open';
+  }
+  if (tx) $('newText').value = tx;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  // ?embed=1 hides the header and footer so the page can sit inside the field service app
+  if (new URLSearchParams(location.search).get('embed') === '1') document.body.classList.add('embed');
+  resetAddFields();
+  applyUrlPrefill();
+
+  if (!configured) {
+    const n = $('setupNotice');
+    n.textContent = 'Setup needed: add the To Do web app URL and Google Client ID at the top of this page\u2019s script (ENDPOINT and GOOGLE_CLIENT_ID).';
+    n.classList.remove('hidden');
+    $('signin').classList.remove('hidden');
+    return;
+  }
+
+  // Reopen offline-capable: show last user's saved list straight away, then sync once signed in.
+  let last = '';
+  try { last = localStorage.getItem('bm_todo_last_email') || ''; } catch (e) {}
+  if (last) {
+    session.email = last; store = loadCache(last); authProblem = true;
+    showApp();
+  } else {
+    $('signin').classList.remove('hidden');
+  }
+  initGoogle();
+});
+</script>
+</body>
+</html>
