@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '18'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '19'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -880,6 +880,39 @@
 
   function refLabel(a) { return a.jr ? 'JR#' + a.jr : a.opp ? 'OPP-' + a.opp : ''; }
 
+  /** Mon–Fri tabs for the week of `date`, with arrows to the previous / next week. Counts fill in after loading. */
+  function weekMonday(date) { var dow = new Date(date + 'T12:00:00').getDay(); return addDays(date, dow === 0 ? -6 : 1 - dow); }
+  function weekTabs(date) {
+    var mon = weekMonday(date), t = todayStr();
+    var cells = [0, 1, 2, 3, 4].map(function (i) {
+      var d = addDays(mon, i), on = d === date, dt = new Date(d + 'T12:00:00');
+      return '<a class="wk-day' + (d === t ? ' is-today' : '') + '" href="' + dayHref(d) + '"' + (on ? ' aria-current="date"' : '') + ' data-wk="' + d + '">' +
+        '<span class="wk-dow">' + dt.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase() + '</span><span class="wk-num">' + dt.getDate() + '</span>' +
+        '<span class="wk-count">' + weekCount(d) + '</span></a>';
+    }).join('');
+    return '<nav class="wk" aria-label="This week">' +
+      '<a class="wk-arrow" href="' + dayHref(addDays(mon, -7)) + '" aria-label="Previous week">' + I.left + '</a>' + cells +
+      '<a class="wk-arrow" href="' + dayHref(addDays(mon, 7)) + '" aria-label="Next week">' + I.right + '</a></nav>' +
+      (date === t || weekMonday(t) === mon ? '' : '<div class="section" style="padding-top:8px"><a class="today-btn" href="#/day">Back to today</a></div>');
+  }
+  function weekCount(d) {
+    var c = state.cache[d];
+    if (!c) return '&nbsp;';
+    var n = c.appointments.length;
+    return n ? n + (isOffice() || !c.appointments.every(function (a) { return a.isInstall; }) ? (n === 1 ? ' appt' : ' appts') : (n === 1 ? ' job' : ' jobs')) : '–';
+  }
+  /** Loads the rest of the week (cached) so each tab shows how many appointments it has. */
+  function fillWeekCounts(date) {
+    var mon = weekMonday(date);
+    [0, 1, 2, 3, 4].forEach(function (i) {
+      var d = addDays(mon, i);
+      loadDay(d).then(function () {
+        var el = document.querySelector('.wk-day[data-wk="' + d + '"] .wk-count');
+        if (el) el.innerHTML = weekCount(d);
+      }, function () {});
+    });
+  }
+
   function dayNav(date) {
     var isToday = date === todayStr();
     return '<div class="daybar">' +
@@ -949,7 +982,9 @@
 
   function dayFooter(day, date, appts) {
     var html = '';
-    if (!isOffice() && appts.some(function (a) { return a.isInstall; }) && CFG.DIR_FORM_URL) {
+    if (!isOffice()) html += '<a class="panel spread" style="margin-top:20px;text-decoration:none;color:inherit" href="#/receipts">' +
+      '<span class="stack" style="gap:4px"><b>Receipts</b><span class="small muted">Photograph receipts as you go</span></span><span class="tag tag-light">+ Add</span></a>';
+    if (!isOffice() && (state.user || {}).role !== 'sales' && appts.some(function (a) { return a.isInstall; }) && CFG.DIR_FORM_URL) {
       html += '<a class="panel spread" style="margin-top:20px;text-decoration:none;color:inherit" href="' + esc(dirUrl(date)) + '" target="_blank" rel="noopener">' +
         '<span class="stack" style="gap:4px"><b>End of day</b><span class="small muted">Open your Daily Installation Report</span></span>' + I.ext + '</a>';
     }
@@ -1118,7 +1153,7 @@
       var appts = day.appointments;
       var ni = nextIndex(appts, date);
       var html = topbar() + (day.offline ? '<div class="offline-bar">Offline: showing your last saved schedule</div>' : '') + '<main>' +
-        dayNav(date) + dayHeading(date, appts) + nextPanel(ni >= 0 ? appts[ni] : null, date);
+        dayHeading(date, appts) + weekTabs(date) + nextPanel(ni >= 0 ? appts[ni] : null, date);
       if (appts.length) {
         html += '<div class="section spread" style="padding-top:28px;padding-bottom:12px"><h2>Schedule</h2>' +
           '<a href="#/route' + (date === todayStr() ? '' : '/' + date) + '" style="font-weight:700;font-size:14px;min-height:44px;display:flex;align-items:center">Route map</a></div>' +
@@ -1131,6 +1166,7 @@
       bindRefresh();
       fillWeather();
       fillChatLinks();
+      fillWeekCounts(date);
     }, function (err) { showError(err, function () { renderDay(date); }); });
   }
 
@@ -1166,7 +1202,7 @@
       var ni = nextIndex(appts, date);
       var sel = selectedId ? appts.filter(function (a) { return a.id === selectedId; })[0] : (appts[ni >= 0 ? ni : 0] || null);
       var list = (day.offline ? '<div class="offline-bar">Offline: showing your last saved schedule</div>' : '') +
-        dayNav(date) + dayHeading(date, appts) +
+        dayHeading(date, appts) + weekTabs(date) +
         (appts.length ? scheduleList(appts, date, ni, sel && sel.id) : '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">Nothing is booked on this day.</p></div>') +
         dayFooter(day, date, appts);
       var detail = sel ? apptDetail(sel, date, true)
@@ -1176,6 +1212,7 @@
       bindRefresh();
       fillWeather();
       fillChatLinks();
+      fillWeekCounts(date);
     }, function (err) { showError(err, function () { renderDayWide(date, selectedId); }); });
   }
 
