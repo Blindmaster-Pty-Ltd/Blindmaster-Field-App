@@ -607,3 +607,10 @@ body.mode-desktop .pl-grid { grid-template-columns: repeat(var(--days, 6), minma
 .hr-table .is-today { background: #EAF1F6; }
 .hr-flag { color: #9E2A2B; }
 .pl-away { display: block; margin-top: 4px; padding: 2px 8px; background: var(--monument-grey); color: var(--natural-white); font-size: 12px; font-weight: 700; }
+
+/* Booking status as a coloured line down the left edge (green confirmed, red not confirmed) */
+.light { width: 5px; height: 16px; border-radius: 0; box-shadow: none; vertical-align: -3px; }
+.appt-card { overflow: hidden; padding-left: 20px; }
+.appt-card > .light { position: absolute; left: 0; top: 0; bottom: 0; right: auto; width: 6px; height: auto; }
+.pl-card { border-left-width: 6px; padding-right: 10px; }
+.pl-card > .light { display: none; } /* the planner card's own left border is the line */

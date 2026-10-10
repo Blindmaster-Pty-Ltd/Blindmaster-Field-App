@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '17'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '18'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
