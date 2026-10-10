@@ -515,3 +515,11 @@ body.mode-desktop .pl-grid { grid-template-columns: repeat(var(--days, 6), minma
 .col-queue li.is-ok { border-left-color: #2E7D4F; }
 .col-queue li.is-bad { border-left-color: #B3261E; }
 .col-q-name { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+
+/* Office "View as" */
+.vas-bar { position: sticky; top: 60px; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 4px 8px 4px 16px; background: var(--pastel-blue, #9DBCD0); color: var(--monument-grey, #404141); font-size: 14px; }
+.vas-bar > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.vas-bar > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vas-back { flex-shrink: 0; min-height: 36px; padding: 0 12px; border: 0; background: var(--monument-grey, #404141); color: #FAFAFA; font: inherit; font-weight: 700; cursor: pointer; }
+.content > .vas-bar { top: 0; }
+.vas-pick select { min-height: 48px; padding: 0 12px; border: 1px solid var(--line, #E9E6E0); background: #FAFAFA; font: inherit; font-size: 16px; color: inherit; }

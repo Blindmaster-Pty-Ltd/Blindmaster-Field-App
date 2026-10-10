@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '14'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '15'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -93,6 +93,7 @@
     camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     play: '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    eye: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
     grid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
@@ -103,9 +104,27 @@
   /* ---------- auth ---------- */
 
   function session() { return store('fa-session'); }
+  /** Office "View as": the email being viewed, or '' when you're seeing your own view. */
+  function viewAs() { return store('fa-viewas') || ''; }
+  function realOffice() { var u = state.user; return !!(u && /office|admin/i.test((u.viewing ? u.realRole : u.role) || '')); }
+  function setViewAs(email) {
+    if (email) store('fa-viewas', email); else unstore('fa-viewas');
+    state.cache = {}; stopChat();
+    loading(email ? 'Switching view…' : 'Back to your view…');
+    return api({ action: 'me' }).then(function (d) {
+      state.user = d.user; store('fa-user', d.user);
+      location.hash = '#/'; render();
+    }, function (err) { unstore('fa-viewas'); showError(err, render); });
+  }
+  function vasBar() {
+    var u = state.user;
+    if (!u || !u.viewing) return '';
+    return '<div class="vas-bar" role="status"><span>' + I.eye + '<span>Viewing as <b>' + esc(u.name) + '</b> · ' + esc(roleLabel(u.role)) + '</span></span>' +
+      '<button type="button" class="vas-back" data-vas-back>Back to me</button></div>';
+  }
   function tokenValid(s) { return s && (s.devEmail || (s.idToken && s.exp * 1000 > Date.now() + 60000)); }
   function signOut() {
-    unstore('fa-session'); unstore('fa-user');
+    unstore('fa-session'); unstore('fa-user'); unstore('fa-viewas');
     stopChat(); try { if (chat.auth) chat.auth.signOut(); } catch (e) {}
     state.user = null; state.cache = {};
     try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch (e) {}
@@ -126,6 +145,8 @@
     var s = session() || {};
     var q = Object.assign({}, params);
     if (s.idToken) q.idToken = s.idToken; else if (s.devEmail) q.devEmail = s.devEmail;
+    if (viewAs() && !q.viewAs && q.viewAs !== '') q.viewAs = viewAs();
+    if (q.viewAs === '') delete q.viewAs;
     var url = CFG.API_URL + '?' + Object.keys(q).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(q[k]); }).join('&');
     return fetch(url, { method: 'GET', redirect: 'follow' })
       .then(function (r) { return r.json(); })
@@ -141,6 +162,7 @@
 
   /** POST to the script (used for uploads). Plain-text body avoids a CORS preflight, which Apps Script can't answer. */
   function apiPost(body) {
+    if (viewAs()) return Promise.reject(new Error('You\'re viewing as ' + ((state.user && state.user.name) || 'someone else') + '. Tap "Back to me" to make changes.'));
     var s = session() || {};
     var b = Object.assign({}, body);
     if (s.idToken) b.idToken = s.idToken; else if (s.devEmail) b.devEmail = s.devEmail;
@@ -187,7 +209,7 @@
     } catch (e) { chat.ready = null; }
     return chat.ready;
   }
-  function myEmail() { var s = session() || {}; return String((state.user && state.user.email) || s.email || s.devEmail || '').toLowerCase(); }
+  function myEmail() { var s = session() || {}; return String((state.user && (state.user.realEmail || state.user.email)) || s.email || s.devEmail || '').toLowerCase(); }
   function needConnect(msg) { var e = new Error(msg || 'Sign in to the project chat'); e.connect = true; return e; }
 
   /** Signs in to Firebase with the same Google account as the app. Rejects with .connect when a tap is needed. */
@@ -689,7 +711,7 @@
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -720,7 +742,7 @@
       : '<img src="wordmark-white.svg" alt="Blindmaster">';
     var right = opts.right != null ? '<span class="meta">' + esc(opts.right) + '</span>'
       : (state.user ? '<a class="avatar" href="#/account" aria-label="Account: ' + esc(state.user.name) + '">' + esc(initials(state.user.name)) + '</a>' : '');
-    return '<header class="topbar">' + left + right + '</header>';
+    return '<header class="topbar">' + left + right + '</header>' + vasBar();
   }
 
   function navItems(date) {
@@ -763,7 +785,7 @@
         '<a class="rail-user" href="#/account"><span class="avatar">' + esc(initials(u.name)) + '</span><span class="rail-user-text"><b>' + esc(u.name || '') + '</b><span>' + esc(roleLabel(u.role)) + '</span></span></a>' +
         (CFG.ENVIRONMENT ? '<span class="rail-env">' + esc(CFG.ENVIRONMENT) + ' · v' + APP_VERSION + '</span>' : '') +
       '</aside>' +
-      '<div class="content">' + content + '</div>' +
+      '<div class="content">' + vasBar() + content + '</div>' +
     '</div>';
   }
 
@@ -1837,13 +1859,30 @@
         '<div class="stack" style="gap:2px"><h2>' + esc(u.name || '') + '</h2><span class="small muted">' + esc(u.email || '') + '</span></div></div>' +
         (u.role ? '<span class="tag" style="align-self:flex-start">' + esc(roleLabel(u.role)) + '</span>' : '') +
         (CFG.ENVIRONMENT ? '<p class="notice" style="margin:0">You are using the <b>' + esc(CFG.ENVIRONMENT) + '</b> version. Appointments here are test data.</p>' : '') +
-        '<a class="btn btn-sand btn-lg" href="#/receipts">' + I.receipt + 'My work receipts</a>' +
+        (realOffice() ? '<div class="vas-pick stack" style="gap:8px"><label for="vasSel"><b>View as</b></label>' +
+          '<span class="small muted">See the app the way a staff member sees it. Viewing only: switch back to yourself to make changes.</span>' +
+          '<select id="vasSel" disabled><option>Loading staff…</option></select>' +
+          (u.viewing ? '<button type="button" class="btn btn-dark btn-lg" data-vas-back>Back to me (' + esc(u.realName || '') + ')</button>' : '') +
+          '</div>' : '') +
+        (u.viewing ? '' : '<a class="btn btn-sand btn-lg" href="#/receipts">' + I.receipt + 'My work receipts</a>') +
         '<button class="btn btn-outline btn-lg" id="signout">Sign out</button>' +
         '<p class="small muted" style="margin:0">App version ' + APP_VERSION + '</p>' +
         '<p class="small muted" style="margin:0">Add this app to your home screen: in Safari tap Share, then Add to Home Screen. In Chrome tap the menu, then Install app.</p>' +
       '</section>';
     app.innerHTML = wide() ? shell('account', null, body) : topbar() + '<main>' + body + '</main>' + tabbar('account');
     document.getElementById('signout').onclick = signOut;
+    var sel = document.getElementById('vasSel');
+    if (sel) api({ action: 'staffList', viewAs: '' }).then(function (d) {
+      var groups = {};
+      d.staff.forEach(function (p) { var g = roleLabel(p.role); (groups[g] = groups[g] || []).push(p); });
+      var me = u.realEmail || u.email;
+      sel.innerHTML = '<option value="">Myself (' + esc(u.realName || u.name || '') + ')</option>' + Object.keys(groups).map(function (g) {
+        return '<optgroup label="' + esc(g) + '">' + groups[g].filter(function (p) { return p.email !== me; }).map(function (p) {
+          return '<option value="' + esc(p.email) + '"' + (u.viewing && p.email === u.email ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
+      }).join('');
+      sel.disabled = false;
+      sel.onchange = function () { setViewAs(sel.value); };
+    }, function (err) { sel.innerHTML = '<option>' + esc(err.message || 'Couldn\'t load staff') + '</option>'; });
   }
 
   /* ---------- start ---------- */
@@ -1851,6 +1890,10 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-vas-back]');
+    if (b) { e.preventDefault(); setViewAs(''); }
+  });
   state.user = store('fa-user');
   render();
 })();
