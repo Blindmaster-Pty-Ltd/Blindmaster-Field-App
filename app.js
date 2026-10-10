@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '16'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '17'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -156,6 +156,9 @@
     return fetch(url, { method: 'GET', redirect: 'follow' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        if (!data.ok && q.viewAs && /view as|pick a role|staff list/i.test(data.error || '')) {
+          unstore('fa-viewas'); delete params.viewAs; return api(params); // an old View as choice: drop it and carry on as yourself
+        }
         if (!data.ok) {
           var err = new Error(data.error || 'Something went wrong');
           err.auth = /sign in|sign-in|recognised|verified|blindmaster account/i.test(data.error || '');
@@ -1903,6 +1906,7 @@
     function draw(h, err) {
       var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(roleLabel(u.role)) + ' · ' + esc(u.email || '') + '</span><h1>Me</h1>' +
         '<span class="small">Your tasks, receipts, leave' + (h && h.can.clock ? ' and hours' : '') + ', all with one sign-in.</span></section>';
+      if (u.staffWarning) body += '<div class="section"><p class="notice error" role="alert" style="margin:0">' + esc(u.staffWarning) + '</p></div>';
       body += '<nav class="section stack st-list" aria-label="Staff tools" style="gap:8px">';
       body += row('#/todo', I.list, 'My to do', h ? (h.todo.open + ' open' + (h.todo.dueToday ? ' · ' + h.todo.dueToday + ' due today' : '') + (h.todo.overdue ? ' · ' + h.todo.overdue + ' overdue' : '')) : '', h && h.todo.open ? String(h.todo.open) : '');
       body += row('#/receipts', I.receipt, 'Work receipts', 'This month\'s receipts, sent to accounts on the 1st');
@@ -2303,6 +2307,7 @@
         '<div class="row"><span class="avatar" style="width:56px;height:56px;border-radius:28px">' + esc(initials(u.name)) + '</span>' +
         '<div class="stack" style="gap:2px"><h2>' + esc(u.name || '') + '</h2><span class="small muted">' + esc(u.email || '') + '</span></div></div>' +
         (u.role ? '<span class="tag" style="align-self:flex-start">' + esc(roleLabel(u.role)) + '</span>' : '') +
+        (u.staffWarning ? '<p class="notice error" role="alert" style="margin:0">' + esc(u.staffWarning) + '</p>' : '') +
         (CFG.ENVIRONMENT ? '<p class="notice" style="margin:0">You are using the <b>' + esc(CFG.ENVIRONMENT) + '</b> version. Appointments here are test data.</p>' : '') +
         (realOffice() ? '<div class="vas-pick stack" style="gap:8px"><label for="vasSel"><b>View as</b></label>' +
           '<span class="small muted">See how the app is laid out for each role. It still shows only your own appointments, and it\'s view only: switch back to make changes.</span>' +
