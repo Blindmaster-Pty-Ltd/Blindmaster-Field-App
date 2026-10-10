@@ -115,7 +115,7 @@
   function setViewAs(email) {
     if (email) store('fa-viewas', email); else unstore('fa-viewas');
     state.cache = {}; stopChat();
-    loading(email ? 'Switching view…' : 'Back to your view…');
+    loading(email ? 'Switching to the ' + roleLabel(email) + ' view…' : 'Back to your view…');
     return api({ action: 'me' }).then(function (d) {
       state.user = d.user; store('fa-user', d.user);
       location.hash = '#/'; render();
@@ -124,8 +124,8 @@
   function vasBar() {
     var u = state.user;
     if (!u || !u.viewing) return '';
-    return '<div class="vas-bar" role="status"><span>' + I.eye + '<span>Viewing as <b>' + esc(u.name) + '</b> · ' + esc(roleLabel(u.role)) + '</span></span>' +
-      '<button type="button" class="vas-back" data-vas-back>Back to me</button></div>';
+    return '<div class="vas-bar" role="status"><span>' + I.eye + '<span>Viewing as <b>' + esc(roleLabel(u.role)) + '</b></span></span>' +
+      '<button type="button" class="vas-back" data-vas-back>Back to my view</button></div>';
   }
   function tokenValid(s) { return s && (s.devEmail || (s.idToken && s.exp * 1000 > Date.now() + 60000)); }
   function signOut() {
@@ -167,7 +167,7 @@
 
   /** POST to the script (used for uploads). Plain-text body avoids a CORS preflight, which Apps Script can't answer. */
   function apiPost(body) {
-    if (viewAs()) return Promise.reject(new Error('You\'re viewing as ' + ((state.user && state.user.name) || 'someone else') + '. Tap "Back to me" to make changes.'));
+    if (viewAs()) return Promise.reject(new Error('You\'re viewing as ' + roleLabel(viewAs()) + '. Tap "Back to my view" to make changes.'));
     var s = session() || {};
     var b = Object.assign({}, body);
     if (s.idToken) b.idToken = s.idToken; else if (s.devEmail) b.devEmail = s.devEmail;
@@ -799,7 +799,7 @@
     '</div>';
   }
 
-  function roleLabel(r) { return /office|admin/i.test(r || '') ? 'Office' : r === 'sales' ? 'Sales and projects' : 'Installer'; }
+  function roleLabel(r) { return /office|admin/i.test(r || '') ? 'Office' : r === 'sales' ? 'Sales and projects' : r === 'pm' ? 'Project manager' : r === 'warehouse' ? 'Warehouse' : 'Installer'; }
 
   function loading(msg) {
     var body = '<p class="loading">' + esc(msg || 'Loading your day…') + '</p>';
@@ -2305,9 +2305,10 @@
         (u.role ? '<span class="tag" style="align-self:flex-start">' + esc(roleLabel(u.role)) + '</span>' : '') +
         (CFG.ENVIRONMENT ? '<p class="notice" style="margin:0">You are using the <b>' + esc(CFG.ENVIRONMENT) + '</b> version. Appointments here are test data.</p>' : '') +
         (realOffice() ? '<div class="vas-pick stack" style="gap:8px"><label for="vasSel"><b>View as</b></label>' +
-          '<span class="small muted">See the app the way a staff member sees it. Viewing only: switch back to yourself to make changes.</span>' +
-          '<select id="vasSel" disabled><option>Loading staff…</option></select>' +
-          (u.viewing ? '<button type="button" class="btn btn-dark btn-lg" data-vas-back>Back to me (' + esc(u.realName || '') + ')</button>' : '') +
+          '<span class="small muted">See how the app is laid out for each role. It still shows only your own appointments, and it\'s view only: switch back to make changes.</span>' +
+          '<select id="vasSel">' + [['', 'My view (' + roleLabel(u.realRole || u.role) + ')'], ['installer', 'Installer'], ['sales', 'Sales and projects'], ['pm', 'Project manager'], ['warehouse', 'Warehouse']].map(function (o) {
+            return '<option value="' + o[0] + '"' + ((u.viewing ? u.role : '') === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>' +
+          (u.viewing ? '<button type="button" class="btn btn-dark btn-lg" data-vas-back>Back to my view</button>' : '') +
           '</div>' : '') +
         '<button class="btn btn-outline btn-lg" id="signout">Sign out</button>' +
         '<p class="small muted" style="margin:0">App version ' + APP_VERSION + '</p>' +
@@ -2316,17 +2317,7 @@
     app.innerHTML = wide() ? shell('me', null, body) : topbar({ back: '#/me', backLabel: 'Me' }) + '<main>' + body + '</main>' + tabbar('me');
     document.getElementById('signout').onclick = signOut;
     var sel = document.getElementById('vasSel');
-    if (sel) api({ action: 'staffList', viewAs: '' }).then(function (d) {
-      var groups = {};
-      d.staff.forEach(function (p) { var g = roleLabel(p.role); (groups[g] = groups[g] || []).push(p); });
-      var me = u.realEmail || u.email;
-      sel.innerHTML = '<option value="">Myself (' + esc(u.realName || u.name || '') + ')</option>' + Object.keys(groups).map(function (g) {
-        return '<optgroup label="' + esc(g) + '">' + groups[g].filter(function (p) { return p.email !== me; }).map(function (p) {
-          return '<option value="' + esc(p.email) + '"' + (u.viewing && p.email === u.email ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</optgroup>';
-      }).join('');
-      sel.disabled = false;
-      sel.onchange = function () { setViewAs(sel.value); };
-    }, function (err) { sel.innerHTML = '<option>' + esc(err.message || 'Couldn\'t load staff') + '</option>'; });
+    if (sel) sel.onchange = function () { setViewAs(sel.value); };
   }
 
   /* ---------- start ---------- */
