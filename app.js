@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '15'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '16'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -93,6 +93,11 @@
     camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     play: '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    list: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M4 6h2M4 12h2M4 18h2M9 6h11M9 12h11M9 18h11"/></svg>',
+    leave: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/></svg>',
+    clock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    pencil: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg>',
+    pin: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
     eye: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
@@ -176,7 +181,7 @@
     return api({ action: 'day', date: date })
       .then(function (data) {
         state.user = data.user;
-        state.cache[date] = { appointments: data.appointments, fetchedAt: Date.now(), offline: false };
+        state.cache[date] = { appointments: data.appointments, away: data.away || [], fetchedAt: Date.now(), offline: false };
         if (data.jrBaseUrl) { state.jrBase = data.jrBaseUrl; store('fa-jrbase', data.jrBaseUrl); }
         store('fa-day-' + date, state.cache[date]);
         store('fa-user', data.user);
@@ -711,7 +716,7 @@
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -727,6 +732,11 @@
     if (r.name === 'overview') return renderOverview(r.arg || 'today', r.arg2 || todayStr());
     if (!location.hash.replace(/^#\/?/, '') && isOffice()) return renderOverview('today', todayStr());
     if (r.name === 'account') return renderAccount();
+    if (r.name === 'me') return renderMe();
+    if (r.name === 'todo') return renderTodo();
+    if (r.name === 'leave') return r.arg === 'new' ? renderLeaveNew() : r.arg ? renderLeaveItem(r.arg) : renderLeave();
+    if (r.name === 'clock') return renderClock();
+    if (r.name === 'hours') return renderHours(r.arg);
     if (r.name === 'collateral' && r.arg) return renderCollateral(r.arg, r.arg2 || todayStr());
     if (r.name === 'receipts') return renderReceipts(r.arg);
     var date = r.name === 'day' && r.arg ? r.arg : todayStr();
@@ -755,16 +765,16 @@
     if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
-    items.push({ key: 'receipts', href: '#/receipts', icon: I.receipt, label: 'Receipts' });
-    items.push({ key: 'account', href: '#/account', icon: I.user, label: 'Account' });
+    items.push({ key: 'me', href: '#/me', icon: I.user, label: 'Me' }); // to do, receipts, leave, clock, account
+
     return items;
   }
 
   function tabbar(active, date) {
     var items = navItems(date);
-    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'account'; }); // Account stays on the avatar in the top bar
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
-    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'receipts'; }); // office phones: receipts are on the Account page
+    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'team'; }); // office phones: Team board is under Me
+    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'planner'; }); // and the Planner
     return '<nav class="tabbar" aria-label="Main"><div class="inner" style="grid-template-columns:repeat(' + items.length + ',minmax(0,1fr))">' +
       items.map(function (t) {
         return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '><span class="pill">' + t.icon + '</span>' + t.label + '</a>';
@@ -885,8 +895,18 @@
       '<span class="eyebrow">' + esc(longDate(date)) + (isOffice() ? ' · all crews' : '') + '</span>' +
       '<h1>' + esc(title) + '</h1>' +
       '<p style="margin:4px 0 0;font-weight:500">' + (appts.length ? appts.length + ' appointment' + (appts.length === 1 ? '' : 's') + (jobs ? ' · ' + jobs + ' job' + (jobs === 1 ? '' : 's') : '') : 'Nothing scheduled') + '</p>' +
+      awayLine(date) +
       '<div class="wx-day" data-date="' + date + '"></div>' +
     '</section>';
+  }
+  /** Approved leave on this day: your own, or (office) everyone away. */
+  function awayLine(date) {
+    var away = ((state.cache[date] || {}).away || []).filter(function (a) { return a.first <= date && a.last >= date; });
+    var me = (state.user || {}).email;
+    var mine = away.filter(function (a) { return a.email === me; })[0];
+    if (mine) return '<p class="notice" style="margin:8px 0 0">You\'re on leave' + (mine.part ? ' from ' + esc(mine.from) + (mine.to ? ' to ' + esc(mine.to) : '') : ' today') + ' (' + esc(mine.type.toLowerCase()) + ').</p>';
+    if (isOffice() && away.length) return '<p class="small" style="margin:6px 0 0"><b>Away:</b> ' + esc(away.map(function (a) { return firstName(a.name) + (a.part ? ' (from ' + a.from + ')' : ''); }).join(', ')) + '</p>';
+    return '';
   }
 
   function nextPanel(next, date) {
@@ -1385,6 +1405,11 @@
     loadWeek(from).then(function (w) { drawPlanner(w); }, function (err) { showError(err, function () { renderPlanner(from); }); });
   }
 
+  /** Approved leave shown on each planner day ("Away: Lewis"). */
+  function plAway(w, d, person) {
+    var a = (w.away || []).filter(function (x) { return x.first <= d && x.last >= d && (!person || x.email === person); });
+    return a.length ? '<span class="pl-away">Away: ' + esc(a.map(function (x) { return firstName(x.name) + (x.part ? ' from ' + x.from : ''); }).join(', ')) + '</span>' : '';
+  }
   function drawPlanner(w) {
     var from = w.from, days = [];
     for (var i = 0; i < 7; i++) days.push(addDays(from, i));
@@ -1415,7 +1440,7 @@
         totals = '<span class="pl-tot">' + list.length + (list.length === 1 ? ' appointment' : ' appointments') + (tot.siteMin ? ' · ' + fmtHM(tot.siteMin) + ' on site' : '') + '</span>';
       }
       return '<section class="pl-day' + (d === todayStr() ? ' is-today' : '') + '">' +
-        '<header class="pl-dayhead"><div class="spread"><b>' + esc(shortDate(d)) + '</b><span class="pl-wx" data-date="' + d + '"></span></div>' + totals + '</header>' +
+        '<header class="pl-dayhead"><div class="spread"><b>' + esc(shortDate(d)) + '</b><span class="pl-wx" data-date="' + d + '"></span></div>' + totals + plAway(w, d, person) + '</header>' +
         '<div class="pl-cards">' + (list.length ? list.map(function (a) {
           return '<button type="button" class="pl-card' + (a.status === 'Tentative' ? ' is-tentative' : '') + '" data-edit="' + esc(a.id) + '">' + lightHtml(a) +
             '<span class="pl-time">' + esc(a.allDay ? 'All day' : a.startLabel + '–' + a.endLabel) + '</span>' +
@@ -1778,7 +1803,7 @@
         '<span class="small muted">Saved straight away to the receipts sheet. Accounts get the month\'s receipts on the 1st.</span></section>';
 
       body += '<div style="height:32px"></div>';
-      app.innerHTML = wide() ? shell('receipts', null, '<div class="pane-solo">' + body + '</div>') : topbar() + '<main>' + body + '</main>' + tabbar('receipts');
+      app.innerHTML = wide() ? shell('me', null, '<div class="pane-solo">' + body + '</div>') : topbar({ back: '#/me', backLabel: 'Me' }) + '<main>' + body + '</main>' + tabbar('me');
       bindReceipts(appts);
     })();
   }
@@ -1850,6 +1875,426 @@
 
   function renderReceiptsKeepScroll() { var y = window.scrollY; if (rcCache) drawReceipts(rcCache.d, rcCache.appts); else renderReceipts(); window.scrollTo(0, y); }
 
+  /* ---------- staff tools: Me, My to do, Leave, Clock, Team hours ---------- */
+
+  function staffPage(key, body, back) {
+    if (wide()) return shell('me', null, '<div class="pane-solo st-page">' + body + '</div>');
+    return topbar(back ? { back: back[0], backLabel: back[1] } : null) + '<main class="st-page">' + body + '</main>' + tabbar('me');
+  }
+  function stErr(msg) { return '<p class="notice error" role="alert">' + esc(msg) + '</p>'; }
+  function hm(min) { min = Math.max(0, Math.round(min || 0)); return Math.floor(min / 60) + 'h ' + ('0' + (min % 60)).slice(-2) + 'm'; }
+  function ymdLocal(d) { return ymd(d); }
+  function dueChip(due) {
+    if (!due) return '';
+    var t = todayStr();
+    if (due < t) return '<span class="tag tag-dark">Overdue · ' + esc(shortDate(due)) + '</span>';
+    if (due === t) return '<span class="tag tag-blue">Due today</span>';
+    if (due === addDays(t, 1)) return '<span class="tag">Due tomorrow</span>';
+    return '<span class="tag st-tag-plain">Due ' + esc(shortDate(due)) + '</span>';
+  }
+
+  /* Me */
+  function renderMe() {
+    var u = state.user || {};
+    var row = function (href, icon, title, sub, badge) {
+      return '<a class="st-row" href="' + href + '"><span class="st-ico">' + icon + '</span><span class="st-txt"><b>' + esc(title) + '</b>' +
+        (sub ? '<span>' + esc(sub) + '</span>' : '') + '</span>' + (badge ? '<span class="st-badge">' + esc(badge) + '</span>' : '') + I.right + '</a>';
+    };
+    function draw(h, err) {
+      var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(roleLabel(u.role)) + ' · ' + esc(u.email || '') + '</span><h1>Me</h1>' +
+        '<span class="small">Your tasks, receipts, leave' + (h && h.can.clock ? ' and hours' : '') + ', all with one sign-in.</span></section>';
+      body += '<nav class="section stack st-list" aria-label="Staff tools" style="gap:8px">';
+      body += row('#/todo', I.list, 'My to do', h ? (h.todo.open + ' open' + (h.todo.dueToday ? ' · ' + h.todo.dueToday + ' due today' : '') + (h.todo.overdue ? ' · ' + h.todo.overdue + ' overdue' : '')) : '', h && h.todo.open ? String(h.todo.open) : '');
+      body += row('#/receipts', I.receipt, 'Work receipts', 'This month\'s receipts, sent to accounts on the 1st');
+      body += row('#/leave', I.leave, 'Leave', h ? ('Request leave' + (h.leave.waiting ? ' · ' + h.leave.waiting + ' waiting for approval' : '')) : 'Request leave');
+      if (h && h.can.approve) body += row('#/leave', I.check, 'Approve leave', h.leave.toApprove ? h.leave.toApprove + ' waiting for you' : 'Nothing waiting', h.leave.toApprove ? String(h.leave.toApprove) : '');
+      if (h && h.can.clock) body += row('#/clock', I.clock, 'Clock in / out', h.clock && h.clock.in ? 'Clocked in since ' + hhmm(new Date(h.clock.in.since)) : 'You\'re clocked out · ' + hm(h.clock ? h.clock.weekMin : 0) + ' this week');
+      if (h && h.can.hours) body += row('#/hours', I.clock, 'Team hours', 'Everyone\'s clock times this week');
+      if (!wide() && isOffice()) {
+        body += row('#/team', I.team, 'Team board', 'Who\'s where today');
+        if (canSchedule()) body += row('#/planner', I.planner, 'Planner', 'Book and move appointments');
+      }
+      body += row('#/account', I.user, 'Account', 'View as, sign out, app version');
+      body += '</nav>' + (err ? '<div class="section">' + stErr(err) + '</div>' : '') + '<div style="height:24px"></div>';
+      app.innerHTML = staffPage('me', body);
+    }
+    draw(state.stHome || null);
+    api({ action: 'staffHome' }).then(function (d) { state.user = d.user || state.user; u = state.user; state.stHome = d.home; if (route().name === 'me') draw(d.home); },
+      function (e) { if (e.auth) return showError(e); if (route().name === 'me') draw(state.stHome || null, e.message); });
+  }
+
+  /* My to do */
+  var td = { data: null, tab: 'mine', draft: { text: '', due: '', high: false, linkType: '', linkNo: '', priv: false }, more: false, edit: null, sharePeople: null };
+  function renderTodo() {
+    if (!td.data) loading('Loading your list…');
+    api({ action: 'todo' }).then(function (d) { state.user = d.user || state.user; td.data = d.todo; td.sharePeople = null; drawTodo(); },
+      function (e) { if (td.data) drawTodo(e.message); else showError(e, renderTodo); });
+  }
+  function linkFields(prefix, v, types) {
+    return '<div class="st-grid2"><div class="field"><label for="' + prefix + 'LT">Link to</label><select id="' + prefix + 'LT"><option value="">Nothing</option>' +
+      types.map(function (t) { return '<option' + (v.linkType === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="' + prefix + 'LN">Number</label><input id="' + prefix + 'LN" inputmode="numeric" placeholder="e.g. 28874" value="' + esc(v.linkNo || '') + '"></div></div>' +
+      '<div class="st-grid2"><div class="field"><label for="' + prefix + 'Due">Due date</label><input id="' + prefix + 'Due" type="date" value="' + esc(v.due || '') + '"></div>' +
+      '<div class="field st-checks"><label class="st-check"><input type="checkbox" id="' + prefix + 'High"' + (v.high ? ' checked' : '') + '> High priority</label>' +
+      '<label class="st-check"><input type="checkbox" id="' + prefix + 'Priv"' + (v.priv ? ' checked' : '') + '> Private, never shared</label></div></div>';
+  }
+  function readTaskFields(prefix, into) {
+    var g = function (id) { return document.getElementById(prefix + id); };
+    if (g('LT')) { into.linkType = g('LT').value; into.linkNo = g('LN').value.trim(); into.due = g('Due').value; into.high = g('High').checked; into.priv = g('Priv').checked; }
+    return into;
+  }
+  function drawTodo(errMsg) {
+    var d = td.data, t = todayStr();
+    var open = d.mine.filter(function (x) { return !x.done; });
+    var sum = { private: 'Private to you', people: d.sharing.people.length ? 'Shared with ' + d.sharing.people.length + (d.sharing.people.length === 1 ? ' person' : ' people') : 'Pick who can see it', office: 'Shared with the office', everyone: 'Shared with everyone' }[d.sharing.mode];
+    var sorted = open.slice().sort(function (a, b) {
+      var ad = a.due || '9999', bd = b.due || '9999';
+      if (a.high !== b.high && (ad <= t) === (bd <= t)) return a.high ? -1 : 1;
+      return ad < bd ? -1 : ad > bd ? 1 : (a.created < b.created ? 1 : -1);
+    });
+    var done = d.mine.filter(function (x) { return x.done; }).slice(-10).reverse();
+    var body = '<section class="section stack" style="gap:6px"><h1>My to do</h1><p class="muted" style="margin:0">' + open.length + (open.length === 1 ? ' task open' : ' tasks open') + ' · ' + esc(sum) + '</p></section>';
+    body += '<section class="st-add" aria-label="Add a task"><div class="st-addrow"><label for="tdText" class="sr-only">New task</label>' +
+      '<input id="tdText" placeholder="Add a task…" value="' + esc(td.draft.text) + '" autocomplete="off">' +
+      (speechSupported() ? '<button type="button" class="btn btn-dark sq" id="tdMic" aria-pressed="false" aria-label="Fill by voice">' + I.mic + '</button>' : '') +
+      '<button type="button" class="btn st-btn-blue" id="tdAdd">Add</button></div>' +
+      (td.more ? linkFields('tdN', td.draft, d.linkTypes) : '') +
+      '<button type="button" class="link-btn" id="tdMore" aria-expanded="' + td.more + '">' + (td.more ? 'Fewer options' : 'Link to a project, opportunity, quotation or sales order, or set a date') + '</button></section>';
+    if (errMsg) body += '<div class="section">' + stErr(errMsg) + '</div>';
+    body += '<div class="section" style="padding-top:16px"><div class="seg" role="group" aria-label="Lists"><button type="button" data-tab="mine" aria-pressed="' + (td.tab === 'mine') + '">My list</button>' +
+      '<button type="button" data-tab="shared" aria-pressed="' + (td.tab === 'shared') + '">Shared with me (' + d.shared.length + ')</button></div></div>';
+    if (td.tab === 'mine') {
+      var item = function (x) {
+        var editing = td.edit === x.id;
+        return '<li class="st-task' + (x.done ? ' is-done' : '') + '"><button type="button" class="st-box" data-toggle="' + esc(x.id) + '" aria-pressed="' + x.done + '" aria-label="' + (x.done ? 'Mark as not done: ' : 'Mark as done: ') + esc(x.text) + '"><span>' + (x.done ? I.check : '') + '</span></button>' +
+          '<div class="st-task-body"><span class="st-task-text">' + esc(x.text) + '</span><div class="st-chips">' + (x.done ? '' : dueChip(x.due)) +
+          (x.high && !x.done ? '<span class="tag st-tag-black">High priority</span>' : '') + (x.linkNo ? '<span class="tag tag-blue">' + esc((x.linkType || 'Project') + ' ' + x.linkNo) + '</span>' : '') +
+          (x.priv ? '<span class="tag">Private</span>' : '') + '</div>' +
+          (editing ? '<div class="st-edit stack" style="gap:12px"><div class="field"><label for="tdEText">Task</label><input id="tdEText" value="' + esc(x.text) + '"></div>' + linkFields('tdE', x, d.linkTypes) +
+            '<div class="row" style="gap:8px"><button type="button" class="btn btn-dark" data-save="' + esc(x.id) + '">Save</button><button type="button" class="btn btn-sand" data-cancel>Cancel</button>' +
+            '<button type="button" class="btn btn-outline" data-del="' + esc(x.id) + '" style="margin-left:auto">Delete</button></div></div>' : '') +
+          '</div>' + (editing ? '' : '<button type="button" class="icon-btn" data-edit="' + esc(x.id) + '" aria-label="Edit: ' + esc(x.text) + '">' + I.pencil + '</button>') + '</li>';
+      };
+      body += '<section class="section"><ul class="st-tasks">' + (sorted.length ? sorted.map(item).join('') : '<li class="muted small" style="padding:8px">Nothing on your list. Add a task above.</li>') + '</ul>' +
+        (done.length ? '<h2 class="st-h2">Done</h2><ul class="st-tasks">' + done.map(item).join('') + '</ul>' : '') + '</section>';
+      var mode = d.sharing.mode, people = td.sharePeople || d.sharing.people;
+      var opts = [['private', 'Only me', 'Nobody else can see your list.'], ['people', 'Specific people', 'Pick who can see it.'], ['office', 'Office', 'Office staff and the project managers.'], ['everyone', 'Everyone at Blindmaster', 'Every signed-in staff member.']];
+      body += '<section class="section"><div class="st-share stack" role="radiogroup" aria-label="Who can see my list"><h2 class="st-h2" style="margin:0 0 4px">Who can see my list</h2>' +
+        opts.map(function (o) { return '<button type="button" role="radio" class="st-radio" data-mode="' + o[0] + '" aria-checked="' + (mode === o[0]) + '"><span class="dot"></span><span class="stack" style="gap:2px"><b>' + o[1] + '</b><span class="small">' + o[2] + '</span></span></button>'; }).join('') +
+        (mode === 'people' ? '<div class="st-people">' + d.staff.map(function (p) { return '<label class="st-check"><input type="checkbox" data-person="' + esc(p.email) + '"' + (people.indexOf(p.email) >= 0 ? ' checked' : '') + '> ' + esc(p.name) + '</label>'; }).join('') +
+          '<button type="button" class="btn btn-dark" id="tdPeopleSave">Save who can see it</button></div>' : '') +
+        '<p class="st-note">People you share with can look, not edit. A task marked private is never shown to anyone else.</p></div></section>';
+    } else {
+      body += '<section class="section stack" style="gap:16px">' + (d.shared.length ? d.shared.map(function (o) {
+        return '<div class="st-shared"><p class="st-note" style="margin:0">' + esc(firstName(o.name)) + '\'s list, view only.</p>' + (o.tasks.length ? o.tasks.map(function (x) {
+          return '<div class="st-task-ro"><span class="st-task-text">' + esc(x.text) + '</span><div class="st-chips">' + dueChip(x.due) + (x.high ? '<span class="tag st-tag-black">High priority</span>' : '') +
+            (x.linkNo ? '<span class="tag tag-blue">' + esc((x.linkType || 'Project') + ' ' + x.linkNo) + '</span>' : '') + '</div></div>';
+        }).join('') : '<p class="small muted" style="margin:0">Nothing open.</p>') + '</div>';
+      }).join('') : '<div class="empty" style="margin:0"><p class="muted" style="margin:0">Nobody has shared their list with you yet.</p></div>') + '</section>';
+    }
+    body += '<div style="height:32px"></div>';
+    var y = window.scrollY;
+    app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    window.scrollTo(0, y);
+    bindTodo();
+  }
+  function bindTodo() {
+    var d = td.data;
+    var text = document.getElementById('tdText');
+    text.oninput = function () { td.draft.text = text.value; };
+    text.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('tdAdd').click(); } };
+    var mic = document.getElementById('tdMic');
+    if (mic) mic.onclick = function () { toggleDictation(mic, text, function () { td.draft.text = text.value; }); };
+    document.getElementById('tdMore').onclick = function () { readTaskFields('tdN', td.draft); td.more = !td.more; drawTodo(); };
+    document.getElementById('tdAdd').onclick = function () {
+      readTaskFields('tdN', td.draft);
+      var v = td.draft; if (!v.text.trim()) { text.focus(); return; }
+      var btn = this; btn.disabled = true;
+      apiPost({ action: 'todoAdd', text: v.text.trim(), due: v.due, high: v.high, linkType: v.linkType, linkNo: v.linkNo, priv: v.priv }).then(function (r) {
+        d.mine.push(r.task); td.draft = { text: '', due: '', high: false, linkType: '', linkNo: '', priv: false }; td.more = false; drawTodo();
+        var t = document.getElementById('tdText'); if (t) t.focus();
+      }, function (e) { btn.disabled = false; drawTodo(e.message); });
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) { b.onclick = function () { td.tab = b.getAttribute('data-tab'); td.edit = null; drawTodo(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-toggle]'), function (b) {
+      b.onclick = function () {
+        var x = d.mine.filter(function (k) { return k.id === b.getAttribute('data-toggle'); })[0]; if (!x) return;
+        x.done = !x.done; drawTodo();
+        apiPost({ action: 'todoUpdate', id: x.id, fields: { done: x.done } }).catch(function (e) { x.done = !x.done; drawTodo(e.message); });
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-edit]'), function (b) { b.onclick = function () { td.edit = b.getAttribute('data-edit'); drawTodo(); var i = document.getElementById('tdEText'); if (i) i.focus(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cancel]'), function (b) { b.onclick = function () { td.edit = null; drawTodo(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-save]'), function (b) {
+      b.onclick = function () {
+        var x = d.mine.filter(function (k) { return k.id === b.getAttribute('data-save'); })[0];
+        var f = readTaskFields('tdE', { text: document.getElementById('tdEText').value.trim() });
+        if (!f.text) return;
+        b.disabled = true;
+        apiPost({ action: 'todoUpdate', id: x.id, fields: f }).then(function () { Object.assign(x, f); td.edit = null; drawTodo(); }, function (e) { b.disabled = false; drawTodo(e.message); });
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-del]'), function (b) {
+      b.onclick = function () {
+        if (!confirm('Delete this task?')) return;
+        var id = b.getAttribute('data-del'); b.disabled = true;
+        apiPost({ action: 'todoDelete', id: id }).then(function () { d.mine = d.mine.filter(function (k) { return k.id !== id; }); td.edit = null; drawTodo(); }, function (e) { b.disabled = false; drawTodo(e.message); });
+      };
+    });
+    function saveSharing(mode, people) {
+      var prev = { mode: d.sharing.mode, people: d.sharing.people };
+      d.sharing = { mode: mode, people: people || [] }; drawTodo();
+      return apiPost({ action: 'todoSharing', mode: mode, people: people || [] }).then(function (r) { d.sharing = r.sharing; td.sharePeople = null; drawTodo(); },
+        function (e) { d.sharing = prev; drawTodo(e.message); });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (b) {
+      b.onclick = function () {
+        var m = b.getAttribute('data-mode');
+        if (m === 'people') { td.sharePeople = d.sharing.people.slice(); d.sharing = { mode: 'people', people: d.sharing.people }; drawTodo(); return; }
+        saveSharing(m);
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-person]'), function (c) {
+      c.onchange = function () {
+        var e = c.getAttribute('data-person'), list = td.sharePeople || [];
+        td.sharePeople = c.checked ? list.concat([e]) : list.filter(function (x) { return x !== e; });
+      };
+    });
+    var ps = document.getElementById('tdPeopleSave');
+    if (ps) ps.onclick = function () {
+      if (!(td.sharePeople || []).length) { alert('Tick at least one person.'); return; }
+      saveSharing('people', td.sharePeople);
+    };
+  }
+
+  /* Leave */
+  var LV_STATUS = { Pending: ['Waiting for approval', ''], Approved: ['Approved', 'tag-blue'], Declined: ['Declined', 'tag-dark'], Cancelled: ['Cancelled', 'tag-light'] };
+  function lvWhen(l) {
+    if (l.part) return shortDate(l.first) + ', ' + l.from + (l.to ? ' – ' + l.to : ' onwards');
+    return l.first === l.last ? shortDate(l.first) : shortDate(l.first) + ' – ' + shortDate(l.last);
+  }
+  function lvTotal(l) { return l.part ? l.hours + ' hours' : l.days + (l.days === 1 ? ' working day' : ' working days') + ' (' + l.hours + ' h)'; }
+  function lvRow(l, who) {
+    var s = LV_STATUS[l.status] || [l.status, ''];
+    return '<a class="st-row" href="#/leave/' + encodeURIComponent(l.id) + '"><span class="st-txt"><b>' + esc(who ? l.name + ': ' + l.type.toLowerCase() : l.type) + '</b><span>' + esc(lvWhen(l) + ' · ' + lvTotal(l)) + '</span></span>' +
+      '<span class="tag ' + s[1] + '">' + esc(s[0]) + '</span>' + I.right + '</a>';
+  }
+  function renderLeave() {
+    loading('Loading leave…');
+    api({ action: 'leave' }).then(function (d) {
+      state.user = d.user || state.user;
+      var L = d.leave;
+      var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(L.approvers.join(' or ')) + ' approve' + (L.approvers.length === 1 ? 's' : '') + ' leave</span><h1>Leave</h1>' +
+        '<a class="btn btn-dark btn-lg" href="#/leave/new" style="align-self:flex-start;margin-top:8px">Request leave</a></section>';
+      if (L.can.approve) {
+        body += '<section class="section stack" style="gap:8px"><h2>Waiting for you</h2>' + (L.toApprove.length ? L.toApprove.map(function (l) { return lvRow(l, true); }).join('') : '<p class="small muted" style="margin:0">Nothing to approve.</p>') + '</section>';
+        if (L.upcoming.length) body += '<section class="section stack" style="gap:8px"><h2>Coming up</h2>' + L.upcoming.map(function (l) { return lvRow(l, true); }).join('') + '</section>';
+      }
+      body += '<section class="section stack" style="gap:8px"><h2>My requests</h2>' + (L.mine.length ? L.mine.map(function (l) { return lvRow(l, false); }).join('') : '<p class="small muted" style="margin:0">You haven\'t requested any leave in the app yet.</p>') + '</section><div style="height:32px"></div>';
+      app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    }, function (e) { showError(e, renderLeave); });
+  }
+
+  var lvForm = null;
+  function lvBlank() { return { type: 'Annual leave', reason: 'My own illness or injury', first: '', last: '', part: false, from: '', to: '', notes: '', files: [], confirm: false }; }
+  function lvSaveDraft() { try { var c = Object.assign({}, lvForm, { files: [], confirm: false }); store('fa-leave-draft', c); } catch (e) {} }
+  function renderLeaveNew() {
+    if (!lvForm) lvForm = Object.assign(lvBlank(), store('fa-leave-draft') || {}, { files: [], confirm: false });
+    var f = lvForm, u = state.user || {};
+    var sick = /sick|carer/i.test(f.type);
+    var types = ['Annual leave', 'Personal / sick leave', "Carer's leave", 'Leave without pay', 'Long service leave', 'Other'];
+    var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(u.name || '') + ' · ' + esc(u.email || '') + '</span><h1>Request leave</h1>' +
+      '<span class="small">It goes to the office to approve. You\'ll get an email either way.</span></section>';
+    body += '<section class="section stack lv-form" style="gap:16px;max-width:560px">' +
+      '<div class="field"><label for="lvType">Type of leave</label><select id="lvType">' + types.map(function (t) { return '<option' + (f.type === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+      (sick ? '<div class="field"><label for="lvReason">Reason</label><select id="lvReason">' + ['My own illness or injury', 'Caring for a family or household member', 'Unexpected family or household emergency'].map(function (r) { return '<option' + (f.reason === r ? ' selected' : '') + '>' + esc(r) + '</option>'; }).join('') + '</select></div>' : '') +
+      '<div class="st-grid2"><div class="field"><label for="lvFirst">' + (f.part ? 'Day' : 'First day') + '</label><input id="lvFirst" type="date" value="' + esc(f.first) + '"></div>' +
+      (f.part ? '' : '<div class="field"><label for="lvLast">Last day</label><input id="lvLast" type="date" value="' + esc(f.last) + '" min="' + esc(f.first) + '"></div>') + '</div>' +
+      '<label class="st-check"><input type="checkbox" id="lvPart"' + (f.part ? ' checked' : '') + '> Part day only (taking some hours, not the whole day)</label>' +
+      (f.part ? '<div class="st-grid2"><div class="field"><label for="lvFrom">Leaving at</label><input id="lvFrom" type="time" value="' + esc(f.from) + '"></div><div class="field"><label for="lvTo">Back at</label><input id="lvTo" type="time" value="' + esc(f.to) + '"><span class="small muted">Leave blank if not back today</span></div></div>' : '') +
+      '<div class="lv-total"><span>Total requested</span><b id="lvTotal">–</b></div>' +
+      '<div class="lv-jobs" id="lvJobs" hidden></div>' +
+      '<div class="field"><label for="lvNotes">Notes for the office</label><div class="st-addrow"><textarea id="lvNotes" rows="3" placeholder="Anything the office should know">' + esc(f.notes) + '</textarea>' +
+        (speechSupported() ? '<button type="button" class="btn btn-dark sq" id="lvMic" aria-pressed="false" aria-label="Fill by voice">' + I.mic + '</button>' : '') + '</div></div>' +
+      '<div class="field"><span class="lbl">Supporting documents ' + (sick ? '(a medical certificate or statutory declaration, if you have one)' : '(optional)') + '</span>' +
+        f.files.map(function (x, i) { return '<div class="lv-file"><span>' + esc(x.name) + '</span><button type="button" class="icon-btn" data-rmfile="' + i + '" aria-label="Remove ' + esc(x.name) + '">' + I.x + '</button></div>'; }).join('') +
+        '<label class="btn btn-sand" for="lvFile">' + I.camera + 'Add a photo or file</label><input type="file" id="lvFile" accept="image/*,application/pdf" multiple hidden></div>' +
+      '<label class="st-check"><input type="checkbox" id="lvConfirm"' + (f.confirm ? ' checked' : '') + '> I confirm these details are true and correct.</label>' +
+      '<p class="st-note" style="margin:0"><b>When you send it</b><br>The office gets a review request. Once it\'s approved it goes on your calendar, the planner shows you as away, and you\'re emailed.</p>' +
+      '<p class="notice error" id="lvErr" role="alert" hidden></p>' +
+      '<button type="button" class="btn btn-dark btn-lg" id="lvSend">Send request</button></section><div style="height:32px"></div>';
+    app.innerHTML = staffPage('me', body, ['#/leave', 'Leave']);
+    bindLeaveNew();
+    lvRefresh();
+  }
+  var lvTimer = null, lvSeq = 0;
+  function lvRefresh() {
+    clearTimeout(lvTimer);
+    var f = lvForm, tot = document.getElementById('lvTotal'), box = document.getElementById('lvJobs');
+    if (!tot) return;
+    var last = f.part ? f.first : f.last;
+    if (!f.first || !last || last < f.first || (f.part && !f.from)) { tot.textContent = '–'; box.hidden = true; return; }
+    tot.textContent = 'Checking…';
+    var seq = ++lvSeq;
+    lvTimer = setTimeout(function () {
+      var q = { action: 'leaveJobs', first: f.first, last: last, from: f.from, to: f.to };
+      if (f.part) q.part = '1';
+      api(q).then(function (r) {
+        if (seq !== lvSeq || !document.getElementById('lvTotal')) return;
+        tot.textContent = r.totals ? (f.part ? r.totals.hours + ' hours' : r.totals.days + (r.totals.days === 1 ? ' working day' : ' working days') + ' (' + r.totals.hours + ' h)') : '–';
+        box.hidden = false;
+        box.innerHTML = '<b>' + (r.jobs.length ? r.jobs.length + (r.jobs.length === 1 ? ' booked job' : ' booked jobs') + ' in these dates' : 'No booked jobs in these dates') + '</b>' +
+          (r.jobs.length ? '<span class="small">Found in your schedule. The office sees these on the approval and in the planner.</span>' + r.jobs.map(function (j) { return '<div class="lv-job"><b>' + esc(j.title) + '</b><span>' + esc(j.when + ' · ' + j.with) + '</span></div>'; }).join('') : '');
+      }, function () { if (seq === lvSeq && document.getElementById('lvTotal')) tot.textContent = '–'; });
+    }, 350);
+  }
+  function bindLeaveNew() {
+    var f = lvForm, g = function (id) { return document.getElementById(id); };
+    var redraw = function () { var y = window.scrollY; renderLeaveNew(); window.scrollTo(0, y); };
+    g('lvType').onchange = function () { f.type = this.value; lvSaveDraft(); redraw(); };
+    if (g('lvReason')) g('lvReason').onchange = function () { f.reason = this.value; lvSaveDraft(); };
+    g('lvFirst').onchange = function () { f.first = this.value; if (!f.last || f.last < f.first) { f.last = f.first; if (g('lvLast')) g('lvLast').value = f.last; } if (g('lvLast')) g('lvLast').min = f.first; lvSaveDraft(); lvRefresh(); };
+    if (g('lvLast')) g('lvLast').onchange = function () { f.last = this.value; lvSaveDraft(); lvRefresh(); };
+    g('lvPart').onchange = function () { f.part = this.checked; if (f.part) f.last = f.first; lvSaveDraft(); redraw(); };
+    if (g('lvFrom')) g('lvFrom').onchange = function () { f.from = this.value; lvSaveDraft(); lvRefresh(); };
+    if (g('lvTo')) g('lvTo').onchange = function () { f.to = this.value; lvSaveDraft(); lvRefresh(); };
+    g('lvNotes').oninput = function () { f.notes = this.value; lvSaveDraft(); };
+    if (g('lvMic')) g('lvMic').onclick = function () { var ta = g('lvNotes'); toggleDictation(g('lvMic'), ta, function () { f.notes = ta.value; lvSaveDraft(); }); };
+    g('lvConfirm').onchange = function () { f.confirm = this.checked; };
+    g('lvFile').onchange = function () {
+      var files = Array.prototype.slice.call(this.files || []);
+      Promise.all(files.map(function (file) {
+        if (file.size > 10 * 1024 * 1024) { alert(file.name + ' is over 10 MB.'); return null; }
+        var isImg = /^image\//.test(file.type);
+        return (isImg ? shrinkImage(file).then(function (i) { return i.blob; }) : Promise.resolve(file)).then(toBase64).then(function (b64) {
+          return { name: file.name, mime: isImg ? 'image/jpeg' : (file.type || 'application/pdf'), data: b64 };
+        });
+      })).then(function (list) { f.files = f.files.concat(list.filter(Boolean)).slice(0, 5); redraw(); }, function () { alert('That file couldn\'t be read.'); });
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rmfile]'), function (b) { b.onclick = function () { f.files.splice(Number(b.getAttribute('data-rmfile')), 1); redraw(); }; });
+    g('lvSend').onclick = function () {
+      var err = g('lvErr'), btn = this, last = f.part ? f.first : f.last;
+      var msg = !f.first ? 'Pick the ' + (f.part ? 'day.' : 'first day.') : !last ? 'Pick the last day.' : last < f.first ? 'The last day is before the first day.' : (f.part && !f.from) ? 'Add the time you\'re leaving.' : !f.confirm ? 'Tick to confirm the details are correct.' : '';
+      if (msg) { err.textContent = msg; err.hidden = false; return; }
+      err.hidden = true; btn.disabled = true; btn.textContent = 'Sending…';
+      apiPost({ action: 'leaveSubmit', type: f.type, reason: f.reason, first: f.first, last: last, part: f.part, from: f.from, to: f.to, notes: f.notes, files: f.files, confirm: true }).then(function (r) {
+        unstore('fa-leave-draft'); lvForm = null; state.lvSent = r.id; state.stHome = null;
+        location.hash = '#/leave/' + encodeURIComponent(r.id);
+      }, function (e) { btn.disabled = false; btn.textContent = 'Send request'; err.textContent = e.message || 'Couldn\'t send it. Try again.'; err.hidden = false; });
+    };
+  }
+
+  function renderLeaveItem(id) {
+    loading('Loading the request…');
+    api({ action: 'leaveItem', id: id }).then(function (d) {
+      state.user = d.user || state.user;
+      var l = d.item, s = LV_STATUS[l.status] || [l.status, ''];
+      var mine = l.email === ((state.user || {}).email);
+      var sent = state.lvSent === l.id; state.lvSent = null;
+      var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(l.status === 'Pending' ? 'Waiting for approval · sent ' + shortDate(l.sent.slice(0, 10)) : s[0] + (l.decidedBy ? ' by ' + l.decidedBy : '')) + '</span>' +
+        '<h1>' + esc((mine ? '' : l.name + ': ') + l.type) + '</h1><span>' + esc(lvWhen(l)) + '</span></section>';
+      if (sent) body += '<div class="section"><p class="notice" role="status" style="margin:0">Sent. The office has been emailed and you\'ll hear back by email.</p></div>';
+      body += '<section class="section"><dl class="lv-dl"><dt>Total</dt><dd>' + esc(lvTotal(l)) + '</dd>' + (l.reason ? '<dt>Reason</dt><dd>' + esc(l.reason) + '</dd>' : '') +
+        '<dt>Notes</dt><dd>' + esc(l.notes || '–') + '</dd><dt>Documents</dt><dd>' + (l.docs.length ? l.docs.map(function (u, i) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener">Document ' + (i + 1) + '</a>'; }).join(', ') : 'None') + '</dd>' +
+        (l.canDecide || !mine ? '<dt>Also away</dt><dd>' + esc(l.alsoAway.length ? l.alsoAway.join(', ') : 'Nobody else on leave those days') + '</dd>' : '') +
+        (l.decisionNote ? '<dt>Note</dt><dd>' + esc(l.decisionNote) + '</dd>' : '') + '</dl></section>';
+      if (l.jobs.length) body += '<section class="section"><div class="lv-jobs"><b>' + l.jobs.length + (l.jobs.length === 1 ? ' booked job' : ' booked jobs') + (l.status === 'Declined' || l.status === 'Cancelled' ? ' in these dates' : ' need' + (l.jobs.length === 1 ? 's' : '') + ' another installer') + '</b>' +
+        l.jobs.map(function (j) { return '<div class="lv-job row" style="justify-content:space-between"><span class="stack" style="gap:2px"><b>' + esc(j.title) + '</b><span>' + esc(j.when + ' · ' + j.with) + '</span></span>' + (canSchedule() ? '<a class="btn btn-light" href="#/planner/' + esc(j.date) + '">Planner</a>' : '') + '</div>'; }).join('') + '</div></section>';
+      if (l.canDecide) body += '<section class="section stack" style="gap:12px"><div class="field"><label for="lvNote">Note to ' + esc(firstName(l.name)) + ' (needed if you decline)</label><input id="lvNote" placeholder="Optional"></div>' +
+        '<p class="notice error" id="lvErr" role="alert" hidden></p><div class="st-grid2"><button type="button" class="btn btn-outline btn-lg" data-decide="decline">Decline</button><button type="button" class="btn btn-dark btn-lg" data-decide="approve">Approve</button></div></section>';
+      if (l.canCancel) body += '<section class="section"><button type="button" class="btn btn-outline btn-lg" id="lvCancel">Cancel this request</button></section>';
+      body += '<div style="height:32px"></div>';
+      app.innerHTML = staffPage('me', body, ['#/leave', 'Leave']);
+      Array.prototype.forEach.call(document.querySelectorAll('[data-decide]'), function (b) {
+        b.onclick = function () {
+          var dec = b.getAttribute('data-decide'), note = document.getElementById('lvNote').value.trim(), err = document.getElementById('lvErr');
+          if (dec === 'decline' && !note) { err.textContent = 'Add a note to say why it\'s declined.'; err.hidden = false; return; }
+          Array.prototype.forEach.call(document.querySelectorAll('[data-decide]'), function (x) { x.disabled = true; });
+          apiPost({ action: 'leaveDecide', id: l.id, decision: dec, note: note }).then(function () { state.stHome = null; renderLeaveItem(l.id); },
+            function (e) { Array.prototype.forEach.call(document.querySelectorAll('[data-decide]'), function (x) { x.disabled = false; }); err.textContent = e.message; err.hidden = false; });
+        };
+      });
+      var c = document.getElementById('lvCancel');
+      if (c) c.onclick = function () {
+        if (!confirm('Cancel this leave request?' + (l.status === 'Approved' ? ' It comes off the calendar and the office is told.' : ''))) return;
+        c.disabled = true;
+        apiPost({ action: 'leaveCancel', id: l.id }).then(function () { state.stHome = null; renderLeaveItem(l.id); }, function (e) { c.disabled = false; alert(e.message); });
+      };
+    }, function (e) { showError(e, function () { renderLeaveItem(id); }); });
+  }
+
+  /* Clock in / out */
+  var clockTick = null;
+  function renderClock() {
+    loading('Loading…');
+    api({ action: 'clock' }).then(function (d) { state.user = d.user || state.user; drawClock(d.clock); }, function (e) { showError(e, renderClock); });
+  }
+  function drawClock(c, errMsg) {
+    var u = state.user || {}, inn = !!c.in;
+    var body = '<section class="ck-face"><span class="ck-time" id="ckTime">' + hhmm(new Date()) + '</span><span>' + esc(longDate(todayStr())) + '</span></section>' +
+      '<section class="section stack" style="gap:12px"><p role="status" class="ck-state">' + (inn ? 'Clocked in since ' + esc(hhmm(new Date(c.in.since))) + '.' : 'You are clocked out.') + '</p>' +
+      '<button type="button" class="ck-btn ' + (inn ? 'is-out' : 'is-in') + '" id="ckBtn">' + (inn ? 'CLOCK OUT' : 'CLOCK IN') + '</button>' +
+      (errMsg ? stErr(errMsg) : '') + '</section>' +
+      '<section class="section"><div class="ck-hours"><div><span>Today</span><b id="ckToday">' + hm(c.todayMin) + '</b></div><div><span>This week</span><b id="ckWeek">' + hm(c.weekMin) + '</b></div></div></section>' +
+      (c.recent.length ? '<section class="section stack" style="gap:6px"><h2 class="st-h2">Recent</h2>' + c.recent.map(function (r) {
+        return '<div class="ck-rec"><span>' + esc(shortDate(r.date)) + '</span><span>' + esc(r.in + ' – ' + (r.out || 'now')) + '</span><b>' + hm(r.min) + '</b>' + (r.flag ? '<span class="tag" title="' + esc(r.flag) + '">!</span>' : '') + '</div>';
+      }).join('') + '</section>' : '') +
+      '<section class="section"><p class="st-note" style="margin:0">Signed in as ' + esc(firstName(u.name)) + ', so there\'s no PIN. Forgot to clock out? Tell the office and they\'ll fix it on the timesheet.</p></section><div style="height:32px"></div>';
+    app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    clearInterval(clockTick);
+    var t0 = Date.now();
+    clockTick = setInterval(function () {
+      var el = document.getElementById('ckTime');
+      if (!el) { clearInterval(clockTick); return; }
+      el.textContent = hhmm(new Date());
+      if (inn) { var add = (Date.now() - t0) / 60000; document.getElementById('ckToday').textContent = hm(c.todayMin + add); document.getElementById('ckWeek').textContent = hm(c.weekMin + add); }
+    }, 15000);
+    document.getElementById('ckBtn').onclick = function () {
+      var btn = this; btn.disabled = true; btn.textContent = 'Checking location…';
+      locate().then(function (pos) {
+        btn.textContent = inn ? 'Clocking out…' : 'Clocking in…';
+        return apiPost(Object.assign({ action: inn ? 'clockOut' : 'clockIn' }, pos));
+      }).then(function (r) { state.stHome = null; drawClock(r.clock); }, function (e) { drawClock(c, e.message || 'Couldn\'t save. Try again.'); });
+    };
+  }
+  /** Current position, or the reason there isn't one (never rejects: the server flags a missing location). */
+  function locate() {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) return resolve({ locError: 'not supported' });
+      navigator.geolocation.getCurrentPosition(function (p) { resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }); },
+        function (e) { resolve({ locError: e.code === 1 ? 'permission denied' : 'unavailable' }); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+    });
+  }
+
+  /* Team hours (managers) */
+  function renderHours(from) {
+    loading('Loading hours…');
+    api({ action: 'hours', from: from || '' }).then(function (d) {
+      state.user = d.user || state.user;
+      var H = d.hours, t = todayStr();
+      var dayHead = function (day) { return new Date(day + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'short' }) + '<br><span class="small">' + new Date(day + 'T12:00:00').getDate() + '</span>'; };
+      var awayOn = function (email, day) { return H.away.some(function (a) { return a.email === email && a.first <= day && a.last >= day; }); };
+      var body = '<section class="section stack" style="gap:8px"><h1>Team hours</h1>' +
+        '<div class="row" style="gap:8px"><a class="btn btn-sand sq" href="#/hours/' + addDays(H.from, -7) + '" aria-label="Previous week">' + I.left + '</a>' +
+        '<b style="flex:1;text-align:center">' + esc(shortDate(H.from) + ' – ' + shortDate(H.days[6])) + '</b>' +
+        '<a class="btn btn-sand sq" href="#/hours/' + addDays(H.from, 7) + '" aria-label="Next week">' + I.right + '</a></div></section>';
+      body += '<section class="section"><div class="hr-wrap"><table class="hr-table"><thead><tr><th scope="col">Person</th>' + H.days.map(function (day) { return '<th scope="col"' + (day === t ? ' class="is-today"' : '') + '>' + dayHead(day) + '</th>'; }).join('') + '<th scope="col">Total</th></tr></thead><tbody>' +
+        (H.people.length ? H.people.map(function (p) {
+          return '<tr><th scope="row">' + esc(p.name) + '</th>' + H.days.map(function (day) {
+            var m = p.days[day], flag = p.entries.some(function (e) { return e.date === day && e.flag; }), open = p.entries.some(function (e) { return e.date === day && e.open; });
+            return '<td' + (day === t ? ' class="is-today"' : '') + '>' + (m ? Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2) : awayOn(p.email, day) ? '<span class="small">Leave</span>' : '–') + (open ? ' <span class="small">in</span>' : '') + (flag ? ' <b class="hr-flag" title="Check: see below">!</b>' : '') + '</td>';
+          }).join('') + '<td><b>' + hm(p.totalMin) + '</b></td></tr>';
+        }).join('') : '<tr><td colspan="9" class="muted">No warehouse staff on the staff list yet.</td></tr>') + '</tbody></table></div></section>';
+      var flagged = [];
+      H.people.forEach(function (p) { p.entries.forEach(function (e) { if (e.flag) flagged.push({ name: p.name, e: e }); }); });
+      if (flagged.length) body += '<section class="section stack" style="gap:6px"><h2 class="st-h2">To check</h2>' + flagged.map(function (f) {
+        return '<div class="ck-rec"><span>' + esc(firstName(f.name) + ' · ' + shortDate(f.e.date)) + '</span><span>' + esc(f.e.in + ' – ' + (f.e.out || 'now')) + '</span><span class="small">' + esc(f.e.flag) + '</span></div>';
+      }).join('') + '</section>';
+      body += '<section class="section"><a class="btn btn-sand btn-lg" href="' + esc(H.sheetUrl) + '" target="_blank" rel="noopener">' + I.ext + 'Open the timesheet to fix a time</a></section><div style="height:32px"></div>';
+      app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    }, function (e) { showError(e, function () { renderHours(from); }); });
+  }
+
   /* ---------- account ---------- */
 
   function renderAccount() {
@@ -1864,12 +2309,11 @@
           '<select id="vasSel" disabled><option>Loading staff…</option></select>' +
           (u.viewing ? '<button type="button" class="btn btn-dark btn-lg" data-vas-back>Back to me (' + esc(u.realName || '') + ')</button>' : '') +
           '</div>' : '') +
-        (u.viewing ? '' : '<a class="btn btn-sand btn-lg" href="#/receipts">' + I.receipt + 'My work receipts</a>') +
         '<button class="btn btn-outline btn-lg" id="signout">Sign out</button>' +
         '<p class="small muted" style="margin:0">App version ' + APP_VERSION + '</p>' +
         '<p class="small muted" style="margin:0">Add this app to your home screen: in Safari tap Share, then Add to Home Screen. In Chrome tap the menu, then Install app.</p>' +
       '</section>';
-    app.innerHTML = wide() ? shell('account', null, body) : topbar() + '<main>' + body + '</main>' + tabbar('account');
+    app.innerHTML = wide() ? shell('me', null, body) : topbar({ back: '#/me', backLabel: 'Me' }) + '<main>' + body + '</main>' + tabbar('me');
     document.getElementById('signout').onclick = signOut;
     var sel = document.getElementById('vasSel');
     if (sel) api({ action: 'staffList', viewAs: '' }).then(function (d) {
