@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '22'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '24'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -87,6 +87,9 @@
     team: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/></svg>',
     chart: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
     print: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H3v-8h18v8h-3M6 14h12v7H6z"/></svg>',
+    lock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    idcard: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14"/><circle cx="8.5" cy="11" r="2.5"/><path d="M4.5 17a4 4 0 0 1 8 0M14.5 10h4M14.5 14h4"/></svg>',
+    car: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16v-4l2-5h14l2 5v4z"/><path d="M3 12h18"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/></svg>',
     user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
     planner: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17"/><path d="M3 9h18M9 9v12M15 9v12M8 2v4M16 2v4"/></svg>',
     mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
@@ -721,7 +724,7 @@
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -742,6 +745,9 @@
     if (r.name === 'measure' && r.arg) return renderMeasure(r.arg, r.arg2 || todayStr());
     if (r.name === 'capture' && r.arg) return renderCapture(r.arg, r.arg2 || todayStr(), r.arg3);
     if (r.name === 'todo') return renderTodo();
+    if (r.name === 'staff') return renderStaff(r.arg);
+    if (r.name === 'vehicles') return renderVehicles(r.arg);
+    if (r.name === 'myvehicle') return renderMyVehicle();
     if (r.name === 'leave') return r.arg === 'new' ? renderLeaveNew() : r.arg ? renderLeaveItem(r.arg) : renderLeave();
     if (r.name === 'clock') return renderClock();
     if (r.name === 'hours') return renderHours(r.arg);
@@ -772,6 +778,7 @@
       { key: 'route', href: '#/route' + d, icon: I.route, label: 'Route' });
     if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
+    if (isManagerUser()) items.push({ key: 'staff', href: '#/staff', icon: I.idcard, label: 'Staff' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
     items.push({ key: 'me', href: '#/me', icon: I.user, label: 'Me' }); // to do, receipts, leave, clock, account
 
@@ -780,6 +787,7 @@
 
   function tabbar(active, date) {
     var items = navItems(date);
+    items = items.filter(function (t) { return t.key !== 'staff'; }); // phones: the staff directory is under Me
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'team'; }); // office phones: Team board is under Me
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'planner'; }); // and the Planner
@@ -1035,6 +1043,8 @@
       '<span><b>' + esc(a.report.complete ? 'Job report submitted' : 'Job not finished') + '</b>' + esc(a.report.complete ? '' : ' · ' + (a.report.outstanding || 'return visit needed')) + '</span></div>';
     else if (hasReport(a) && new Date(a.end).getTime() < Date.now()) html += '<div class="rep-banner is-todo"><span><b>Job report not done yet</b></span></div>';
     if (a.isSales) html += '<div class="section" style="padding-top:12px"><a class="btn btn-dark btn-lg" href="' + visitHref(a.id, date) + '">' + I.window.replace(/width="40" height="40"/, 'width="22" height="22"') + 'Open site consult · measure and capture</a></div>';
+    html += '<div class="section" style="padding-top:10px"><button type="button" class="link-btn" data-addtodo data-jr="' + esc(a.jr || '') + '" data-opp="' + esc(a.opp || '') + '" data-title="' + esc(a.customer || a.title) + '" data-date="' + date + '">+ Add a to-do for this job</button>' +
+      (a.readOnly ? ' <span class="small muted">· From the ' + esc(a.source) + ' calendar</span>' : '') + '</div>';
     html += '<div class="wx-appt" data-id="' + esc(a.id) + '" data-date="' + date + '"></div>';
 
     var info = '';
@@ -1632,7 +1642,7 @@
   var APPT_TYPES = ['Sales', 'Installation', 'Check measure', 'Service call', 'Site meeting'];
   function canSchedule() {
     var u = state.user || {};
-    return [u.role].concat(u.roles || []).some(function (r) { return /office|admin|pm/i.test(r || ''); });
+    return [u.role].concat(u.roles || []).some(function (r) { return /office|admin|pm|sales/i.test(r || ''); });
   }
   function weekStart(dateStr) { // Monday
     var d = new Date(dateStr + 'T12:00:00'), wd = (d.getDay() + 6) % 7;
@@ -1698,7 +1708,7 @@
           return '<button type="button" class="pl-card' + (a.status === 'Tentative' ? ' is-tentative' : '') + '" data-edit="' + esc(a.id) + '">' + lightHtml(a) +
             '<span class="pl-time">' + esc(a.allDay ? 'All day' : a.startLabel + '–' + a.endLabel) + '</span>' +
             '<span class="tag ' + (a.isSales ? '' : 'tag-blue') + '">' + esc(a.type) + '</span>' +
-            '<span class="pl-title">' + esc(a.title) + '</span>' +
+            '<span class="pl-title">' + esc(a.title) + '</span>' + (a.readOnly ? '<span class="pl-sub">From ' + esc(a.source) + '</span>' : '') +
             '<span class="pl-sub">' + esc([suburb(a.address), refLabel(a)].filter(String).join(' · ')) + '</span>' +
             (a.crew.length ? '<span class="pl-crew">' + a.crew.map(function (c) { return '<span class="pl-ini" title="' + esc(c.name) + '">' + esc(initials(c.name)) + '</span>'; }).join('') + '</span>' : '<span class="pl-sub" style="color:#8a3b2e">No crew assigned</span>') +
           '</button>';
@@ -1716,7 +1726,11 @@
     function d0() { var t = todayStr(); return t >= days[0] && t <= days[days.length - 1] ? t : days[0]; }
     Array.prototype.forEach.call(app.querySelectorAll('[data-add]'), function (b) { b.onclick = function () { openBooking(null, b.getAttribute('data-add')); }; });
     Array.prototype.forEach.call(app.querySelectorAll('[data-edit]'), function (b) {
-      b.onclick = function () { openBooking(w.appointments.filter(function (a) { return a.id === b.getAttribute('data-edit'); })[0]); };
+      b.onclick = function () {
+        var a = w.appointments.filter(function (x) { return x.id === b.getAttribute('data-edit'); })[0];
+        if (a && a.readOnly) { if (confirm('This appointment comes from the "' + a.source + '" Google Calendar, so it\'s changed there. Open Google Calendar?')) window.open(a.calendarUrl, '_blank'); return; }
+        openBooking(a);
+      };
     });
     fillPlannerWeather(days);
   }
@@ -1788,6 +1802,9 @@
           '<div class="field"><label for="bkProj">Project folder link</label><input id="bkProj" type="url" value="' + esc(v.projectFolderUrl || '') + '"></div>' +
           '<div class="field"><label for="bkTitleIn">Calendar title <small class="muted">(blank: customer · type)</small></label><input id="bkTitleIn" value="' + esc(isNew ? '' : v.title || '') + '"></div>' +
         '</details>' +
+        '<div class="bk-todo"><label class="st-check"><input type="checkbox" id="bkTodoOn"> Add a to-do to my list for this appointment</label>' +
+          '<div id="bkTodoBox" class="stack" style="gap:8px" hidden><div class="field"><label for="bkTodoText">To-do</label><input id="bkTodoText" placeholder="e.g. Confirm the motor has arrived"></div>' +
+          '<div class="field"><label for="bkTodoDue">Due</label><input id="bkTodoDue" type="date" value="' + esc(v.date || '') + '"></div></div></div>' +
         '<p class="notice error" id="bkErr" hidden></p>' +
       '</form>' +
       '<footer class="bk-foot">' + (isNew ? '' : '<button type="button" class="btn btn-outline" id="bkDelete">Delete</button>') +
@@ -1831,6 +1848,7 @@
     addressSuggest($('bkAddress'));
     setTimeout(function () { $('bkCustomer').focus(); }, 50);
 
+    $('bkTodoOn').onchange = function () { $('bkTodoBox').hidden = !this.checked; if (this.checked) $('bkTodoText').focus(); };
     $('bkSave').onclick = function () {
       var appt = {
         id: v.id || '', type: v.type, status: v.status, date: $('bkDate').value, start: $('bkStart').value, durationMin: Number($('bkDur').value),
@@ -1839,7 +1857,8 @@
         projectFolderUrl: $('bkProj').value.trim(), title: $('bkTitleIn').value.trim(),
         crew: Array.prototype.filter.call(host.querySelectorAll('.bk-crew input'), function (c) { return c.checked; }).map(function (c) { return c.value; })
       };
-      var err = !appt.date || !appt.start ? 'Choose a date and start time.' : !appt.customer && !appt.title ? 'Add the customer name.' : '';
+      if ($('bkTodoOn').checked) appt.todo = { text: $('bkTodoText').value.trim(), due: $('bkTodoDue').value || appt.date };
+      var err = !appt.date || !appt.start ? 'Choose a date and start time.' : !appt.customer && !appt.title ? 'Add the customer name.' : (appt.todo && !appt.todo.text) ? 'Type the to-do, or untick it.' : '';
       if (err) { $('bkErr').textContent = err; $('bkErr').hidden = false; return; }
       $('bkSave').disabled = true; $('bkSave').textContent = 'Saving…';
       apiPost({ action: 'saveAppt', appt: appt }).then(function () {
@@ -2596,7 +2615,9 @@
       body += row('#/leave', I.leave, 'Leave', h ? ('Request leave' + (h.leave.waiting ? ' · ' + h.leave.waiting + ' waiting for approval' : '')) : 'Request leave');
       if (h && h.can.approve) body += row('#/leave', I.check, 'Approve leave', h.leave.toApprove ? h.leave.toApprove + ' waiting for you' : 'Nothing waiting', h.leave.toApprove ? String(h.leave.toApprove) : '');
       if (h && h.can.clock) body += row('#/clock', I.clock, 'Clock in / out', h.clock && h.clock.in ? 'Clocked in since ' + hhmm(new Date(h.clock.in.since)) : 'You\'re clocked out · ' + hm(h.clock ? h.clock.weekMin : 0) + ' this week');
+      (h && h.vehicles || []).forEach(function (v) { body += row('#/myvehicle', I.car, 'My vehicle', v.model + (v.plate ? ' · ' + v.plate : '') + (v.odometerDue ? ' · odometer due this week' : ''), v.odometerDue ? '!' : ''); });
       if (h && h.can.hours) body += row('#/hours', I.clock, 'Team hours', 'Everyone\'s clock times this week');
+      if (h && h.can.directory && !wide()) body += row('#/staff', I.idcard, 'Staff directory', 'People, access and company vehicles');
       if (!wide() && isOffice()) {
         body += row('#/team', I.team, 'Team board', 'Who\'s where today');
         if (canSchedule()) body += row('#/planner', I.planner, 'Planner', 'Book and move appointments');
@@ -2608,6 +2629,410 @@
     draw(state.stHome || null);
     api({ action: 'staffHome' }).then(function (d) { state.user = d.user || state.user; u = state.user; state.stHome = d.home; if (route().name === 'me') draw(d.home); },
       function (e) { if (e.auth) return showError(e); if (route().name === 'me') draw(state.stHome || null, e.message); });
+  }
+
+  /* ---------- Staff directory and vehicles (managers: Simon and Troy) ---------- */
+  var dv = { data: null, filter: 'all', q: '', vfilter: 'all', veh: {}, form: null, vform: null, svc: null };
+  function dvPrep(f) { return /^image\//.test(f.type) ? shrinkImage(f).then(function (r) { return r.blob; }, function () { return f; }) : Promise.resolve(f); }
+  function isManagerUser() { var u = state.user; return !!(u && u.manager && !u.viewing); }
+  function dvTabs(active) {
+    return '<div class="dv-tabs" role="tablist"><a role="tab" href="#/staff" aria-selected="' + (active === 'people') + '">People</a>' +
+      '<a role="tab" href="#/vehicles" aria-selected="' + (active === 'vehicles') + '">Vehicles</a></div>';
+  }
+  function dvPage(body, back) {
+    if (wide()) return shell('staff', null, '<div class="dv-page">' + body + '</div>');
+    return topbar(back ? { back: back[0], backLabel: back[1] } : { back: '#/me', backLabel: 'Me' }) + '<main class="dv-page">' + body + '</main>' + tabbar('me');
+  }
+  function dvLoad(force) {
+    if (dv.data && !force) return Promise.resolve(dv.data);
+    return api({ action: 'directory' }).then(function (d) { state.user = d.user || state.user; dv.data = d.directory; return dv.data; });
+  }
+  function dvMissing() { return '<span class="dv-missing">Missing</span>'; }
+  function dvRoleLabel(k) { return { office: 'Office', sales: 'Sales', pm: 'PM', installer: 'Installer', warehouse: 'Warehouse', marketing: 'Marketing' }[k] || k; }
+  function dvLock() { return '<span class="dv-lock">' + I.lock + 'Only Simon and Troy can see this page.</span>'; }
+  function dvFmtDate(s) { return s ? new Date(s + 'T12:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
+  function dvKm(n) { var x = parseFloat(String(n || '').replace(/[^\d.]/g, '')); return isNaN(x) ? '' : Math.round(x).toLocaleString('en-AU') + ' km'; }
+  function dvDirections(addr) {
+    var wh = (dv.data && dv.data.warehouse) || CFG.WAREHOUSE || '';
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(wh) + '&destination=' + encodeURIComponent(addr);
+  }
+  function dvNoAccess() {
+    app.innerHTML = dvPage('<section class="section"><p class="notice">The staff directory is for Simon and Troy.</p></section>');
+  }
+
+  /* People */
+  function renderStaff(sel) {
+    if (state.user && !isManagerUser()) return dvNoAccess();
+    if (!dv.data) app.innerHTML = dvPage('<section class="section"><p class="muted">Loading the staff directory…</p></section>');
+    dvLoad(!dv.data).then(function () { if (route().name === 'staff') drawStaff(sel); }, function (e) { if (e.auth) return showError(e); showError(e, function () { renderStaff(sel); }); });
+  }
+  function dvPeopleFiltered() {
+    var q = dv.q.toLowerCase();
+    return dv.data.people.filter(function (p) {
+      if (dv.filter === 'off') { if (p.active) return false; }
+      else if (!p.active) return false;
+      if (dv.filter === 'office' && p.roles.indexOf('office') < 0) return false;
+      if (dv.filter === 'installers' && p.roles.indexOf('installer') < 0) return false;
+      if (q && (p.name + ' ' + p.email + ' ' + p.address + ' ' + p.mobile).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+  function dvPeopleRows(selEmail) {
+    var list = dvPeopleFiltered();
+    if (!list.length) return '<p class="muted dv-empty">Nobody matches.</p>';
+    return list.map(function (p) {
+      return '<a class="dv-row dv-prow' + (p.email === selEmail ? ' is-sel' : '') + '" href="#/staff/' + encodeURIComponent(p.email) + '">' +
+        '<span class="dv-who"><b>' + esc(p.name) + (p.manager ? ' <span class="dv-mgr">Manager</span>' : '') + '</b><span>' + esc(p.email) + '</span></span>' +
+        '<span class="dv-chips">' + p.roles.map(function (r) { return '<span class="dv-chip">' + esc(dvRoleLabel(r)) + '</span>'; }).join('') + '</span>' +
+        '<span class="dv-cell">' + (p.mobile ? esc(p.mobile) : dvMissing()) + '</span>' +
+        '<span class="dv-cell">' + (p.address ? esc(suburb(p.address)) : dvMissing()) + '</span></a>';
+    }).join('');
+  }
+  function dvPeopleList(selEmail) {
+    var all = dv.data.people.filter(function (p) { return p.active; });
+    var missing = all.filter(function (p) { return !p.mobile || !p.address; }).length;
+    var f = function (k, l) { return '<button type="button" role="tab" data-dvf="' + k + '" aria-selected="' + (dv.filter === k) + '">' + l + '</button>'; };
+    return dvTabs('people') +
+      '<div class="dv-head"><div><h1>Staff directory</h1>' + dvLock() + '<span class="small muted">' + all.length + ' people' + (missing ? ' · ' + missing + ' missing details' : '') + '</span></div>' +
+      '<a class="btn btn-dark" href="#/staff/new">+ Add a person</a></div>' +
+      '<div class="dv-tools"><input type="search" id="dvQ" placeholder="Search name, email, suburb" value="' + esc(dv.q) + '">' +
+      '<div class="dv-filter" role="tablist">' + f('all', 'Everyone') + f('office', 'Office') + f('installers', 'Installers') + f('off', 'Switched off') + '</div></div>' +
+      '<div class="dv-table" role="table" aria-label="Staff"><div class="dv-row dv-prow dv-th" role="row"><span>Name · sign-in email</span><span>Access</span><span>Mobile</span><span>Home</span></div>' +
+      '<div id="dvRows">' + dvPeopleRows(selEmail) + '</div></div>' +
+      '<p class="small muted dv-foot">Saved in the sheet <a href="' + esc(dv.data.sheetUrl) + '" target="_blank" rel="noopener">Field App – Staff directory (private)</a>, in Simon\'s Drive.</p>';
+  }
+  function dvBindList(selEmail, rowsFn) {
+    var q = document.getElementById('dvQ');
+    if (q) q.addEventListener('input', function () { dv.q = q.value; var r = document.getElementById('dvRows'); if (r) r.innerHTML = rowsFn(selEmail); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dvf]'), function (b) {
+      b.onclick = function () { dv.filter = b.getAttribute('data-dvf'); drawStaff(selEmail); };
+    });
+  }
+  function dvBlankPerson() { return { email: '', name: '', roles: [], mainRole: '', manager: false, active: true, mobile: '', address: '', emergency: '', notes: '', vehicle: null, isNew: true }; }
+  function dvPersonForm(p) {
+    var roles = dv.data.roles;
+    var descs = { office: 'Everyone\'s schedule, Overview, Team', sales: 'Site consults, measure, quotes', pm: 'Book jobs in the Planner', installer: 'Jobs, route, Job Reports', warehouse: 'Clock in / out, van loading', marketing: 'Collateral and photos' };
+    var tick = function (id, on, label, desc) {
+      return '<label class="dv-tick' + (on ? ' on' : '') + '"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '><span><b>' + esc(label) + '</b><span>' + esc(desc) + '</span></span></label>';
+    };
+    var opens = (p.roles.length ? p.roles : ['installer']).map(function (r) { return '<option value="' + r + '"' + (p.mainRole === r ? ' selected' : '') + '>' + esc(roleLabel(r === 'marketing' ? 'office' : r) === 'Office' && r === 'marketing' ? 'Marketing' : roleLabel(r)) + ' view</option>'; }).join('');
+    var h = '<div class="dv-card-head"><div><span class="small" style="font-weight:700">' + esc(p.isNew ? 'New person' : p.roles.map(function (r) { return (dv.data.roles.filter(function (x) { return x.key === r; })[0] || {}).label || r; }).join(' · ')) + '</span>' +
+      '<h2>' + esc(p.isNew ? 'Add a person' : p.name) + '</h2>' +
+      (p.isNew ? '<span class="small">They can sign in as soon as you save.</span>' : '<span class="small">' + (p.updated ? 'Updated ' + esc(p.updated) + (p.updatedBy ? ' by ' + esc(p.updatedBy) : '') : '') + '</span>') + '</div>' +
+      (wide() ? '<a class="icon-btn" href="#/staff" aria-label="Close">' + I.x + '</a>' : '') + '</div>';
+    h += '<div class="dv-card-body stack" style="gap:14px">';
+    h += '<b class="dv-sec">Details</b><div class="st-grid2"><div class="field"><label for="dvName">Full name</label><input id="dvName" value="' + esc(p.name) + '" autocomplete="off"></div>' +
+      '<div class="field"><label for="dvMobile">Mobile</label><input id="dvMobile" type="tel" inputmode="tel" value="' + esc(p.mobile) + '" placeholder="04xx xxx xxx"></div></div>';
+    h += '<div class="field"><label for="dvEmail">Work email (signs in with)</label>' + (p.isNew ? '<input id="dvEmail" type="email" inputmode="email" autocomplete="off" placeholder="name@blindmaster.com.au">' : '<input id="dvEmail" value="' + esc(p.email) + '" readonly aria-readonly="true">') + '</div>';
+    if (!p.isNew && p.mobile) h += '<div class="dv-links"><a href="' + esc(tel(p.mobile)) + '">' + I.phone + 'Call ' + esc(firstName(p.name)) + '</a></div>';
+    h += '<div class="field"><label for="dvAddr">Home address</label><input id="dvAddr" value="' + esc(p.address) + '" placeholder="Start typing the address"></div>';
+    h += '<div class="dv-links" id="dvAddrLinks"' + (p.address ? '' : ' hidden') + '><a id="dvDir" target="_blank" rel="noopener" href="' + esc(dvDirections(p.address)) + '">Directions from the warehouse</a><a id="dvMap" target="_blank" rel="noopener" href="' + esc(mapsSearch(p.address)) + '">Show on map</a></div>';
+    h += '<div class="st-grid2"><div class="field"><span class="lbl">Vehicle</span>' + (p.vehicle ? '<a class="dv-veh" href="#/vehicles/' + encodeURIComponent(p.vehicle.id) + '">' + esc(p.vehicle.model) + (p.vehicle.plate ? ' · ' + esc(p.vehicle.plate) : '') + '</a>' : '<span class="small muted dv-veh-none">None. Set the driver on the Vehicles page.</span>') + '</div>' +
+      '<div class="field"><label for="dvEmerg">Emergency contact</label><input id="dvEmerg" value="' + esc(p.emergency) + '" placeholder="Name and phone"></div></div>';
+    h += '<div class="field"><label for="dvNotes">Notes</label><input id="dvNotes" value="' + esc(p.notes) + '" placeholder="Optional"></div>';
+    h += '<b class="dv-sec">Access in the app · tick all that apply</b><div class="dv-ticks">' + roles.map(function (r) { return tick('dvR-' + r.key, p.roles.indexOf(r.key) >= 0, r.label, descs[r.key] || ''); }).join('') + '</div>';
+    h += tick('dvMgr', p.manager, 'Manager', 'Approves leave, sees everyone\'s hours, and this directory');
+    h += '<div class="st-grid2"><div class="field"><label for="dvMain">Opens the app on</label><select id="dvMain">' + opens + '</select></div>' +
+      '<div class="field"><label for="dvStatus">Status</label><select id="dvStatus"><option value="1"' + (p.active ? ' selected' : '') + '>Active</option><option value="0"' + (p.active ? '' : ' selected') + '>Switched off</option></select></div></div>';
+    h += '</div><div class="dv-card-foot"><p class="notice error" id="dvErr" role="alert" hidden></p><span class="small muted">' + (p.isNew ? 'They sign in with Google using this email.' : 'Changes apply next time ' + esc(firstName(p.name)) + ' opens the app.') + '</span>' +
+      '<button type="button" class="btn btn-dark" id="dvSave">Save</button></div>';
+    return h;
+  }
+  function drawStaff(sel) {
+    var p = null;
+    if (sel === 'new') p = dvBlankPerson();
+    else if (sel) p = dv.data.people.filter(function (x) { return x.email === sel; })[0] || null;
+    var selEmail = p && !p.isNew ? p.email : '';
+    if (wide()) {
+      app.innerHTML = dvPage('<div class="dv-split"><div class="dv-main">' + dvPeopleList(selEmail) + '</div>' +
+        '<aside class="dv-side">' + (p ? dvPersonForm(p) : '<div class="dv-side-empty"><p class="muted">Choose a person to see and change their details and access.</p></div>') + '</aside></div>');
+    } else if (p) {
+      app.innerHTML = dvPage('<div class="dv-card">' + dvPersonForm(p) + '</div>', ['#/staff', 'Staff']);
+    } else {
+      app.innerHTML = dvPage('<div class="dv-main">' + dvPeopleList('') + '</div>');
+    }
+    dvBindList(selEmail, dvPeopleRows);
+    if (p) dvBindPerson(p);
+  }
+  function dvBindPerson(p) {
+    var addr = document.getElementById('dvAddr');
+    function links() {
+      var v = addr.value.trim(), box = document.getElementById('dvAddrLinks');
+      box.hidden = !v;
+      document.getElementById('dvDir').href = dvDirections(v);
+      document.getElementById('dvMap').href = mapsSearch(v);
+    }
+    addr.addEventListener('input', links); addr.addEventListener('change', links);
+    addressSuggest(addr, links);
+    Array.prototype.forEach.call(document.querySelectorAll('.dv-tick input'), function (c) {
+      c.addEventListener('change', function () {
+        c.closest('.dv-tick').classList.toggle('on', c.checked);
+        if (/^dvR-/.test(c.id)) {
+          var main = document.getElementById('dvMain'), cur = main.value;
+          var ticked = dv.data.roles.filter(function (r) { return document.getElementById('dvR-' + r.key).checked; }).map(function (r) { return r.key; });
+          main.innerHTML = (ticked.length ? ticked : ['installer']).map(function (r) { return '<option value="' + r + '"' + (r === cur ? ' selected' : '') + '>' + esc(r === 'marketing' ? 'Marketing' : roleLabel(r)) + ' view</option>'; }).join('');
+        }
+      });
+    });
+    document.getElementById('dvSave').onclick = function () {
+      var btn = this, err = document.getElementById('dvErr');
+      var person = {
+        email: document.getElementById('dvEmail').value.trim().toLowerCase(),
+        name: document.getElementById('dvName').value.trim(),
+        mobile: document.getElementById('dvMobile').value.trim(),
+        address: addr.value.trim(),
+        emergency: document.getElementById('dvEmerg').value.trim(),
+        notes: document.getElementById('dvNotes').value.trim(),
+        roles: dv.data.roles.filter(function (r) { return document.getElementById('dvR-' + r.key).checked; }).map(function (r) { return r.key; }),
+        manager: document.getElementById('dvMgr').checked,
+        mainRole: document.getElementById('dvMain').value,
+        active: document.getElementById('dvStatus').value === '1'
+      };
+      err.hidden = true; btn.disabled = true; btn.textContent = 'Saving…';
+      apiPost({ action: 'dirSave', person: person, isNew: !!p.isNew }).then(function (r) {
+        return dvLoad(true).then(function () {
+          if (r.email === myEmailSafe()) state.user = null; // your own access may have changed
+          location.hash = '#/staff/' + encodeURIComponent(r.email);
+          if (route().arg === r.email) drawStaff(r.email);
+          var s = document.getElementById('dvSave'); if (s) { s.textContent = 'Saved'; setTimeout(function () { if (s.isConnected) s.textContent = 'Save'; }, 1800); }
+        });
+      }).catch(function (e) { err.textContent = e.message; err.hidden = false; btn.disabled = false; btn.textContent = 'Save'; });
+    };
+  }
+
+  /* Vehicles */
+  function dvSt(a, text) {
+    var lvl = (a && a.level) || 'none';
+    return '<span class="dv-st dv-' + lvl + '">' + esc(text) + '</span>';
+  }
+  function dvDateStatus(a, ymdv, verb) {
+    if (!ymdv) return '<span class="dv-st dv-none">Not entered</span>';
+    if (a.level === 'bad') return dvSt(a, 'Overdue ' + (-a.days) + ' day' + (a.days === -1 ? '' : 's'));
+    if (a.level === 'warn') return dvSt(a, 'Due in ' + a.days + ' day' + (a.days === 1 ? '' : 's'));
+    return dvSt(a, dvFmtDate(ymdv));
+  }
+  function dvServiceStatus(v) {
+    var a = v.alerts.service;
+    if (a.level === 'none') return '<span class="dv-st dv-none">Not set</span>';
+    if (a.level === 'bad') return dvSt(a, a.days != null && a.days < 0 ? 'Overdue ' + Math.ceil(-a.days / 7) + ' wk' : 'Overdue ' + dvKm(-a.km));
+    if (a.level === 'warn') return dvSt(a, a.km != null && a.km <= 1000 ? 'Due in ' + dvKm(a.km) : 'Due in ' + a.days + ' days');
+    return dvSt(a, v.nextServiceDate ? dvFmtDate(v.nextServiceDate) : 'At ' + dvKm(v.nextServiceKm));
+  }
+  function dvComingUp(list) {
+    var out = [];
+    list.forEach(function (v) {
+      var n = v.model;
+      if (v.alerts.rego.level === 'bad') out.push(n + ' rego overdue'); else if (v.alerts.rego.level === 'warn') out.push(n + ' rego due in ' + v.alerts.rego.days + ' days');
+      if (v.alerts.insurance.level === 'bad') out.push(n + ' insurance overdue'); else if (v.alerts.insurance.level === 'warn') out.push(n + ' insurance renews in ' + v.alerts.insurance.days + ' days');
+      if (v.alerts.service.level === 'bad') out.push(n + ' service overdue'); else if (v.alerts.service.level === 'warn') out.push(n + ' service due soon');
+    });
+    return out;
+  }
+  function renderVehicles(sel) {
+    if (state.user && !isManagerUser()) return dvNoAccess();
+    if (!dv.data) app.innerHTML = dvPage('<section class="section"><p class="muted">Loading vehicles…</p></section>');
+    var p = dvLoad(!dv.data);
+    if (sel && sel !== 'new') p = p.then(function () { return api({ action: 'vehicle', id: sel }).then(function (d) { dv.veh[sel] = d.vehicle; }); });
+    p.then(function () { if (route().name === 'vehicles') drawVehicles(sel); }, function (e) { if (e.auth) return showError(e); showError(e, function () { renderVehicles(sel); }); });
+  }
+  function dvVehRows(selId) {
+    var list = dv.data.vehicles.filter(function (v) { return dv.vfilter === 'off' ? /off|sold|inactive/i.test(v.status) : !/off|sold|inactive/i.test(v.status); });
+    if (!list.length) return '<p class="muted dv-empty">No vehicles here.</p>';
+    return list.map(function (v) {
+      return '<a class="dv-row dv-vrow' + (v.id === selId ? ' is-sel' : '') + '" href="#/vehicles/' + encodeURIComponent(v.id) + '">' +
+        '<span class="dv-who"><b>' + esc(v.model) + '</b><span>Driver: ' + esc(v.driverName || 'not set') + '</span></span>' +
+        '<span>' + (v.plate ? '<span class="dv-plate">' + esc(v.plate) + '</span>' : dvMissing()) + '</span>' +
+        '<span class="dv-cell"><span class="dv-ml">Rego</span>' + dvDateStatus(v.alerts.rego, v.regoExpiry) + '</span>' +
+        '<span class="dv-cell"><span class="dv-ml">Insurance</span>' + dvDateStatus(v.alerts.insurance, v.insuranceRenewal) + '</span>' +
+        '<span class="dv-cell"><span class="dv-ml">Service</span>' + dvServiceStatus(v) + '</span></a>';
+    }).join('');
+  }
+  function dvVehList(selId) {
+    var active = dv.data.vehicles.filter(function (v) { return !/off|sold|inactive/i.test(v.status); });
+    var soon = dvComingUp(active);
+    var f = function (k, l) { return '<button type="button" role="tab" data-dvvf="' + k + '" aria-selected="' + (dv.vfilter === k) + '">' + l + '</button>'; };
+    return dvTabs('vehicles') +
+      '<div class="dv-head"><div><h1>Company vehicles</h1>' + dvLock() + '<span class="small muted">' + active.length + ' vehicles' + (soon.length ? ' · ' + soon.length + ' need attention' : '') + '</span></div>' +
+      '<a class="btn btn-dark" href="#/vehicles/new">+ Add a vehicle</a></div>' +
+      (soon.length ? '<div class="dv-soon"><b>Coming up:</b><span>' + esc(soon.join(' · ')) + '</span></div>' : '') +
+      '<div class="dv-tools"><div class="dv-filter" role="tablist">' + f('all', 'In use') + f('off', 'Sold / off the road') + '</div></div>' +
+      '<div class="dv-table" role="table" aria-label="Vehicles"><div class="dv-row dv-vrow dv-th" role="row"><span>Vehicle · driver</span><span>Plate</span><span>Rego due</span><span>Insurance renews</span><span>Next service</span></div>' +
+      dvVehRows(selId) + '</div>' +
+      '<p class="small muted dv-foot">Green: fine · Amber: due within 30 days (service: 14 days or 1,000 km) · Red: overdue. Simon, Troy and Di are emailed 30 and 7 days before each rego and insurance date; the driver, Simon and Troy when a service is due. Drivers are reminded on Fridays to enter their odometer.</p>';
+  }
+  function dvBlankVehicle() { return { id: '', model: '', year: '', plate: '', colour: '', vin: '', driver: '', regoExpiry: '', regoPeriod: '12 months', ctpInsurer: '', ctpPolicy: '', insurer: '', policy: '', cover: '', insuranceRenewal: '', etagProvider: '', etagNumber: '', tollAccount: '', serviceKm: '10000', serviceMonths: '6', nextServiceDate: '', nextServiceKm: '', odometer: '', odometerDate: '', status: 'Active', notes: '', docs: [], services: [], readings: [], isNew: true, alerts: { service: { level: 'none' } } }; }
+  function dvF(id, label, val, opts) {
+    opts = opts || {};
+    return '<div class="field' + (opts.span ? ' dv-span' + opts.span : '') + '"><label for="' + id + '">' + esc(label) + '</label><input id="' + id + '" data-vf="' + (opts.key || '') + '" type="' + (opts.type || 'text') + '"' +
+      (opts.mode ? ' inputmode="' + opts.mode + '"' : '') + ' value="' + esc(val || '') + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : '') + '></div>';
+  }
+  function dvDocs(v, kinds) {
+    var docs = (v.docs || []).filter(function (d) { return kinds.indexOf(d.kind) >= 0; });
+    return '<div class="dv-docs">' + docs.map(function (d) {
+      return '<span class="dv-doc"><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + I.doc + esc(d.label) + '</a><button type="button" class="dv-x" data-rmdoc="' + esc(d.id) + '" aria-label="Remove ' + esc(d.label) + '">' + I.x + '</button></span>';
+    }).join('') + (v.isNew ? '' : kinds.map(function (k) {
+      var l = { rego: 'Rego certificate', ctp: 'Green slip', insurance: 'Certificate of currency', other: 'Other document' }[k];
+      return '<label class="dv-up" for="dvUp-' + k + '">' + I.camera + 'Add ' + esc(l.toLowerCase()) + '</label><input type="file" id="dvUp-' + k + '" data-upkind="' + k + '" accept="image/*,application/pdf" hidden>';
+    }).join('')) + '</div>';
+  }
+  function dvVehForm(v) {
+    var people = (v.drivers || dv.data.people.filter(function (p) { return p.active; }).map(function (p) { return { email: p.email, name: p.name }; }));
+    var sec = function (title, note, inner) { return '<section class="dv-vsec"><div class="dv-vsec-h"><b>' + esc(title) + '</b>' + (note ? '<span class="small muted">' + esc(note) + '</span>' : '') + '</div>' + inner + '</section>'; };
+    var h = '<div class="dv-card-head"><div><span class="small" style="font-weight:700">' + (v.isNew ? 'New vehicle' : 'Company vehicle · Driver: ' + esc(v.driverName || 'not set')) + '</span>' +
+      '<h2>' + esc(v.isNew ? 'Add a vehicle' : v.model) + '</h2>' +
+      (v.isNew ? '' : '<span class="small">' + esc(v.plate || 'No plate yet') + (v.odometer ? ' · odometer ' + esc(dvKm(v.odometer)) + (v.odometerDate ? ' (' + esc(dvFmtDate(v.odometerDate)) + (v.odometerBy ? ', ' + esc(v.odometerBy) : '') + ')' : '') : '') + '</span>') + '</div>' +
+      (wide() ? '<a class="icon-btn" href="#/vehicles" aria-label="Close">' + I.x + '</a>' : '') + '</div><div class="dv-card-body">';
+    h += sec('Vehicle', '', '<div class="dv-g3">' + dvF('vfModel', 'Make and model', v.model, { key: 'model', span: 2, ph: 'e.g. Toyota Hiace LWB' }) + dvF('vfYear', 'Year', v.year, { key: 'year', mode: 'numeric' }) +
+      dvF('vfPlate', 'Number plate', v.plate, { key: 'plate' }) + dvF('vfColour', 'Colour', v.colour, { key: 'colour' }) +
+      '<div class="field"><label for="vfDriver">Driver</label><select id="vfDriver" data-vf="driver"><option value="">No driver</option>' + people.map(function (p) { return '<option value="' + esc(p.email) + '"' + (p.email === v.driver ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>' +
+      dvF('vfVin', 'VIN', v.vin, { key: 'vin', span: 3 }) + '</div>');
+    h += sec('Registration', '', '<div class="st-grid2">' + dvF('vfRego', 'Rego expiry', v.regoExpiry, { key: 'regoExpiry', type: 'date' }) + dvF('vfRegoP', 'Rego period', v.regoPeriod, { key: 'regoPeriod', ph: '12 months' }) +
+      dvF('vfCtpI', 'CTP (green slip) insurer', v.ctpInsurer, { key: 'ctpInsurer' }) + dvF('vfCtpP', 'CTP policy number', v.ctpPolicy, { key: 'ctpPolicy' }) + '</div>' + dvDocs(v, ['rego', 'ctp']));
+    h += sec('Insurance', '', '<div class="st-grid2">' + dvF('vfIns', 'Insurer', v.insurer, { key: 'insurer' }) + dvF('vfPol', 'Policy number', v.policy, { key: 'policy' }) +
+      dvF('vfCover', 'Cover', v.cover, { key: 'cover', ph: 'e.g. Comprehensive (fleet)' }) + dvF('vfRen', 'Renewal date', v.insuranceRenewal, { key: 'insuranceRenewal', type: 'date' }) + '</div>' + dvDocs(v, ['insurance']));
+    h += sec('Tolls', '', '<div class="st-grid2">' + dvF('vfTagP', 'E-tag provider', v.etagProvider, { key: 'etagProvider', ph: 'e.g. Linkt' }) + dvF('vfTagN', 'E-tag number', v.etagNumber, { key: 'etagNumber' }) +
+      dvF('vfToll', 'Toll account', v.tollAccount, { key: 'tollAccount', span: 2 }) + '</div>');
+    var svcRows = (v.services || []).map(function (s) {
+      return '<div class="dv-svc"><span>' + esc(dvFmtDate(s.date)) + '</span><span>' + esc(dvKm(s.km)) + '</span><span><b>' + esc(s.workshop || '–') + '</b><br><span class="muted">' + esc(s.work) + '</span></span>' +
+        '<span class="dv-r">' + esc(s.cost ? (/^\$/.test(s.cost) ? s.cost : '$' + s.cost) : '') + '</span>' +
+        '<span class="dv-r">' + (s.invoice ? '<a href="' + esc(s.invoice) + '" target="_blank" rel="noopener" aria-label="Invoice">' + I.doc + '</a>' : '') + '<button type="button" class="dv-x" data-rmsvc="' + esc(s.id) + '" aria-label="Delete this service">' + I.x + '</button></span></div>';
+    }).join('');
+    var add = v.isNew ? '<p class="small muted">Save the vehicle first, then add services and documents.</p>' : (dv.svc === v.id ?
+      '<div class="dv-svcadd stack" style="gap:10px"><div class="st-grid2">' + dvF('svDate', 'Date', todayStr(), { type: 'date' }) + dvF('svKm', 'Odometer (km)', '', { mode: 'numeric' }) +
+      dvF('svShop', 'Workshop', '', { ph: 'e.g. Brookvale Toyota' }) + dvF('svCost', 'Cost', '', { mode: 'decimal', ph: '$' }) + dvF('svWork', 'Work done', '', { span: 2, ph: 'e.g. Major service, front pads' }) + '</div>' +
+      '<label class="dv-up" for="svInv">' + I.camera + '<span id="svInvName">Attach the invoice (optional)</span></label><input type="file" id="svInv" accept="image/*,application/pdf" hidden>' +
+      '<div class="dv-row-btns"><button type="button" class="btn btn-dark" id="svSave">Save service</button><button type="button" class="btn btn-sand" id="svCancel">Cancel</button></div></div>' :
+      '<button type="button" class="btn btn-outline dv-addsvc" id="svOpen">+ Add a service</button>');
+    h += sec('Service history', 'Every ' + (v.serviceKm ? dvKm(v.serviceKm) : '? km') + ' or ' + (v.serviceMonths || '?') + ' months', '<div class="dv-g3">' +
+      dvF('vfNsD', 'Next service due', v.nextServiceDate, { key: 'nextServiceDate', type: 'date' }) + dvF('vfNsK', 'or at (km)', v.nextServiceKm, { key: 'nextServiceKm', mode: 'numeric' }) +
+      dvF('vfOdo', 'Odometer now (km)', v.odometer, { key: 'odometer', mode: 'numeric' }) +
+      dvF('vfEvK', 'Service every (km)', v.serviceKm, { key: 'serviceKm', mode: 'numeric' }) + dvF('vfEvM', 'Service every (months)', v.serviceMonths, { key: 'serviceMonths', mode: 'numeric' }) +
+      '<div class="field"><label for="vfStatus">Status</label><select id="vfStatus" data-vf="status">' + ['Active', 'Off the road', 'Sold'].map(function (s) { return '<option' + (String(v.status || 'Active') === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div></div>' +
+      (svcRows ? '<div class="dv-svcs">' + svcRows + '</div>' : (v.isNew ? '' : '<p class="small muted">No services recorded yet.</p>')) + add);
+    h += sec('Notes and other documents', '', '<div class="field"><label for="vfNotes">Notes</label><input id="vfNotes" data-vf="notes" value="' + esc(v.notes || '') + '"></div>' + dvDocs(v, ['other']));
+    h += '</div><div class="dv-card-foot"><p class="notice error" id="dvErr" role="alert" hidden></p><span class="small muted">Documents are saved to Drive › Field App – Vehicles › ' + esc(v.plate || 'the plate') + '.</span><button type="button" class="btn btn-dark" id="vfSave">Save</button></div>';
+    return h;
+  }
+  function drawVehicles(sel) {
+    var v = null;
+    if (sel === 'new') v = dv.vform && dv.vform.isNew ? dv.vform : dvBlankVehicle();
+    else if (sel) v = dv.veh[sel] || null;
+    var selId = v && !v.isNew ? v.id : '';
+    if (wide()) {
+      app.innerHTML = dvPage('<div class="dv-split"><div class="dv-main">' + dvVehList(selId) + '</div>' +
+        '<aside class="dv-side dv-side-wide">' + (v ? dvVehForm(v) : '<div class="dv-side-empty"><p class="muted">Choose a vehicle to see its rego, insurance, tolls and service history.</p></div>') + '</aside></div>');
+    } else if (v) {
+      app.innerHTML = dvPage('<div class="dv-card">' + dvVehForm(v) + '</div>', ['#/vehicles', 'Vehicles']);
+    } else {
+      app.innerHTML = dvPage('<div class="dv-main">' + dvVehList('') + '</div>');
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dvvf]'), function (b) { b.onclick = function () { dv.vfilter = b.getAttribute('data-dvvf'); drawVehicles(sel); }; });
+    if (v) dvBindVehicle(v, sel);
+  }
+  function dvReadVehicle(v) {
+    var out = { id: v.isNew ? '' : v.id };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-vf]'), function (el) { var k = el.getAttribute('data-vf'); if (k) out[k] = el.value.trim(); });
+    return out;
+  }
+  function dvReloadVehicle(id) {
+    return Promise.all([dvLoad(true), api({ action: 'vehicle', id: id }).then(function (d) { dv.veh[id] = d.vehicle; })]).then(function () {
+      if (route().name === 'vehicles' && route().arg === id) drawVehicles(id);
+    });
+  }
+  function dvBindVehicle(v, sel) {
+    var err = document.getElementById('dvErr');
+    function fail(e) { err.textContent = e.message; err.hidden = false; }
+    document.getElementById('vfSave').onclick = function () {
+      var btn = this; err.hidden = true; btn.disabled = true; btn.textContent = 'Saving…';
+      apiPost({ action: 'vehSave', vehicle: dvReadVehicle(v) }).then(function (r) {
+        dv.vform = null;
+        if (v.isNew) { location.hash = '#/vehicles/' + encodeURIComponent(r.id); return; }
+        return dvReloadVehicle(r.id).then(function () { var s = document.getElementById('vfSave'); if (s) { s.textContent = 'Saved'; setTimeout(function () { if (s.isConnected) s.textContent = 'Save'; }, 1800); } });
+      }).catch(function (e) { fail(e); btn.disabled = false; btn.textContent = 'Save'; });
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-upkind]'), function (inp) {
+      inp.addEventListener('change', function () {
+        var f = inp.files && inp.files[0]; if (!f) return;
+        var lab = document.querySelector('label[for="' + inp.id + '"]'); if (lab) lab.textContent = 'Uploading…';
+        var prep = dvPrep(f);
+        prep.then(function (blob) { return toBase64(blob).then(function (data) {
+          return apiPost({ action: 'vehUpload', vehicleId: v.id, kind: inp.getAttribute('data-upkind'), name: f.name, mime: blob.type || f.type, data: data });
+        }); }).then(function () { return dvReloadVehicle(v.id); }).catch(function (e) { fail(e); if (lab) lab.textContent = 'Try again'; });
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rmdoc]'), function (b) {
+      b.onclick = function () {
+        if (!confirm('Remove this document from the vehicle? The file stays in Drive.')) return;
+        apiPost({ action: 'vehDocRemove', vehicleId: v.id, docId: b.getAttribute('data-rmdoc') }).then(function () { return dvReloadVehicle(v.id); }).catch(fail);
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rmsvc]'), function (b) {
+      b.onclick = function () {
+        if (!confirm('Delete this service entry?')) return;
+        apiPost({ action: 'vehServiceDelete', serviceId: b.getAttribute('data-rmsvc') }).then(function () { return dvReloadVehicle(v.id); }).catch(fail);
+      };
+    });
+    var open = document.getElementById('svOpen');
+    if (open) open.onclick = function () { if (v.isNew) return; dv.vform = null; dv.svc = v.id; drawVehicles(sel); var k = document.getElementById('svKm'); if (k) k.focus(); };
+    var cancel = document.getElementById('svCancel');
+    if (cancel) cancel.onclick = function () { dv.svc = null; drawVehicles(sel); };
+    var inv = document.getElementById('svInv'), invFile = null;
+    if (inv) inv.addEventListener('change', function () { invFile = inv.files && inv.files[0]; document.getElementById('svInvName').textContent = invFile ? invFile.name : 'Attach the invoice (optional)'; });
+    var save = document.getElementById('svSave');
+    if (save) save.onclick = function () {
+      var service = { date: document.getElementById('svDate').value, km: document.getElementById('svKm').value, workshop: document.getElementById('svShop').value,
+        cost: document.getElementById('svCost').value, work: document.getElementById('svWork').value };
+      save.disabled = true; save.textContent = invFile ? 'Uploading invoice…' : 'Saving…'; err.hidden = true;
+      var up = invFile ? dvPrep(invFile).then(function (blob) {
+        return toBase64(blob).then(function (data) { return apiPost({ action: 'vehUpload', vehicleId: v.id, kind: 'invoice', name: invFile.name, mime: blob.type || invFile.type, data: data }); });
+      }).then(function (r) { service.invoice = r.doc.url; }) : Promise.resolve();
+      up.then(function () { return apiPost({ action: 'vehService', vehicleId: v.id, service: service }); })
+        .then(function () { dv.svc = null; return dvReloadVehicle(v.id); })
+        .catch(function (e) { fail(e); save.disabled = false; save.textContent = 'Save service'; });
+    };
+    if (v.isNew) {
+      Array.prototype.forEach.call(document.querySelectorAll('[data-vf]'), function (el) {
+        el.addEventListener('input', function () { dv.vform = Object.assign(dvBlankVehicle(), dvReadVehicle(v), { isNew: true }); });
+      });
+    }
+  }
+
+  /* My vehicle (drivers): weekly odometer */
+  function renderMyVehicle() {
+    app.innerHTML = staffPage('me', '<section class="section"><p class="muted">Loading your vehicle…</p></section>', ['#/me', 'Me']);
+    api({ action: 'myVehicle' }).then(function (d) { state.user = d.user || state.user; drawMyVehicle(d.vehicles || []); }, function (e) { showError(e, renderMyVehicle); });
+  }
+  function drawMyVehicle(list, msg) {
+    var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc((state.user || {}).name || '') + '</span><h1>My vehicle</h1>' +
+      '<span class="small">Enter your odometer once a week. It keeps the service reminders right.</span></section>';
+    if (!list.length) body += '<section class="section"><p class="notice">No company vehicle is set up for you. If that\'s wrong, let Simon or Troy know.</p></section>';
+    list.forEach(function (v) {
+      body += '<section class="section stack" style="gap:12px;max-width:560px"><div class="dv-mycar"><b>' + esc(v.model) + '</b>' + (v.plate ? '<span class="dv-plate">' + esc(v.plate) + '</span>' : '') + '</div>' +
+        '<p class="small" style="margin:0">' + (v.odometer ? 'Last reading: <b>' + esc(dvKm(v.odometer)) + '</b> on ' + esc(dvFmtDate(v.odometerDate)) : 'No reading yet.') + '</p>' +
+        (v.odometerDue ? '<p class="st-note" style="margin:0">This week\'s reading is due.</p>' : '<p class="small muted" style="margin:0">Done for this week. Thanks.</p>') +
+        (v.service && (v.service.level === 'warn' || v.service.level === 'bad') ? '<p class="notice' + (v.service.level === 'bad' ? ' error' : '') + '" style="margin:0">Service ' + (v.service.level === 'bad' ? 'overdue' : 'due soon') +
+          (v.nextServiceDate ? ': ' + esc(dvFmtDate(v.nextServiceDate)) : '') + (v.nextServiceKm ? ' or at ' + esc(dvKm(v.nextServiceKm)) : '') + '. Simon and Troy know.</p>' : '') +
+        '<div class="field"><label for="odo-' + esc(v.id) + '">Odometer now (km)</label><div class="st-addrow"><input id="odo-' + esc(v.id) + '" type="text" inputmode="numeric" placeholder="e.g. 119250">' +
+        '<button type="button" class="btn btn-dark" data-odo="' + esc(v.id) + '">Save</button></div></div></section>';
+    });
+    if (msg) body += '<div class="section">' + msg + '</div>';
+    body += '<div style="height:32px"></div>';
+    app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-odo]'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-odo'), km = document.getElementById('odo-' + id).value;
+        b.disabled = true; b.textContent = 'Saving…';
+        apiPost({ action: 'odoAdd', vehicleId: id, km: km }).then(function (r) {
+          state.stHome = null;
+          drawMyVehicle(r.vehicles || [], '<p class="notice">Saved. Thanks.</p>');
+        }).catch(function (e) {
+          if (/lower than the last reading/.test(e.message) && confirm(e.message + '\n\nSave it anyway?')) {
+            return apiPost({ action: 'odoAdd', vehicleId: id, km: km, confirmLower: true }).then(function (r) { drawMyVehicle(r.vehicles || [], '<p class="notice">Saved. Thanks.</p>'); });
+          }
+          drawMyVehicle(list, stErr(e.message));
+        });
+      };
+    });
   }
 
   /* My to do */
@@ -3014,6 +3439,17 @@
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
   document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-addtodo]');
+    if (t) {
+      e.preventDefault();
+      var text = (prompt('To-do for ' + t.getAttribute('data-title') + ':') || '').trim();
+      if (!text) return;
+      var jr = t.getAttribute('data-jr'), opp = t.getAttribute('data-opp');
+      t.disabled = true; t.textContent = 'Adding…';
+      apiPost({ action: 'todoAdd', text: text + ' (' + t.getAttribute('data-title') + ')', due: t.getAttribute('data-date'), linkType: jr ? 'Project' : opp ? 'Opportunity' : '', linkNo: jr || opp })
+        .then(function () { t.textContent = '✓ Added to your to-do list'; if (td.data) td.data = null; state.stHome = null; }, function (err) { t.disabled = false; t.textContent = '+ Add a to-do for this job'; alert(err.message); });
+      return;
+    }
     var b = e.target.closest && e.target.closest('[data-vas-back]');
     if (b) { e.preventDefault(); setViewAs(''); }
   });
