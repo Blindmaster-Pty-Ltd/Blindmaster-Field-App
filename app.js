@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '20'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '22'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -98,6 +98,8 @@
     clock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     pencil: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg>',
     pin: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    window: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18"/><path d="M4 7h16M7 7v8M17 7v8M7 15h10"/></svg>',
+    awning: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5"/><path d="M3 9h18l-2 4H5z"/><path d="M6 13v7M18 13v7"/></svg>',
     eye: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
@@ -701,7 +703,7 @@
 
   function route() {
     var parts = location.hash.replace(/^#\/?/, '').split('/');
-    return { name: parts[0] || 'day', arg: parts[1] ? decodeURIComponent(parts[1]) : '', arg2: parts[2] ? decodeURIComponent(parts[2]) : '' };
+    return { name: parts[0] || 'day', arg: parts[1] ? decodeURIComponent(parts[1]) : '', arg2: parts[2] ? decodeURIComponent(parts[2]) : '', arg3: parts[3] ? decodeURIComponent(parts[3]) : '' };
   }
   window.addEventListener('hashchange', render);
   var resizeTimer;
@@ -736,6 +738,9 @@
     if (!location.hash.replace(/^#\/?/, '') && isOffice()) return renderOverview('today', todayStr());
     if (r.name === 'account') return renderAccount();
     if (r.name === 'me') return renderMe();
+    if (r.name === 'visit' && r.arg) return renderVisit(r.arg, r.arg2 || todayStr());
+    if (r.name === 'measure' && r.arg) return renderMeasure(r.arg, r.arg2 || todayStr());
+    if (r.name === 'capture' && r.arg) return renderCapture(r.arg, r.arg2 || todayStr(), r.arg3);
     if (r.name === 'todo') return renderTodo();
     if (r.name === 'leave') return r.arg === 'new' ? renderLeaveNew() : r.arg ? renderLeaveItem(r.arg) : renderLeave();
     if (r.name === 'clock') return renderClock();
@@ -953,7 +958,7 @@
         '<span style="font-weight:500">' + esc(suburb(next.address)) + (refLabel(next) ? ' · ' + esc(refLabel(next)) : '') + '</span></div>' +
       '<div class="grid-2">' +
         (next.address ? '<a class="btn btn-dark" href="' + mapsDir(next.address) + '" target="_blank" rel="noopener">' + I.nav + 'Directions</a>' : '<span></span>') +
-        '<a class="btn btn-light" href="' + apptHref(next, date) + '">View details</a>' +
+        (next.isSales ? '<a class="btn btn-light" href="' + visitHref(next.id, date) + '">Open visit</a>' : '<a class="btn btn-light" href="' + apptHref(next, date) + '">View details</a>') +
       '</div></section>';
   }
 
@@ -1029,6 +1034,7 @@
     if (a.report) html += '<div class="rep-banner ' + (a.report.complete ? 'is-ok' : 'is-warn') + '">' + (a.report.complete ? I.check : '') +
       '<span><b>' + esc(a.report.complete ? 'Job report submitted' : 'Job not finished') + '</b>' + esc(a.report.complete ? '' : ' · ' + (a.report.outstanding || 'return visit needed')) + '</span></div>';
     else if (hasReport(a) && new Date(a.end).getTime() < Date.now()) html += '<div class="rep-banner is-todo"><span><b>Job report not done yet</b></span></div>';
+    if (a.isSales) html += '<div class="section" style="padding-top:12px"><a class="btn btn-dark btn-lg" href="' + visitHref(a.id, date) + '">' + I.window.replace(/width="40" height="40"/, 'width="22" height="22"') + 'Open site consult · measure and capture</a></div>';
     html += '<div class="wx-appt" data-id="' + esc(a.id) + '" data-date="' + date + '"></div>';
 
     var info = '';
@@ -1227,6 +1233,17 @@
     if (!mapsKey()) return Promise.reject(new Error('No Google Maps key'));
     if (window.google && google.maps && google.maps.places) return Promise.resolve(google.maps);
     if (gmapsPromise) return gmapsPromise;
+    // Google only explains a key problem in the browser console, so listen for it and show it in the app
+    if (!window.__bmMapsErrHook) {
+      window.__bmMapsErrHook = true;
+      ['error', 'warn'].forEach(function (k) {
+        var orig = console[k];
+        console[k] = function () {
+          try { var m = String([].slice.call(arguments).join(' ')).match(/([A-Za-z]+MapError)/); if (m) showMapsProblem(m[1]); } catch (e) {}
+          return orig.apply(console, arguments);
+        };
+      });
+    }
     gmapsPromise = new Promise(function (resolve, reject) {
       window.__bmMapsReady = function () { resolve(google.maps); };
       window.gm_authFailure = function () { reject(new Error('Google Maps key was refused. Check the key and its website restriction.')); };
@@ -1236,6 +1253,22 @@
       document.head.appendChild(s);
     });
     return gmapsPromise;
+  }
+
+  var MAPS_FIX = {
+    BillingNotEnabledMapError: 'Billing isn\'t switched on for the Google Cloud project. In console.cloud.google.com open Billing and link a billing account to this project.',
+    ApiNotActivatedMapError: 'The Maps JavaScript API isn\'t enabled. In APIs & Services > Library, enable Maps JavaScript API (and Places API (New) and Geocoding API).',
+    RefererNotAllowedMapError: 'The key\'s website restriction doesn\'t match. Set it to https://blindmaster-pty-ltd.github.io/* and save.',
+    InvalidKeyMapError: 'Google doesn\'t recognise the key. Check it was copied in full into config.js.',
+    ApiTargetBlockedMapError: 'The key\'s API restrictions block Maps JavaScript API. Tick it (and Places API (New), Geocoding API) under API restrictions.',
+    ExpiredKeyMapError: 'The key has expired or was deleted. Create a new key.',
+    MissingKeyMapError: 'No key was sent. Check GOOGLE_MAPS_KEY in config.js.'
+  };
+  function showMapsProblem(code) {
+    var note = document.getElementById('rtNote');
+    var msg = 'Google Maps problem (' + code + '): ' + (MAPS_FIX[code] || 'see Google\'s Maps JavaScript API error list.');
+    window.__bmMapsProblem = msg;
+    if (note) { note.textContent = msg; note.classList.add('is-problem'); }
   }
 
   /** Address → {lat,lng}, remembered on the phone so each address is looked up once. */
@@ -1284,12 +1317,12 @@
       '<span class="small">' + stops.length + (stops.length === 1 ? ' stop' : ' stops') + (isToday ? ' · ' + doneN + ' done' : '') + (last ? ' · last finishes ' + esc(last.endLabel) : '') + '</span></span>' +
       (isOffice() ? '<span class="tag">All crews</span>' : '') + '</div>';
     var body = '<div class="rt-mapwrap"><div id="rtMap" class="rt-map" aria-label="Map of today\'s stops"></div>' + card +
-      '<p class="rt-note" id="rtNote">Loading map…</p></div>';
+      '<p class="rt-note' + (window.__bmMapsProblem ? ' is-problem' : '') + '" id="rtNote">' + esc(window.__bmMapsProblem || 'Loading map…') + '</p></div>';
     if (!stops.length) body += '<div class="empty"><h2>No stops</h2><p class="muted" style="margin:0">No appointments with an address on this day.</p></div>';
     else body += '<section class="rt-sheet" id="rtSheet"></section>';
     if (wide()) app.innerHTML = shell('route', date, '<div class="rt-wide">' + body + '</div>');
     else app.innerHTML = topbar({ right: shortDate(date) }) + '<main class="rt-main">' + body + '</main>' + tabbar('route', date);
-    if (!stops.length) { var n0 = document.getElementById('rtNote'); if (n0) n0.hidden = true; }
+    if (!stops.length && !window.__bmMapsProblem) { var n0 = document.getElementById('rtNote'); if (n0) n0.textContent = 'No stops on this day'; }
 
     function sheet() {
       var el = document.getElementById('rtSheet'); if (!el) return;
@@ -1336,7 +1369,7 @@
         if (any) { map.fitBounds(bounds, { top: 110, bottom: 30, left: 30, right: 30 }); if (path.length === 1) map.setZoom(14); }
         var missing = list.filter(function (p) { return !p; }).length;
         var note = document.getElementById('rtNote');
-        if (note) { note.textContent = missing ? missing + ' address' + (missing === 1 ? '' : 'es') + ' couldn\'t be found on the map' : 'Live map · tap a number'; }
+        if (note && !window.__bmMapsProblem) { note.textContent = missing ? missing + ' address' + (missing === 1 ? '' : 'es') + ' couldn\'t be found on the map' : 'Live map · tap a number'; }
         if (isToday && navigator.geolocation) {
           var me = null;
           navigator.geolocation.getCurrentPosition(function (p) {
@@ -2095,6 +2128,438 @@
   }
 
   function renderReceiptsKeepScroll() { var y = window.scrollY; if (rcCache) drawReceipts(rcCache.d, rcCache.appts); else renderReceipts(); window.scrollTo(0, y); }
+
+  /* ---------- sales flow: site consult, measure, capture on site ---------- */
+
+  var vs = { key: '', data: null };       // the visit currently open
+  var ms = { step: 'cat', cat: '', productId: '', supplier: '', item: null, field: '', room: '', supFilter: '' }; // measure flow
+  function visitKey(id, date) { return id + '|' + date; }
+  function loadVisit(id, date, force) {
+    if (!force && vs.key === visitKey(id, date) && vs.data) return Promise.resolve(vs.data);
+    return api({ action: 'visit', id: id, date: date }).then(function (d) { state.user = d.user || state.user; vs.key = visitKey(id, date); vs.data = d.visit; return d.visit; });
+  }
+  function visitHref(id, date, sub) { return '#/' + (sub || 'visit') + '/' + encodeURIComponent(id) + '/' + date; }
+  function salesPage(body, back) {
+    if (wide()) return shell('day', null, '<div class="pane-solo sv-page">' + body + '</div>');
+    return topbar({ back: back[0], backLabel: back[1] }) + '<main class="sv-page">' + body + '</main>' + tabbar('day');
+  }
+  function measuresText(m, prod) {
+    var parts = [];
+    ['width', 'track_width'].forEach(function (k) { if (m[k]) parts.push(m[k]); });
+    ['drop', 'projection', 'height'].forEach(function (k) { if (m[k]) parts.push(m[k]); });
+    var s = parts.join(' × ');
+    if (m.panels) s += (s ? ' · ' : '') + m.panels + ' panels';
+    return s;
+  }
+
+  /* Site consult */
+  function renderVisit(id, date) {
+    loading('Opening the visit…');
+    loadVisit(id, date, true).then(function (v) { drawVisit(id, date, v); }, function (e) { showError(e, function () { renderVisit(id, date); }); });
+  }
+  function drawVisit(id, date, v) {
+    var a = v.appointment;
+    var sms = a.phone ? 'sms:' + String(a.phone).replace(/[^\d+]/g, '') + (/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? '&' : '?') + 'body=' + encodeURIComponent('Hi, this is ' + firstName(state.user && state.user.name) + ' from Blindmaster. I\'m on my way and should be with you soon.') : '';
+    var body = '<section class="hero"><div class="row" style="gap:8px;flex-wrap:wrap"><span class="tag tag-dark">' + esc(a.type) + '</span><b class="small">' + esc(a.allDay ? 'All day' : a.startLabel + ' – ' + a.endLabel) + '</b>' +
+      (refLabel(a) ? '<span class="small" style="margin-left:auto;font-weight:700">' + esc(refLabel(a)) + '</span>' : '') + '</div>' +
+      '<h1>' + esc(a.customer || a.title) + '</h1>' + (a.address ? '<p style="margin:0;font-weight:500">' + esc(a.address) + '</p>' : '') + '</section>';
+    body += '<div class="actions" style="grid-template-columns:repeat(3,minmax(0,1fr))">' +
+      (a.address ? '<a class="btn btn-dark action" href="' + mapsDir(a.address) + '" target="_blank" rel="noopener">' + I.nav + 'Navigate</a>' : '<span class="btn btn-sand action" style="opacity:.55">' + I.nav + 'No address</span>') +
+      (a.phone ? '<a class="btn btn-sand action" href="' + tel(a.phone) + '">' + I.phone + 'Call</a>' : '<span class="btn btn-sand action" style="opacity:.55">' + I.phone + 'Call</span>') +
+      (sms ? '<a class="btn btn-sand action" href="' + sms + '">' + I.msg + 'On my way</a>' : '<span class="btn btn-sand action" style="opacity:.55">' + I.msg + 'On my way</span>') + '</div>';
+    if (v.problem) body += '<div class="section"><p class="notice error" style="margin:0">' + esc(v.problem) + '</p></div>';
+    if (v.folder) body += '<div class="section" style="padding-top:8px"><a class="sv-folder" href="' + esc(v.folder.url) + '" target="_blank" rel="noopener"><span class="sv-ico">' + I.folder + '</span><span class="st-txt"><b>' +
+      (v.folder.linked ? 'Opportunity folder' : 'Visit folder') + '</b><span>' + esc(v.folder.linked ? v.folder.name + ' (Collateral)' : 'No opportunity folder linked yet, saving to ' + v.folder.name) + '</span></span>' + I.ext + '</a></div>';
+    var enq = [];
+    if (a.customer || a.phone) enq.push(['Contact', [a.customer, a.phone].filter(String).join(' · ')]);
+    if (a.requirements && a.requirements.length) enq.push(['Interested in', a.requirements.join('; ')]);
+    if (a.notes) enq.push(['Notes', a.notes]);
+    if (enq.length) body += '<section class="section stack" style="gap:12px"><h2>Enquiry</h2><dl class="dl">' + enq.map(function (d) { return '<dt>' + esc(d[0]) + '</dt><dd style="white-space:pre-line">' + esc(d[1]) + '</dd>'; }).join('') + '</dl></section>';
+
+    // Measure
+    body += '<section class="section stack" style="gap:10px"><div class="spread"><h2>Measure</h2><span class="small muted">' + v.items.length + (v.items.length === 1 ? ' item' : ' items') + '</span></div>';
+    if (v.items.length) body += v.items.map(function (it) {
+      return '<a class="sv-item" href="' + visitHref(id, date, 'measure') + '" data-item="' + esc(it.itemId) + '"><span class="sv-id">' + esc(it.itemId) + '</span><span class="st-txt"><b>' + esc(it.product) + (it.supplier ? ' · ' + esc(it.supplier) : '') + '</b>' +
+        '<span>' + esc([it.room, measuresText(it.measures), it.quantity > 1 ? '× ' + it.quantity : ''].filter(String).join(' · ')) + '</span></span>' + (it.photos ? '<span class="small muted">' + it.photos + ' photo' + (it.photos === 1 ? '' : 's') + '</span>' : '') + '</a>';
+    }).join('');
+    body += '<a class="btn btn-dark btn-lg" href="' + visitHref(id, date, 'measure') + '" data-newitem>' + (v.items.length ? 'Measure the next item' : 'Start measuring') + '</a>' +
+      (v.sheetUrl ? '<a class="small" style="font-weight:700" href="' + esc(v.sheetUrl) + '" target="_blank" rel="noopener">Open the measure sheet</a>' : '') + '</section>';
+
+    // Capture
+    var cap = function (tab, icon, label) { return '<a class="sv-cap" href="' + visitHref(id, date, 'capture') + '/' + tab + '">' + icon + '<b>' + label + '</b></a>'; };
+    body += '<section class="section stack" style="gap:10px"><h2>Capture on site</h2><p class="small muted" style="margin:0">Saves to the opportunity\'s Collateral: Notes, Sketches, Photos and Videos.</p>' +
+      '<div class="sv-caps">' + cap('notes', I.doc, 'Notes') + cap('sketch', I.pencil, 'Sketch') + cap('photos', I.camera, 'Photo') + cap('video', I.video, 'Video') + '</div>';
+    var counts = {}; v.captures.forEach(function (c) { counts[c.kind] = (counts[c.kind] || 0) + 1; });
+    var got = [];
+    if (v.notes) got.push('Site notes');
+    if (counts.Photos) got.push(counts.Photos + ' photo' + (counts.Photos === 1 ? '' : 's'));
+    if (counts.Sketches) got.push(counts.Sketches + ' sketch' + (counts.Sketches === 1 ? '' : 'es'));
+    if (counts.Videos) got.push(counts.Videos + ' video' + (counts.Videos === 1 ? '' : 's'));
+    if (got.length) body += '<p class="small" style="margin:0"><b>Captured:</b> ' + esc(got.join(' · ')) + '</p>';
+    body += '</section>';
+
+    if (a.folderUrl || a.projectFolderUrl) body += '<section class="section"><a class="linkrow" href="#/collateral/' + encodeURIComponent(id) + '/' + date + '">' + I.grid + '<span class="text"><b>Collateral</b><span>Everything in the opportunity folder</span></span>' + I.right + '</a></section>';
+    body += '<section class="panel stack" style="margin-top:24px;gap:8px"><div class="spread"><b>Proposal</b><span class="tag tag-light">Coming next</span></div><span class="small">Start a proposal from the costing templates (Umbris, markilux…) using what you\'ve measured.</span></section>';
+    body += '<div style="height:32px"></div>';
+    app.innerHTML = salesPage(body, ['#/appt/' + encodeURIComponent(id) + '/' + date, 'Appointment']);
+    Array.prototype.forEach.call(app.querySelectorAll('[data-item]'), function (el) {
+      el.onclick = function (e) { e.preventDefault(); var it = v.items.filter(function (x) { return x.itemId === el.getAttribute('data-item'); })[0]; openItem(id, date, it); };
+    });
+    var n = app.querySelector('[data-newitem]'); if (n) n.onclick = function (e) { e.preventDefault(); ms = { step: 'cat', room: ms.room || '' }; location.hash = visitHref(id, date, 'measure'); };
+  }
+
+  /* Measure */
+  function cfgProduct(cfg, pid) { return cfg.products.filter(function (p) { return p.id === pid; })[0]; }
+  function measureFields(prod) {
+    return String(prod.measures || 'Width, Drop').split(/,\s*/).map(function (m) {
+      var k = m.trim().toLowerCase().replace(/\s+/g, '_');
+      return { key: k, label: m.trim(), unit: k === 'panels' ? '' : 'mm' };
+    });
+  }
+  function openItem(id, date, it) {
+    ms = { step: 'item', cat: it.cat, productId: it.productId, supplier: it.supplier || '', room: it.room, field: '', originalId: it.itemId,
+      item: { itemId: it.itemId, room: it.room, measures: Object.assign({}, it.measures), answers: Object.assign({}, it.answers), photos: it.photos || 0 } };
+    location.hash = visitHref(id, date, 'measure');
+    if (route().name === 'measure') renderMeasure(id, date);
+  }
+  function nextItemId(v, room) {
+    var p = (String(room || 'Item').match(/[A-Za-z]/) || ['I'])[0].toUpperCase(), n = 1;
+    var used = v.items.map(function (x) { return x.itemId.toUpperCase(); });
+    while (used.indexOf(p + n) >= 0) n++;
+    return p + n;
+  }
+  function renderMeasure(id, date) {
+    var key = visitKey(id, date);
+    if (vs.key !== key || !vs.data) { loading('Opening the visit…'); return loadVisit(id, date).then(function () { renderMeasure(id, date); }, function (e) { showError(e, function () { renderMeasure(id, date); }); }); }
+    var v = vs.data, cfg = v.config, a = v.appointment, back = visitHref(id, date);
+    var head = '<div class="sv-sub"><span>' + esc(a.customer || a.title) + '</span><span>' + v.items.length + ' measured</span></div>';
+    if (ms.step === 'cat' || !ms.step) {
+      var body = head + '<section class="hero"><span class="small" style="font-weight:700">Item ' + (v.items.length + 1) + '</span><h1>What are you measuring?</h1></section>' +
+        '<section class="section ms-cats"><button type="button" class="ms-cat is-dark" data-cat="Indoor">' + I.window + '<b>Indoor</b><span>Blinds, shutters, curtains</span></button>' +
+        '<button type="button" class="ms-cat" data-cat="Outdoor">' + I.awning + '<b>Outdoor</b><span>Awnings, screens, louvres</span></button></section>';
+      if (v.items.length) body += '<section class="section stack" style="gap:8px"><h2 class="st-h2" style="margin:0">Measured so far · ' + v.items.length + '</h2>' + v.items.map(function (it) {
+        return '<button type="button" class="sv-item" data-item="' + esc(it.itemId) + '"><span class="sv-id">' + esc(it.itemId) + '</span><span class="st-txt"><b>' + esc(it.product) + '</b><span>' + esc([it.room, measuresText(it.measures)].filter(String).join(' · ')) + '</span></span></button>';
+      }).join('') + '</section>';
+      body += '<section class="section"><a class="btn btn-outline btn-lg" href="' + back + '">Finish measuring</a></section><div style="height:24px"></div>';
+      app.innerHTML = salesPage(body, [back, 'Visit']);
+      Array.prototype.forEach.call(app.querySelectorAll('[data-cat]'), function (b) { b.onclick = function () { ms.cat = b.getAttribute('data-cat'); ms.step = 'product'; ms.supFilter = ''; renderMeasure(id, date); window.scrollTo(0, 0); }; });
+      Array.prototype.forEach.call(app.querySelectorAll('[data-item]'), function (b) { b.onclick = function () { openItem(id, date, v.items.filter(function (x) { return x.itemId === b.getAttribute('data-item'); })[0]); }; });
+      return;
+    }
+    if (ms.step === 'product') {
+      var prods = cfg.products.filter(function (p) { return p.cat === ms.cat; });
+      var sups = cfg.suppliers.filter(function (s) { return cfg.supplierProducts.some(function (sp) { return sp.supplier === s.code && prods.some(function (p) { return p.id === sp.product; }); }); });
+      if (ms.supFilter) prods = prods.filter(function (p) { return cfg.supplierProducts.some(function (sp) { return sp.product === p.id && sp.supplier === ms.supFilter; }); });
+      var body2 = head + '<div class="section" style="padding-top:12px"><div class="seg" role="group" aria-label="Category">' + ['Indoor', 'Outdoor'].map(function (c) { return '<button type="button" data-cat="' + c + '" aria-pressed="' + (ms.cat === c) + '">' + c + '</button>'; }).join('') + '</div></div>' +
+        '<section class="section stack" style="gap:8px;padding-top:16px"><h1>' + esc(ms.cat) + ' product</h1>' +
+        (sups.length ? '<div class="ms-chips" role="group" aria-label="Supplier"><button type="button" data-sup="" aria-pressed="' + !ms.supFilter + '">All suppliers</button>' + sups.map(function (s) { return '<button type="button" data-sup="' + esc(s.code) + '" aria-pressed="' + (ms.supFilter === s.code) + '">' + esc(s.name) + '</button>'; }).join('') + '</div>' : '') +
+        '</section><section class="section ms-prods">' + prods.map(function (p) {
+          return '<button type="button" class="ms-prod" data-prod="' + esc(p.id) + '"><b>' + esc(p.name) + '</b><span>' + esc(p.measures.replace(/,\s*/g, ' · ')) + '</span></button>';
+        }).join('') + (prods.length ? '' : '<p class="muted">No products for this supplier.</p>') + '</section>' +
+        (cfg.source === 'starter' ? '<p class="small muted section">Starter product list. It switches to the product build sheet once it\'s linked.</p>' : '') + '<div style="height:24px"></div>';
+      app.innerHTML = salesPage(body2, [back, 'Visit']);
+      var bk = app.querySelector('.back'); if (bk) bk.onclick = function (e) { e.preventDefault(); ms.step = 'cat'; renderMeasure(id, date); };
+      Array.prototype.forEach.call(app.querySelectorAll('[data-cat]'), function (b) { b.onclick = function () { ms.cat = b.getAttribute('data-cat'); ms.supFilter = ''; renderMeasure(id, date); }; });
+      Array.prototype.forEach.call(app.querySelectorAll('[data-sup]'), function (b) { b.onclick = function () { ms.supFilter = b.getAttribute('data-sup'); renderMeasure(id, date); }; });
+      Array.prototype.forEach.call(app.querySelectorAll('[data-prod]'), function (b) {
+        b.onclick = function () {
+          var p = cfgProduct(cfg, b.getAttribute('data-prod')), room = ms.room || '';
+          var sp = cfg.supplierProducts.filter(function (x) { return x.product === p.id; });
+          ms = { step: 'item', cat: p.cat, productId: p.id, supplier: ms.supFilter || (sp.length === 1 ? sp[0].supplier : ''), room: room, field: measureFields(p)[0].key, originalId: '',
+            item: { itemId: nextItemId(v, room), room: room, measures: {}, answers: {}, photos: 0 } };
+          renderMeasure(id, date); window.scrollTo(0, 0);
+        };
+      });
+      return;
+    }
+    drawItem(id, date);
+  }
+
+  function qOptions(q, cfg) {
+    var o = String(q.options || '');
+    var m = o.match(/^list:\s*(.+)$/i);
+    if (m) return (cfg.lists[m[1].trim()] || []).slice();
+    return o ? o.split(/\s*,\s*/).filter(String) : [];
+  }
+  function qShown(q, ans) {
+    var s = String(q.showIf || '').trim();
+    if (!s) return true;
+    var m = s.match(/^(\w+)\s*(!=|=)\s*(.+)$/);
+    if (!m) return true;
+    var val = String(ans[m[1].toLowerCase()] == null ? '' : ans[m[1].toLowerCase()]).toLowerCase(), want = m[3].trim().toLowerCase();
+    var hit = want.split(/\s*\|\s*/).indexOf(val) >= 0;
+    return m[2] === '=' ? hit : !hit;
+  }
+  function itemQuestions(cfg) {
+    var common = cfg.common.filter(function (q) { return q.field !== 'room' && q.field !== 'item_id' && (q.appliesTo === 'All' || !q.appliesTo || q.appliesTo === ms.cat); });
+    var prod = cfg.questions.filter(function (q) { return q.product === ms.productId && (!q.supplier || q.supplier === ms.supplier); });
+    return { common: common, prod: prod };
+  }
+  function qHtml(q, ans, cfg) {
+    var val = ans[q.field] != null ? String(ans[q.field]) : '';
+    var lab = '<span class="ms-qlab">' + esc(q.label) + (q.required ? ' <span class="req">*</span>' : '') + (q.unit && q.type === 'number' ? ' <span class="muted">(' + esc(q.unit) + ')</span>' : '') + '</span>';
+    if (q.type === 'choice') {
+      var opts = qOptions(q, cfg);
+      if (opts.length <= 4) return '<div class="ms-q" data-q="' + esc(q.field) + '">' + lab + '<div class="ms-opts">' + opts.map(function (o) { return '<button type="button" data-ans="' + esc(q.field) + '" data-val="' + esc(o) + '" aria-pressed="' + (val === o) + '">' + esc(o) + '</button>'; }).join('') + '</div></div>';
+      return '<label class="ms-q" data-q="' + esc(q.field) + '">' + lab + '<select data-input="' + esc(q.field) + '"><option value="">Choose</option>' + opts.map(function (o) { return '<option' + (val === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select></label>';
+    }
+    if (q.type === 'yes-no') return '<div class="ms-q" data-q="' + esc(q.field) + '">' + lab + '<div class="ms-opts">' + ['Yes', 'No'].map(function (o) { return '<button type="button" data-ans="' + esc(q.field) + '" data-val="' + o + '" aria-pressed="' + (val === o) + '">' + o + '</button>'; }).join('') + '</div></div>';
+    if (q.type === 'number') {
+      if (q.field === 'quantity' || (q.max != null && q.max <= 50)) return '<div class="ms-q ms-q-row" data-q="' + esc(q.field) + '">' + lab + '<div class="ms-step"><button type="button" data-stepq="' + esc(q.field) + '" data-d="-1" aria-label="One less">−</button><b>' + esc(val || '0') + '</b><button type="button" data-stepq="' + esc(q.field) + '" data-d="1" aria-label="One more">+</button></div></div>';
+      return '<label class="ms-q" data-q="' + esc(q.field) + '">' + lab + '<input inputmode="decimal" data-input="' + esc(q.field) + '" value="' + esc(val) + '"></label>';
+    }
+    if (q.type === 'photo') return '<div class="ms-q">' + lab + '<span class="small muted">Use "Photo for this item" below.</span></div>';
+    return '<label class="ms-q" data-q="' + esc(q.field) + '">' + lab + '<input data-input="' + esc(q.field) + '" value="' + esc(val) + '"></label>';
+  }
+  function limitsFor(cfg) {
+    var p = cfgProduct(cfg, ms.productId) || {}, sp = cfg.supplierProducts.filter(function (x) { return x.product === ms.productId && x.supplier === ms.supplier; })[0] || {};
+    var pick = function (a, b) { return a != null ? a : b; };
+    return { minW: pick(sp.minW, p.minW), maxW: pick(sp.maxW, p.maxW), minD: pick(sp.minD, p.minD), maxD: pick(sp.maxD, p.maxD) };
+  }
+  function measureWarnings(cfg) {
+    var L = limitsFor(cfg), m = ms.item.measures, out = [], p = cfgProduct(cfg, ms.productId) || {};
+    var w = Number(m.width || m.track_width || 0), d = Number(m.drop || m.projection || 0);
+    if (w && L.maxW && w > L.maxW) out.push('Width ' + w + ' mm is over ' + L.maxW + ' mm, the largest ' + p.name.toLowerCase() + ' made in one piece. Split it, or check with the office.');
+    if (w && L.minW && w < L.minW) out.push('Width ' + w + ' mm is under the ' + L.minW + ' mm minimum.');
+    if (d && L.maxD && d > L.maxD) out.push((m.projection ? 'Projection ' : 'Drop ') + d + ' mm is over the ' + L.maxD + ' mm maximum.');
+    if (d && L.minD && d < L.minD) out.push((m.projection ? 'Projection ' : 'Drop ') + d + ' mm is under the ' + L.minD + ' mm minimum.');
+    return out;
+  }
+  function drawItem(id, date) {
+    var v = vs.data, cfg = v.config, prod = cfgProduct(cfg, ms.productId), it = ms.item, back = visitHref(id, date);
+    if (!prod) { ms.step = 'cat'; return renderMeasure(id, date); }
+    var fields = measureFields(prod);
+    if (!ms.field) ms.field = fields[0].key;
+    var Q = itemQuestions(cfg);
+    // defaults once
+    Q.common.concat(Q.prod).forEach(function (q) { if (it.answers[q.field] == null && q.def) it.answers[q.field] = q.def; });
+    var rooms = (cfg.lists.Rooms || []).slice();
+    if (it.room && rooms.indexOf(it.room) < 0) rooms.push(it.room);
+    var sps = cfg.supplierProducts.filter(function (x) { return x.product === prod.id; });
+    var supName = function (c) { var s = cfg.suppliers.filter(function (x) { return x.code === c; })[0]; return s ? s.name : c; };
+    var body = '<div class="sv-sub"><span>' + esc(v.appointment.customer || v.appointment.title) + '</span><span>' + v.items.length + ' measured</span></div>' +
+      '<section class="section stack ms-top"><div class="spread" style="align-items:flex-end;gap:12px"><div class="stack" style="gap:2px"><span class="small muted" style="font-weight:700">' + esc(prod.cat) + (ms.originalId ? ' · editing ' + esc(ms.originalId) : ' · item ' + (v.items.length + 1)) + '</span><h1>' + esc(prod.name) + '</h1></div>' +
+      '<label class="ms-idbox">Item ID<input id="msId" value="' + esc(it.itemId) + '" maxlength="8" autocapitalize="characters"></label></div>' +
+      '<div class="ms-rooms" role="group" aria-label="Room">' + rooms.map(function (r) { return '<button type="button" data-room="' + esc(r) + '" aria-pressed="' + (it.room === r) + '">' + esc(r) + '</button>'; }).join('') + '<button type="button" data-room="+">+ Room</button></div></section>';
+    if (sps.length) body += '<section class="section stack" style="gap:8px"><span class="ms-qlab">Supplier</span><div class="ms-opts">' + sps.map(function (s) { return '<button type="button" data-supplier="' + esc(s.supplier) + '" aria-pressed="' + (ms.supplier === s.supplier) + '">' + esc(supName(s.supplier)) + (s.range ? ' · ' + esc(s.range) : '') + '</button>'; }).join('') + '</div></section>';
+    body += '<section class="section stack" style="gap:10px"><h2 class="st-h2" style="margin:0">1 · Measurements</h2><div class="ms-meas" style="grid-template-columns:repeat(' + Math.min(fields.length, 3) + ',minmax(0,1fr))">' + fields.map(function (f) {
+      var val = it.measures[f.key];
+      return '<button type="button" data-field="' + f.key + '" aria-pressed="' + (ms.field === f.key) + '"><span>' + esc(f.label.toUpperCase()) + '</span><b>' + (val != null && val !== '' ? esc(val) : '–') + (f.unit ? '<small> ' + f.unit + '</small>' : '') + '</b></button>';
+    }).join('') + '</div><div id="msWarn">' + measureWarnings(cfg).map(function (w) { return '<p class="notice error" role="alert" style="margin:0 0 6px">' + esc(w) + '</p>'; }).join('') + '</div>' +
+      '<div class="ms-pad" role="group" aria-label="Number pad">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(function (k) { return '<button type="button" data-key="' + k + '" aria-label="' + (k === 'C' ? 'Clear' : k === '⌫' ? 'Delete' : k) + '">' + k + '</button>'; }).join('') + '</div></section>';
+    body += '<section class="section stack" style="gap:14px"><h2 class="st-h2" style="margin:0">2 · Every item</h2>' + Q.common.filter(function (q) { return qShown(q, it.answers); }).map(function (q) { return qHtml(q, it.answers, cfg); }).join('') + '</section>';
+    var pq = Q.prod.filter(function (q) { return qShown(q, it.answers); });
+    if (pq.length) body += '<section class="section stack" style="gap:14px"><h2 class="st-h2" style="margin:0">3 · ' + esc(prod.name) + '</h2>' + pq.map(function (q) { return qHtml(q, it.answers, cfg); }).join('') + '</section>';
+    body += '<section class="section stack" style="gap:8px"><label class="btn btn-sand btn-lg" for="msPhoto">' + I.camera + 'Photo for ' + esc(it.itemId) + (it.photos ? ' · ' + it.photos + ' added' : '') + '</label><input type="file" id="msPhoto" accept="image/*" capture="environment" hidden><span class="small muted" id="msPhotoNote">Saved to Collateral › Photos as "' + esc(it.itemId + ' ' + (it.room || '') + ' ' + prod.name).replace(/\s+/g, ' ') + '".</span></section>';
+    body += '<p class="notice error section" id="msErr" role="alert" hidden style="margin:16px 16px 0"></p>' +
+      '<div class="ms-save"><button type="button" class="btn btn-outline btn-lg" id="msDone">Save · done</button><button type="button" class="btn btn-dark btn-lg" id="msNext">Save · next item</button></div>' +
+      (ms.originalId ? '<div class="section"><button type="button" class="link-btn" id="msDel">Delete ' + esc(ms.originalId) + '</button></div>' : '') + '<div style="height:24px"></div>';
+    var y = window.scrollY;
+    app.innerHTML = salesPage(body, [back, 'Visit']);
+    window.scrollTo(0, y);
+    var bk = app.querySelector('.back'); if (bk) bk.onclick = function (e) { e.preventDefault(); if (confirm('Leave this item without saving?')) { ms.step = ms.originalId ? 'cat' : 'product'; renderMeasure(id, date); } };
+    bindItem(id, date, fields);
+  }
+  function bindItem(id, date, fields) {
+    var v = vs.data, cfg = v.config, it = ms.item, redraw = function () { drawItem(id, date); };
+    var $ = function (s) { return app.querySelector(s); };
+    $('#msId').oninput = function () { it.itemId = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); };
+    Array.prototype.forEach.call(app.querySelectorAll('[data-room]'), function (b) {
+      b.onclick = function () {
+        var r = b.getAttribute('data-room');
+        if (r === '+') { r = (prompt('Room name') || '').trim(); if (!r) return; cfg.lists.Rooms = (cfg.lists.Rooms || []).concat([r]); }
+        var autoId = !ms.originalId && it.itemId === nextItemId(v, it.room);
+        it.room = r; ms.room = r;
+        if (autoId) it.itemId = nextItemId(v, r);
+        redraw();
+      };
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-supplier]'), function (b) { b.onclick = function () { ms.supplier = ms.supplier === b.getAttribute('data-supplier') ? '' : b.getAttribute('data-supplier'); redraw(); }; });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-field]'), function (b) { b.onclick = function () { ms.field = b.getAttribute('data-field'); redraw(); }; });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-key]'), function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute('data-key'), cur = String(it.measures[ms.field] == null ? '' : it.measures[ms.field]);
+        if (k === 'C') cur = ''; else if (k === '⌫') cur = cur.slice(0, -1); else if (cur.length < 5) cur = (cur === '0' ? '' : cur) + k;
+        if (cur === '') delete it.measures[ms.field]; else it.measures[ms.field] = Number(cur);
+        var btn = app.querySelector('[data-field="' + ms.field + '"] b'), f = fields.filter(function (x) { return x.key === ms.field; })[0];
+        if (btn) btn.innerHTML = (cur || '–') + (f && f.unit ? '<small> ' + f.unit + '</small>' : '');
+        $('#msWarn').innerHTML = measureWarnings(cfg).map(function (w) { return '<p class="notice error" role="alert" style="margin:0 0 6px">' + esc(w) + '</p>'; }).join('');
+      };
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-ans]'), function (b) {
+      b.onclick = function () { var f = b.getAttribute('data-ans'), val = b.getAttribute('data-val'); it.answers[f] = it.answers[f] === val ? '' : val; redraw(); };
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-input]'), function (el) {
+      var f = el.getAttribute('data-input');
+      el.onchange = function () { var before = JSON.stringify(it.answers); it.answers[f] = el.value; if (el.tagName === 'SELECT' && JSON.stringify(it.answers) !== before) redraw(); };
+      el.oninput = function () { it.answers[f] = el.value; };
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-stepq]'), function (b) {
+      b.onclick = function () {
+        var f = b.getAttribute('data-stepq'), q = itemQuestions(cfg).common.concat(itemQuestions(cfg).prod).filter(function (x) { return x.field === f; })[0] || {};
+        var n = (Number(it.answers[f]) || 0) + Number(b.getAttribute('data-d'));
+        if (q.min != null) n = Math.max(q.min, n); if (q.max != null) n = Math.min(q.max, n); n = Math.max(0, n);
+        it.answers[f] = String(n); b.parentNode.querySelector('b').textContent = n;
+      };
+    });
+    $('#msPhoto').onchange = function () {
+      var file = this.files && this.files[0]; if (!file) return;
+      var note = $('#msPhotoNote'); note.textContent = 'Uploading…';
+      var prod = cfgProduct(cfg, ms.productId);
+      shrinkImage(file).then(function (img) { return toBase64(img.blob); }).then(function (b64) {
+        return apiPost({ action: 'visitUpload', id: id, date: date, kind: 'item', data: b64, mime: 'image/jpeg', itemId: it.itemId, room: it.room, product: prod.name, n: (it.photos || 0) + 1 });
+      }).then(function (r) { it.photos = (it.photos || 0) + 1; note.textContent = 'Saved as ' + r.file.name + '.'; var l = app.querySelector('label[for="msPhoto"]'); if (l) l.innerHTML = I.camera + 'Photo for ' + esc(it.itemId) + ' · ' + it.photos + ' added'; },
+        function (e) { note.textContent = e.message || 'Couldn\'t upload the photo.'; });
+    };
+    function save(next) {
+      var err = $('#msErr'), prod = cfgProduct(cfg, ms.productId), Q = itemQuestions(cfg), miss = [];
+      if (!it.itemId) miss.push('an item ID');
+      if (!it.room) miss.push('the room');
+      fields.forEach(function (f) { if (!it.measures[f.key]) miss.push(f.label.toLowerCase()); });
+      Q.common.concat(Q.prod).forEach(function (q) { if (q.required && qShown(q, it.answers) && q.type !== 'photo' && !String(it.answers[q.field] || '').trim()) miss.push(q.label.toLowerCase()); });
+      if (miss.length) { err.textContent = 'Still needed: ' + miss.join(', ') + '.'; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
+      var shownQs = Q.common.concat(Q.prod).filter(function (q) { return qShown(q, it.answers); });
+      var answers = {}; shownQs.forEach(function (q) { if (it.answers[q.field] != null && it.answers[q.field] !== '') answers[q.field] = it.answers[q.field]; });
+      var details = shownQs.filter(function (q) { return answers[q.field] != null && q.field !== 'quantity'; }).map(function (q) { return q.label + ': ' + answers[q.field]; }).join('; ');
+      var btns = app.querySelectorAll('.ms-save button'); Array.prototype.forEach.call(btns, function (b) { b.disabled = true; });
+      err.hidden = true;
+      apiPost({ action: 'measureSave', id: id, date: date, originalId: ms.originalId || '', item: { itemId: it.itemId, room: it.room, cat: prod.cat, product: prod.name, productId: prod.id, supplier: ms.supplier,
+        measures: it.measures, answers: answers, details: details, photos: it.photos || 0 } }).then(function (r) {
+        v.items = r.items; v.sheetUrl = r.sheetUrl;
+        var room = it.room;
+        if (next) { ms = { step: 'cat', room: room }; renderMeasure(id, date); window.scrollTo(0, 0); }
+        else { ms = { step: 'cat', room: room }; location.hash = visitHref(id, date); }
+      }, function (e) { Array.prototype.forEach.call(btns, function (b) { b.disabled = false; }); err.textContent = e.message || 'Couldn\'t save. Try again.'; err.hidden = false; });
+    }
+    $('#msNext').onclick = function () { save(true); };
+    $('#msDone').onclick = function () { save(false); };
+    var del = $('#msDel');
+    if (del) del.onclick = function () {
+      if (!confirm('Delete item ' + ms.originalId + '?')) return;
+      apiPost({ action: 'measureDelete', id: id, date: date, itemId: ms.originalId }).then(function (r) { v.items = r.items; ms = { step: 'cat', room: it.room }; renderMeasure(id, date); }, function (e) { alert(e.message); });
+    };
+  }
+
+  /* Capture on site */
+  var cap = { tab: 'notes', strokes: [], tool: 'pen', notesTimer: null };
+  function renderCapture(id, date, tab) {
+    cap.tab = tab || cap.tab || 'notes';
+    var key = visitKey(id, date);
+    if (vs.key !== key || !vs.data) { loading('Opening the visit…'); return loadVisit(id, date).then(function () { renderCapture(id, date, cap.tab); }, function (e) { showError(e, function () { renderCapture(id, date, tab); }); }); }
+    var v = vs.data, a = v.appointment, back = visitHref(id, date);
+    var tabs = [['notes', 'Notes', 'Notes'], ['sketch', 'Sketch', 'Sketches'], ['photos', 'Photos', 'Photos'], ['video', 'Video', 'Videos']];
+    var cur = tabs.filter(function (t) { return t[0] === cap.tab; })[0] || tabs[0];
+    var body = '<div class="sv-sub"><span>' + esc(a.customer || a.title) + '</span><span>' + esc(refLabel(a)) + '</span></div>' +
+      '<nav class="cp-tabs" aria-label="Capture type">' + tabs.map(function (t) { return '<a href="' + visitHref(id, date, 'capture') + '/' + t[0] + '" aria-current="' + (t[0] === cap.tab ? 'page' : 'false') + '">' + t[1] + '</a>'; }).join('') + '</nav>';
+    if (cap.tab === 'notes') {
+      body += '<section class="section stack" style="gap:10px"><label for="cpNotes"><b>Site notes</b></label><textarea id="cpNotes" class="cp-notes" rows="14" placeholder="Orientation, fixing surfaces, what the client wants…">' + esc(v.notes || '') + '</textarea>' +
+        '<div class="st-grid2">' + (speechSupported() ? '<button type="button" class="btn btn-outline" id="cpMic" aria-pressed="false">' + I.mic + 'Dictate</button>' : '<span></span>') +
+        '<button type="button" class="btn btn-dark" id="cpSave">Save notes</button></div><span class="small muted" id="cpState">' + (v.notes ? 'Saved' : 'Saves as you type') + '</span></section>';
+    } else if (cap.tab === 'sketch') {
+      body += '<section class="section stack" style="gap:10px"><div class="spread"><b>Sketch</b><span class="small muted">Draw with your finger or a stylus</span></div>' +
+        '<canvas id="cpCanvas" class="cp-canvas"></canvas><div class="cp-tools" role="toolbar" aria-label="Sketch tools">' +
+        '<button type="button" data-tool="pen" aria-pressed="' + (cap.tool === 'pen') + '" aria-label="Pen">' + I.pencil + '</button>' +
+        '<button type="button" data-tool="line" aria-pressed="' + (cap.tool === 'line') + '" aria-label="Straight line">／</button>' +
+        '<button type="button" data-tool="text" aria-pressed="' + (cap.tool === 'text') + '" aria-label="Text">T</button>' +
+        '<button type="button" id="cpUndo" aria-label="Undo">↶</button><button type="button" id="cpClear" aria-label="Clear">✕</button></div>' +
+        '<button type="button" class="btn btn-dark btn-lg" id="cpSketchSave">Save sketch</button><span class="small muted" id="cpState"></span></section>';
+    } else if (cap.tab === 'photos') {
+      var ph = v.captures.filter(function (c) { return c.kind === 'Photos'; });
+      body += '<section class="section stack" style="gap:12px"><div class="st-grid2"><label class="btn btn-dark btn-lg" for="cpCam">' + I.camera + 'Take photo</label><label class="btn btn-outline btn-lg" for="cpLib">From library</label></div>' +
+        '<input type="file" id="cpCam" accept="image/*" capture="environment" hidden><input type="file" id="cpLib" accept="image/*" multiple hidden><span class="small muted" id="cpState"></span>' +
+        '<div class="cp-grid">' + ph.map(function (p) { return '<a href="' + esc(p.url) + '" target="_blank" rel="noopener" title="' + esc(p.name) + '">' + (p.thumb ? '<img src="' + p.thumb + '" alt="' + esc(p.name) + '">' : '<span>' + esc(p.name) + '</span>') + '</a>'; }).join('') + '</div>' +
+        (ph.length ? '' : '<p class="small muted" style="margin:0">No photos yet.</p>') + '</section>';
+    } else {
+      var vids = v.captures.filter(function (c) { return c.kind === 'Videos'; });
+      body += '<section class="section stack" style="gap:12px"><label class="btn btn-dark btn-lg" for="cpVid">' + I.video + 'Record a video</label><input type="file" id="cpVid" accept="video/*" capture="environment" hidden>' +
+        '<span class="small muted" id="cpState">Talk through the site as you film. Keep it under a minute or two (30 MB limit).</span>' +
+        vids.map(function (x) { return '<a class="linkrow" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + I.video + '<span class="text"><b>' + esc(x.name) + '</b><span>Video</span></span>' + I.ext + '</a>'; }).join('') + '</section>';
+    }
+    body += '<div class="cp-foot">' + I.folder + '<span>Saving to <b>' + esc((v.folder ? v.folder.name : 'the visit folder') + ' › ' + cur[2]) + '</b></span></div><div style="height:24px"></div>';
+    app.innerHTML = salesPage(body, [back, 'Visit']);
+    bindCapture(id, date);
+  }
+  function capUploadFiles(id, date, files, kind) {
+    var st = document.getElementById('cpState'), v = vs.data, done = 0;
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) return;
+    var run = list.reduce(function (p, file, i) {
+      return p.then(function () {
+        if (st) st.textContent = 'Uploading ' + (i + 1) + ' of ' + list.length + '…';
+        var isImg = /^image\//.test(file.type);
+        return (isImg ? shrinkImage(file).then(function (img) { return img.blob; }) : Promise.resolve(file)).then(toBase64).then(function (b64) {
+          return apiPost({ action: 'visitUpload', id: id, date: date, kind: kind, data: b64, mime: isImg ? 'image/jpeg' : file.type, name: file.name });
+        }).then(function () { done++; });
+      });
+    }, Promise.resolve());
+    run.then(function () { if (st) st.textContent = done + ' saved.'; return loadVisit(id, date, true); }).then(function () { if (route().name === 'capture') renderCapture(id, date, cap.tab); },
+      function (e) { if (st) st.textContent = (e && e.message) || 'Upload failed. Try again.'; });
+  }
+  function bindCapture(id, date) {
+    var v = vs.data, st = document.getElementById('cpState');
+    if (cap.tab === 'notes') {
+      var ta = document.getElementById('cpNotes');
+      var saveNotes = function () {
+        clearTimeout(cap.notesTimer);
+        st.textContent = 'Saving…';
+        return apiPost({ action: 'visitNotes', id: id, date: date, notes: ta.value }).then(function () { v.notes = ta.value; st.textContent = 'Saved ' + hhmm(new Date()); }, function (e) { st.textContent = e.message || 'Couldn\'t save. Try again.'; });
+      };
+      ta.oninput = function () { st.textContent = 'Not saved yet'; clearTimeout(cap.notesTimer); cap.notesTimer = setTimeout(saveNotes, 2500); };
+      document.getElementById('cpSave').onclick = saveNotes;
+      var mic = document.getElementById('cpMic');
+      if (mic) mic.onclick = function () { toggleDictation(mic, ta, function () { ta.oninput(); }); };
+    } else if (cap.tab === 'sketch') {
+      var cv = document.getElementById('cpCanvas'), ctx = cv.getContext('2d');
+      var ratio = window.devicePixelRatio || 1, w = cv.clientWidth, h = Math.round(w * 1.25);
+      cv.style.height = h + 'px'; cv.width = w * ratio; cv.height = h * ratio; ctx.scale(ratio, ratio);
+      function paint() {
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = '#EEECE7'; ctx.lineWidth = 1;
+        for (var x = 20; x < w; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+        for (var y = 20; y < h; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+        ctx.strokeStyle = '#404141'; ctx.fillStyle = '#404141'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.font = '700 15px Manrope, sans-serif';
+        cap.strokes.forEach(function (s) {
+          if (s.type === 'text') { ctx.fillText(s.text, s.x, s.y); return; }
+          ctx.beginPath(); s.pts.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.stroke();
+        });
+      }
+      paint();
+      var drawing = null;
+      var pos = function (e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      cv.addEventListener('pointerdown', function (e) {
+        e.preventDefault(); var p = pos(e);
+        if (cap.tool === 'text') { var t = prompt('Text'); if (t) { cap.strokes.push({ type: 'text', text: t, x: p[0], y: p[1] }); paint(); } return; }
+        drawing = { type: cap.tool, pts: [p] }; cap.strokes.push(drawing); cv.setPointerCapture(e.pointerId);
+      });
+      cv.addEventListener('pointermove', function (e) {
+        if (!drawing) return; e.preventDefault(); var p = pos(e);
+        if (drawing.type === 'line') drawing.pts = [drawing.pts[0], p]; else drawing.pts.push(p);
+        paint();
+      });
+      ['pointerup', 'pointercancel'].forEach(function (ev) { cv.addEventListener(ev, function () { drawing = null; }); });
+      cv.style.touchAction = 'none';
+      Array.prototype.forEach.call(app.querySelectorAll('[data-tool]'), function (b) { b.onclick = function () { cap.tool = b.getAttribute('data-tool'); Array.prototype.forEach.call(app.querySelectorAll('[data-tool]'), function (x) { x.setAttribute('aria-pressed', x === b); }); }; });
+      document.getElementById('cpUndo').onclick = function () { cap.strokes.pop(); paint(); };
+      document.getElementById('cpClear').onclick = function () { if (cap.strokes.length && confirm('Clear the sketch?')) { cap.strokes = []; paint(); } };
+      document.getElementById('cpSketchSave').onclick = function () {
+        if (!cap.strokes.length) { st.textContent = 'Draw something first.'; return; }
+        var btn = this; btn.disabled = true; st.textContent = 'Saving…';
+        var b64 = cv.toDataURL('image/png').split(',')[1];
+        apiPost({ action: 'visitUpload', id: id, date: date, kind: 'sketch', data: b64, mime: 'image/png' }).then(function (r) {
+          cap.strokes = []; paint(); btn.disabled = false; st.textContent = 'Saved as ' + r.file.name + '.'; loadVisit(id, date, true);
+        }, function (e) { btn.disabled = false; st.textContent = e.message || 'Couldn\'t save. Try again.'; });
+      };
+    } else if (cap.tab === 'photos') {
+      document.getElementById('cpCam').onchange = function () { capUploadFiles(id, date, this.files, 'photo'); };
+      document.getElementById('cpLib').onchange = function () { capUploadFiles(id, date, this.files, 'photo'); };
+    } else {
+      document.getElementById('cpVid').onchange = function () {
+        var f = this.files && this.files[0]; if (!f) return;
+        if (f.size > 30 * 1024 * 1024) { st.textContent = 'That video is over 30 MB. Record a shorter one, or upload it from the Drive app.'; return; }
+        capUploadFiles(id, date, [f], 'video');
+      };
+    }
+  }
 
   /* ---------- staff tools: Me, My to do, Leave, Clock, Team hours ---------- */
 
