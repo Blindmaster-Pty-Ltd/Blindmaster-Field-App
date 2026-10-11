@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '24'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '25'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -132,7 +132,16 @@
     return '<div class="vas-bar" role="status"><span>' + I.eye + '<span>Viewing as <b>' + esc(roleLabel(u.role)) + '</b></span></span>' +
       '<button type="button" class="vas-back" data-vas-back>Back to my view</button></div>';
   }
-  function tokenValid(s) { return s && (s.devEmail || (s.idToken && s.exp * 1000 > Date.now() + 60000)); }
+  function tokenValid(s) { return s && (s.devEmail || (s.sess && s.sessExp > Date.now() + 60000) || (s.idToken && s.exp * 1000 > Date.now() + 60000)); }
+  /** Keeps the 90-day session the script hands back (renewed while the app is used), so people stay signed in. */
+  function keepSession(data) {
+    var u = data && data.user;
+    if (!u || !u.session) return;
+    var s = session() || {};
+    if (s.email && u.email && String(s.email).toLowerCase() !== String(u.email).toLowerCase() && !s.devEmail) return;
+    s.sess = u.session; s.sessExp = u.sessionExp; if (!s.email) s.email = u.email;
+    store('fa-session', s);
+  }
   function signOut() {
     unstore('fa-session'); unstore('fa-user'); unstore('fa-viewas');
     stopChat(); try { if (chat.auth) chat.auth.signOut(); } catch (e) {}
@@ -154,7 +163,7 @@
   function api(params) {
     var s = session() || {};
     var q = Object.assign({}, params);
-    if (s.idToken) q.idToken = s.idToken; else if (s.devEmail) q.devEmail = s.devEmail;
+    if (s.sess && s.sessExp > Date.now() + 60000) q.session = s.sess; else if (s.idToken) q.idToken = s.idToken; else if (s.devEmail) q.devEmail = s.devEmail;
     if (viewAs() && !q.viewAs && q.viewAs !== '') q.viewAs = viewAs();
     if (q.viewAs === '') delete q.viewAs;
     var url = CFG.API_URL + '?' + Object.keys(q).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(q[k]); }).join('&');
@@ -166,9 +175,10 @@
         }
         if (!data.ok) {
           var err = new Error(data.error || 'Something went wrong');
-          err.auth = /sign in|sign-in|recognised|verified|blindmaster account/i.test(data.error || '');
+          err.auth = /sign in|sign-in|recognised|verified|blindmaster account|expired/i.test(data.error || '');
           throw err;
         }
+        keepSession(data);
         return data;
       });
   }
@@ -178,10 +188,10 @@
     if (viewAs()) return Promise.reject(new Error('You\'re viewing as ' + roleLabel(viewAs()) + '. Tap "Back to my view" to make changes.'));
     var s = session() || {};
     var b = Object.assign({}, body);
-    if (s.idToken) b.idToken = s.idToken; else if (s.devEmail) b.devEmail = s.devEmail;
+    if (s.sess && s.sessExp > Date.now() + 60000) b.session = s.sess; else if (s.idToken) b.idToken = s.idToken; else if (s.devEmail) b.devEmail = s.devEmail;
     return fetch(CFG.API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
       .then(function (r) { return r.json(); })
-      .then(function (data) { if (!data.ok) throw new Error(data.error || 'Upload failed'); return data; });
+      .then(function (data) { if (!data.ok) throw new Error(data.error || 'Upload failed'); keepSession(data); return data; });
   }
 
   function loadDay(date, force) {
