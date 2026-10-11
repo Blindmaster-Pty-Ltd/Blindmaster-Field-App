@@ -7,6 +7,10 @@ window.FIELD_APP_CONFIG = {
   // Leave blank to use email-only test sign-in (needs ALLOW_DEV_LOGIN=true in the script)
   GOOGLE_CLIENT_ID: '109655414089-70sej679mor7qm4kjfs42djvitfjnrjg.apps.googleusercontent.com',
 
+  // Google Maps key (Maps JavaScript API, Places API (New), Geocoding API), restricted to blindmaster-pty-ltd.github.io
+  // Turns on the live route map and address suggestions in the planner. Leave blank to keep the simple map.
+  GOOGLE_MAPS_KEY: 'AIzaSyB1kuVhwVKVSgbswYcmGNJRCyNF8y_ksoM',
+
   // Shown on the sign-in screen so testers know this is not the live app
   ENVIRONMENT: 'Sandbox',
 

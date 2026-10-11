@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '19'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '20'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -1218,9 +1218,189 @@
 
   /* ---------- route (all layouts) ---------- */
 
+  /* ---------- Google Maps: live route map and address suggestions ---------- */
+
+  var gmapsPromise = null;
+  function mapsKey() { return (CFG.GOOGLE_MAPS_KEY || '').trim(); }
+  /** Loads the Maps JavaScript API once (needs GOOGLE_MAPS_KEY in config.js). */
+  function loadMaps() {
+    if (!mapsKey()) return Promise.reject(new Error('No Google Maps key'));
+    if (window.google && google.maps && google.maps.places) return Promise.resolve(google.maps);
+    if (gmapsPromise) return gmapsPromise;
+    gmapsPromise = new Promise(function (resolve, reject) {
+      window.__bmMapsReady = function () { resolve(google.maps); };
+      window.gm_authFailure = function () { reject(new Error('Google Maps key was refused. Check the key and its website restriction.')); };
+      var s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(mapsKey()) + '&v=weekly&libraries=places,geometry&loading=async&region=AU&callback=__bmMapsReady';
+      s.async = true; s.onerror = function () { gmapsPromise = null; reject(new Error('Google Maps could not load. Check your connection.')); };
+      document.head.appendChild(s);
+    });
+    return gmapsPromise;
+  }
+
+  /** Address → {lat,lng}, remembered on the phone so each address is looked up once. */
+  function geocode(address) {
+    var key = 'fa-geo-' + address.toLowerCase().replace(/\s+/g, ' ').trim();
+    var hit = store(key);
+    if (hit) return Promise.resolve(hit);
+    return loadMaps().then(function (maps) {
+      return new Promise(function (resolve) {
+        new maps.Geocoder().geocode({ address: address, region: 'au' }, function (res, status) {
+          if (status === 'OK' && res[0]) { var l = res[0].geometry.location, p = { lat: l.lat(), lng: l.lng() }; store(key, p); resolve(p); }
+          else resolve(null);
+        });
+      });
+    });
+  }
+
+  /** A square numbered marker drawn in our own style (no Map ID needed). */
+  function numberMarker(maps, map, pos, label, cls, onClick) {
+    function M() { this.setMap(map); }
+    M.prototype = new maps.OverlayView();
+    M.prototype.onAdd = function () {
+      var el = this.el = document.createElement('button');
+      el.type = 'button'; el.className = 'rt-pin ' + cls; el.textContent = label; el.setAttribute('aria-label', 'Stop ' + label);
+      el.addEventListener('click', function (e) { e.stopPropagation(); onClick(); });
+      this.getPanes().overlayMouseTarget.appendChild(el);
+    };
+    M.prototype.draw = function () {
+      var p = this.getProjection().fromLatLngToDivPixel(new maps.LatLng(pos.lat, pos.lng));
+      if (p && this.el) { this.el.style.left = p.x + 'px'; this.el.style.top = p.y + 'px'; }
+    };
+    M.prototype.onRemove = function () { if (this.el) this.el.remove(); };
+    M.prototype.setClass = function (c) { if (this.el) this.el.className = 'rt-pin ' + c; };
+    return new M();
+  }
+
+  var rt = { sel: -1, date: '', markers: [], watch: null };
+  function renderRouteLive(date, day) {
+    var stops = day.appointments.filter(function (a) { return a.address; });
+    var now = Date.now(), isToday = date === todayStr();
+    var done = function (a) { return isToday ? new Date(a.end).getTime() < now : date < todayStr(); };
+    if (rt.date !== date || rt.sel >= stops.length) { var ni = nextIndex(stops, date); rt.sel = ni >= 0 ? ni : 0; rt.date = date; }
+    var doneN = stops.filter(done).length;
+    var last = stops[stops.length - 1];
+    var card = '<div class="rt-card"><span class="stack" style="gap:2px"><img src="wordmark-white.svg" alt="" class="rt-logo"><b class="rt-date">' + esc(shortDate(date)) + '</b>' +
+      '<span class="small">' + stops.length + (stops.length === 1 ? ' stop' : ' stops') + (isToday ? ' · ' + doneN + ' done' : '') + (last ? ' · last finishes ' + esc(last.endLabel) : '') + '</span></span>' +
+      (isOffice() ? '<span class="tag">All crews</span>' : '') + '</div>';
+    var body = '<div class="rt-mapwrap"><div id="rtMap" class="rt-map" aria-label="Map of today\'s stops"></div>' + card +
+      '<p class="rt-note" id="rtNote">Loading map…</p></div>';
+    if (!stops.length) body += '<div class="empty"><h2>No stops</h2><p class="muted" style="margin:0">No appointments with an address on this day.</p></div>';
+    else body += '<section class="rt-sheet" id="rtSheet"></section>';
+    if (wide()) app.innerHTML = shell('route', date, '<div class="rt-wide">' + body + '</div>');
+    else app.innerHTML = topbar({ right: shortDate(date) }) + '<main class="rt-main">' + body + '</main>' + tabbar('route', date);
+    if (!stops.length) { var n0 = document.getElementById('rtNote'); if (n0) n0.hidden = true; }
+
+    function sheet() {
+      var el = document.getElementById('rtSheet'); if (!el) return;
+      var a = stops[rt.sel], tent = a.status === 'Tentative', isDone = done(a);
+      var detail = [refLabel(a), (a.requirements || [])[0] || ''].filter(String).join(' · ');
+      var full = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(CFG.WAREHOUSE || stops[0].address) +
+        '&destination=' + encodeURIComponent(last.address) + (stops.length > 1 ? '&waypoints=' + stops.slice(0, -1).map(function (s) { return encodeURIComponent(s.address); }).join('%7C') : '');
+      el.innerHTML = '<div class="spread"><span class="rt-kicker">Stop ' + (rt.sel + 1) + ' of ' + stops.length + ' · ' + esc(a.type) + '</span><b>' + esc(a.allDay ? 'All day' : a.startLabel + '–' + a.endLabel) + '</b></div>' +
+        '<h1 class="rt-name">' + esc(a.customer || a.title) + '</h1><span class="rt-addr">' + esc(a.address) + '</span>' +
+        (detail ? '<span class="small muted">' + esc(detail) + '</span>' : '') +
+        '<span class="rt-status"><span class="light ' + (tent ? 'is-red' : 'is-green') + '"></span>' + (tent ? 'Not confirmed (tentative)' : 'Confirmed booking') + '</span>' +
+        '<div class="rt-actions"><a class="btn btn-lg ' + (isDone ? 'btn-sand' : 'btn-dark') + '" href="' + mapsDir(a.address) + '" target="_blank" rel="noopener">' + I.nav + (isDone ? 'Done ✓' : 'Navigate') + '</a>' +
+        '<a class="btn btn-lg btn-outline" href="' + apptHref(a, date) + '">Open job</a></div>' +
+        '<div class="rt-strip" role="group" aria-label="Stops" style="grid-template-columns:repeat(' + Math.min(stops.length, 6) + ',minmax(0,1fr))">' + stops.map(function (s, i) {
+          return '<button type="button" data-stop="' + i + '" aria-pressed="' + (i === rt.sel) + '" class="' + (s.status === 'Tentative' ? 'is-tent' : 'is-conf') + (done(s) ? ' is-done' : '') + '">' +
+            '<b>' + (i + 1) + '</b><span>' + esc(s.allDay ? 'All day' : s.startLabel) + '</span><span class="small">' + esc(suburb(s.address)) + '</span></button>';
+        }).join('') + '</div>' +
+        '<a class="rt-full" href="' + full + '" target="_blank" rel="noopener">Open the whole route in Google Maps' + I.ext + '</a>';
+      Array.prototype.forEach.call(el.querySelectorAll('[data-stop]'), function (b) { b.onclick = function () { select(Number(b.getAttribute('data-stop')), true); }; });
+    }
+    function pinClass(i) { return (i === rt.sel ? 'is-sel' : done(stops[i]) ? 'is-done' : '') + (stops[i].status === 'Tentative' ? ' is-tent' : ''); }
+    var map = null, pts = [];
+    function select(i, pan) {
+      rt.sel = i; sheet();
+      rt.markers.forEach(function (m, k) { if (m) m.setClass(pinClass(k)); });
+      if (pan && map && pts[i]) map.panTo(pts[i]);
+    }
+    if (stops.length) sheet();
+
+    loadMaps().then(function (maps) {
+      var el = document.getElementById('rtMap'); if (!el) return;
+      map = new maps.Map(el, { center: { lat: -33.75, lng: 151.27 }, zoom: 11, disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy', clickableIcons: false,
+        styles: [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit', stylers: [{ visibility: 'off' }] }] });
+      return Promise.all(stops.map(function (s) { return geocode(s.address); })).then(function (list) {
+        pts = list; rt.markers = [];
+        var bounds = new maps.LatLngBounds(), any = false;
+        list.forEach(function (p, i) {
+          if (!p) { rt.markers.push(null); return; }
+          any = true; bounds.extend(p);
+          rt.markers.push(numberMarker(maps, map, p, String(i + 1), pinClass(i), function () { select(i, false); }));
+        });
+        var path = list.filter(Boolean);
+        if (path.length > 1) new maps.Polyline({ map: map, path: path, strokeColor: '#404141', strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.8, scale: 3 }, offset: '0', repeat: '14px' }] });
+        if (any) { map.fitBounds(bounds, { top: 110, bottom: 30, left: 30, right: 30 }); if (path.length === 1) map.setZoom(14); }
+        var missing = list.filter(function (p) { return !p; }).length;
+        var note = document.getElementById('rtNote');
+        if (note) { note.textContent = missing ? missing + ' address' + (missing === 1 ? '' : 'es') + ' couldn\'t be found on the map' : 'Live map · tap a number'; }
+        if (isToday && navigator.geolocation) {
+          var me = null;
+          navigator.geolocation.getCurrentPosition(function (p) {
+            if (!document.getElementById('rtMap')) return;
+            me = new maps.Marker({ map: map, position: { lat: p.coords.latitude, lng: p.coords.longitude }, title: 'You are here', clickable: false,
+              icon: { path: maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#404141', fillOpacity: 1, strokeColor: '#9DBCD0', strokeWeight: 5 } });
+          }, function () {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
+        }
+      });
+    }).catch(function (e) {
+      var note = document.getElementById('rtNote'); if (note) note.textContent = e.message || 'The map couldn\'t load.';
+    });
+  }
+
+  /** Google address suggestions under an input as you type (Places API, New). */
+  function addressSuggest(input, onPick) {
+    if (!mapsKey() || !input) return;
+    var box = document.createElement('div');
+    box.className = 'addr-suggest'; box.setAttribute('role', 'listbox'); box.hidden = true;
+    input.setAttribute('autocomplete', 'off'); input.setAttribute('aria-autocomplete', 'list');
+    input.parentNode.style.position = 'relative';
+    input.parentNode.appendChild(box);
+    var timer = null, token = null, seq = 0, items = [];
+    function close() { box.hidden = true; box.innerHTML = ''; items = []; }
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 3) { close(); return; }
+      timer = setTimeout(function () {
+        var my = ++seq;
+        loadMaps().then(function (maps) {
+          if (!token) token = new maps.places.AutocompleteSessionToken();
+          return maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input: q, includedRegionCodes: ['au'], sessionToken: token,
+            locationBias: { center: { lat: -33.75, lng: 151.27 }, radius: 50000 } });
+        }).then(function (res) {
+          if (my !== seq) return;
+          items = (res.suggestions || []).map(function (s) { return s.placePrediction; }).filter(Boolean).slice(0, 5);
+          if (!items.length) { close(); return; }
+          box.innerHTML = items.map(function (p, i) { return '<button type="button" role="option" data-i="' + i + '">' + esc(p.text.toString()) + '</button>'; }).join('') +
+            '<span class="addr-google">Suggestions by Google</span>';
+          box.hidden = false;
+          Array.prototype.forEach.call(box.querySelectorAll('[data-i]'), function (b) {
+            b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+            b.onclick = function () {
+              var p = items[Number(b.getAttribute('data-i'))];
+              input.value = p.text.toString(); close();
+              p.toPlace().fetchFields({ fields: ['formattedAddress'] }).then(function (r) {
+                var addr = (r.place && r.place.formattedAddress || input.value).replace(/, Australia$/, '');
+                input.value = addr; token = null;
+                input.dispatchEvent(new Event('change')); if (onPick) onPick(addr);
+              }, function () { token = null; });
+            };
+          });
+        }).catch(function () { close(); });
+      }, 250);
+    });
+    input.addEventListener('blur', function () { setTimeout(close, 150); });
+    input.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  }
+
   function renderRoute(date) {
     loading('Loading route…');
     loadDay(date).then(function (day) {
+      if (mapsKey()) return renderRouteLive(date, day);
       var stops = day.appointments.filter(function (a) { return a.address; });
       var head = '<section class="section stack" style="padding-bottom:16px"><h1>Route</h1><p class="muted" style="margin:0">' + stops.length + ' stop' + (stops.length === 1 ? '' : 's') + ' · ' + esc(longDate(date)) + (isOffice() ? ' · all crews' : '') + '</p></section>';
       var mapHtml = '', listHtml = '';
@@ -1615,6 +1795,7 @@
       $('bkClash').textContent = clashes.length ? 'Clash: ' + clashes.join('; ') : '';
     }
     refresh();
+    addressSuggest($('bkAddress'));
     setTimeout(function () { $('bkCustomer').focus(); }, 50);
 
     $('bkSave').onclick = function () {
