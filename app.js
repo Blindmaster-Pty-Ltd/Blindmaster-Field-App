@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '25'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '26'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -1027,7 +1027,7 @@
       '<span class="text"><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></span>' + I.ext + '</a>';
   }
 
-  function hasReport(a) { return a.isInstall && !/warehouse/i.test(a.type); }
+  function hasReport(a) { return (a.isInstall || !!a.jobReportUrl) && !/warehouse/i.test(a.type); }
 
   /** The appointment details, used full-screen on phones and in the right-hand pane on tablet/desktop. */
   function apptDetail(a, date, isWide) {
