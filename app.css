@@ -864,3 +864,6 @@ a.dv-row:hover { background: #F2F0EC; }
   .dv-svc > :nth-child(2) { display: none; }
   .dv-svc > :nth-child(4) { display: none; }
 }
+
+.dv-lockline { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin: 4px 0 14px; background: var(--sandstone, #E9E6E0); font-size: 13px; line-height: 1.45; }
+.dv-lockline svg { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; }

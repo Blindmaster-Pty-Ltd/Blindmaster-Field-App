@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '27'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '28'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -2741,7 +2741,8 @@
       '<div class="field"><label for="dvEmerg">Emergency contact</label><input id="dvEmerg" value="' + esc(p.emergency) + '" placeholder="Name and phone"></div></div>';
     h += '<div class="field"><label for="dvNotes">Notes</label><input id="dvNotes" value="' + esc(p.notes) + '" placeholder="Optional"></div>';
     h += '<b class="dv-sec">Access in the app · tick all that apply</b><div class="dv-ticks">' + roles.map(function (r) { return tick('dvR-' + r.key, p.roles.indexOf(r.key) >= 0, r.label, descs[r.key] || ''); }).join('') + '</div>';
-    h += tick('dvMgr', p.manager, 'Manager', 'Approves leave, sees everyone\'s hours, and this directory');
+    h += '<div class="dv-lockline">' + I.lock + '<span>' + (p.manager ? '<b>Manager</b> · approves leave, sees everyone\'s hours, this directory and vehicles.' : 'No manager access.') +
+      ' Manager access is locked to Simon and Troy and can\'t be changed in the app.</span></div>';
     h += '<div class="st-grid2"><div class="field"><label for="dvMain">Opens the app on</label><select id="dvMain">' + opens + '</select></div>' +
       '<div class="field"><label for="dvStatus">Status</label><select id="dvStatus"><option value="1"' + (p.active ? ' selected' : '') + '>Active</option><option value="0"' + (p.active ? '' : ' selected') + '>Switched off</option></select></div></div>';
     h += '</div><div class="dv-card-foot"><p class="notice error" id="dvErr" role="alert" hidden></p><span class="small muted">' + (p.isNew ? 'They sign in with Google using this email.' : 'Changes apply next time ' + esc(firstName(p.name)) + ' opens the app.') + '</span>' +
@@ -2794,7 +2795,6 @@
         emergency: document.getElementById('dvEmerg').value.trim(),
         notes: document.getElementById('dvNotes').value.trim(),
         roles: dv.data.roles.filter(function (r) { return document.getElementById('dvR-' + r.key).checked; }).map(function (r) { return r.key; }),
-        manager: document.getElementById('dvMgr').checked,
         mainRole: document.getElementById('dvMain').value,
         active: document.getElementById('dvStatus').value === '1'
       };
