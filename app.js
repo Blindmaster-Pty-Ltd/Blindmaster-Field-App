@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '26'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '27'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -2850,7 +2850,7 @@
     if (!list.length) return '<p class="muted dv-empty">No vehicles here.</p>';
     return list.map(function (v) {
       return '<a class="dv-row dv-vrow' + (v.id === selId ? ' is-sel' : '') + '" href="#/vehicles/' + encodeURIComponent(v.id) + '">' +
-        '<span class="dv-who"><b>' + esc(v.model) + '</b><span>Driver: ' + esc(v.driverName || 'not set') + '</span></span>' +
+        '<span class="dv-who"><b>' + esc(v.model) + '</b><span>' + (dvStaffOwned(v) ? 'Staff owned · ' : '') + 'Driver: ' + esc(v.driverName || 'not set') + '</span></span>' +
         '<span>' + (v.plate ? '<span class="dv-plate">' + esc(v.plate) + '</span>' : dvMissing()) + '</span>' +
         '<span class="dv-cell"><span class="dv-ml">Rego</span>' + dvDateStatus(v.alerts.rego, v.regoExpiry) + '</span>' +
         '<span class="dv-cell"><span class="dv-ml">Insurance</span>' + dvDateStatus(v.alerts.insurance, v.insuranceRenewal) + '</span>' +
@@ -2862,15 +2862,17 @@
     var soon = dvComingUp(active);
     var f = function (k, l) { return '<button type="button" role="tab" data-dvvf="' + k + '" aria-selected="' + (dv.vfilter === k) + '">' + l + '</button>'; };
     return dvTabs('vehicles') +
-      '<div class="dv-head"><div><h1>Company vehicles</h1>' + dvLock() + '<span class="small muted">' + active.length + ' vehicles' + (soon.length ? ' · ' + soon.length + ' need attention' : '') + '</span></div>' +
+      '<div class="dv-head"><div><h1>Vehicles</h1>' + dvLock() + '<span class="small muted">' + active.length + ' vehicles' + (soon.length ? ' · ' + soon.length + ' need attention' : '') + '</span></div>' +
       '<a class="btn btn-dark" href="#/vehicles/new">+ Add a vehicle</a></div>' +
       (soon.length ? '<div class="dv-soon"><b>Coming up:</b><span>' + esc(soon.join(' · ')) + '</span></div>' : '') +
       '<div class="dv-tools"><div class="dv-filter" role="tablist">' + f('all', 'In use') + f('off', 'Sold / off the road') + '</div></div>' +
       '<div class="dv-table" role="table" aria-label="Vehicles"><div class="dv-row dv-vrow dv-th" role="row"><span>Vehicle · driver</span><span>Plate</span><span>Rego due</span><span>Insurance renews</span><span>Next service</span></div>' +
       dvVehRows(selId) + '</div>' +
-      '<p class="small muted dv-foot">Green: fine · Amber: due within 30 days (service: 14 days or 1,000 km) · Red: overdue. Simon, Troy and Di are emailed 30 and 7 days before each rego and insurance date; the driver, Simon and Troy when a service is due. Drivers are reminded on Fridays to enter their odometer.</p>';
+      '<p class="small muted dv-foot">Green: fine · Amber: due within 30 days (service: 14 days or 1,000 km) · Red: overdue. Simon, Troy and Di are emailed 30 and 7 days before each rego and insurance date; the driver, Simon and Troy when a service is due. Drivers are reminded on Fridays to enter their odometer. Staff-owned cars: rego and insurance reminders go to the driver, Simon and Troy; no service or odometer reminders.</p>';
   }
-  function dvBlankVehicle() { return { id: '', model: '', year: '', plate: '', colour: '', vin: '', driver: '', regoExpiry: '', regoPeriod: '12 months', ctpInsurer: '', ctpPolicy: '', insurer: '', policy: '', cover: '', insuranceRenewal: '', etagProvider: '', etagNumber: '', tollAccount: '', serviceKm: '10000', serviceMonths: '6', nextServiceDate: '', nextServiceKm: '', odometer: '', odometerDate: '', status: 'Active', notes: '', docs: [], services: [], readings: [], isNew: true, alerts: { service: { level: 'none' } } }; }
+  function dvStaffOwned(v) { return /staff|private|own/i.test(String((v && v.ownership) || '')); }
+  function dvTel(n) { return String(n || '').replace(/[^\d+]/g, ''); }
+  function dvBlankVehicle() { return { ownership: 'Company', roadsideProvider: '', roadsidePhone: '', roadsideMembership: '', id: '', model: '', year: '', plate: '', colour: '', vin: '', driver: '', regoExpiry: '', regoPeriod: '12 months', ctpInsurer: '', ctpPolicy: '', insurer: '', policy: '', cover: '', insuranceRenewal: '', etagProvider: '', etagNumber: '', tollAccount: '', serviceKm: '10000', serviceMonths: '6', nextServiceDate: '', nextServiceKm: '', odometer: '', odometerDate: '', status: 'Active', notes: '', docs: [], services: [], readings: [], isNew: true, alerts: { service: { level: 'none' } } }; }
   function dvF(id, label, val, opts) {
     opts = opts || {};
     return '<div class="field' + (opts.span ? ' dv-span' + opts.span : '') + '"><label for="' + id + '">' + esc(label) + '</label><input id="' + id + '" data-vf="' + (opts.key || '') + '" type="' + (opts.type || 'text') + '"' +
@@ -2888,18 +2890,24 @@
   function dvVehForm(v) {
     var people = (v.drivers || dv.data.people.filter(function (p) { return p.active; }).map(function (p) { return { email: p.email, name: p.name }; }));
     var sec = function (title, note, inner) { return '<section class="dv-vsec"><div class="dv-vsec-h"><b>' + esc(title) + '</b>' + (note ? '<span class="small muted">' + esc(note) + '</span>' : '') + '</div>' + inner + '</section>'; };
-    var h = '<div class="dv-card-head"><div><span class="small" style="font-weight:700">' + (v.isNew ? 'New vehicle' : 'Company vehicle · Driver: ' + esc(v.driverName || 'not set')) + '</span>' +
+    var h = '<div class="dv-card-head"><div><span class="small" style="font-weight:700">' + (v.isNew ? 'New vehicle' : (dvStaffOwned(v) ? 'Staff-owned vehicle' : 'Company vehicle') + ' · Driver: ' + esc(v.driverName || 'not set')) + '</span>' +
       '<h2>' + esc(v.isNew ? 'Add a vehicle' : v.model) + '</h2>' +
       (v.isNew ? '' : '<span class="small">' + esc(v.plate || 'No plate yet') + (v.odometer ? ' · odometer ' + esc(dvKm(v.odometer)) + (v.odometerDate ? ' (' + esc(dvFmtDate(v.odometerDate)) + (v.odometerBy ? ', ' + esc(v.odometerBy) : '') + ')' : '') : '') + '</span>') + '</div>' +
       (wide() ? '<a class="icon-btn" href="#/vehicles" aria-label="Close">' + I.x + '</a>' : '') + '</div><div class="dv-card-body">';
     h += sec('Vehicle', '', '<div class="dv-g3">' + dvF('vfModel', 'Make and model', v.model, { key: 'model', span: 2, ph: 'e.g. Toyota Hiace LWB' }) + dvF('vfYear', 'Year', v.year, { key: 'year', mode: 'numeric' }) +
       dvF('vfPlate', 'Number plate', v.plate, { key: 'plate' }) + dvF('vfColour', 'Colour', v.colour, { key: 'colour' }) +
       '<div class="field"><label for="vfDriver">Driver</label><select id="vfDriver" data-vf="driver"><option value="">No driver</option>' + people.map(function (p) { return '<option value="' + esc(p.email) + '"' + (p.email === v.driver ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>' +
-      dvF('vfVin', 'VIN', v.vin, { key: 'vin', span: 3 }) + '</div>');
+      '<div class="field"><label for="vfOwn">Owned by</label><select id="vfOwn" data-vf="ownership">' + [['Company', 'Company'], ['Staff owned', 'Staff owned']].map(function (o) {
+        return '<option value="' + o[0] + '"' + ((dvStaffOwned(v) ? 'Staff owned' : 'Company') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+      dvF('vfVin', 'VIN', v.vin, { key: 'vin', span: 2 }) + '</div>' +
+      (dvStaffOwned(v) ? '<p class="small muted" style="margin:8px 0 0">Staff-owned: still listed for the driver and in the Job Report and Daily Job Report. Rego and insurance reminders go to the driver, Simon and Troy; no service or odometer reminders.</p>' : ''));
     h += sec('Registration', '', '<div class="st-grid2">' + dvF('vfRego', 'Rego expiry', v.regoExpiry, { key: 'regoExpiry', type: 'date' }) + dvF('vfRegoP', 'Rego period', v.regoPeriod, { key: 'regoPeriod', ph: '12 months' }) +
       dvF('vfCtpI', 'CTP (green slip) insurer', v.ctpInsurer, { key: 'ctpInsurer' }) + dvF('vfCtpP', 'CTP policy number', v.ctpPolicy, { key: 'ctpPolicy' }) + '</div>' + dvDocs(v, ['rego', 'ctp']));
     h += sec('Insurance', '', '<div class="st-grid2">' + dvF('vfIns', 'Insurer', v.insurer, { key: 'insurer' }) + dvF('vfPol', 'Policy number', v.policy, { key: 'policy' }) +
       dvF('vfCover', 'Cover', v.cover, { key: 'cover', ph: 'e.g. Comprehensive (fleet)' }) + dvF('vfRen', 'Renewal date', v.insuranceRenewal, { key: 'insuranceRenewal', type: 'date' }) + '</div>' + dvDocs(v, ['insurance']));
+    h += sec('Roadside assist', '', '<div class="dv-g3">' + dvF('vfRsP', 'Provider', v.roadsideProvider, { key: 'roadsideProvider', ph: 'e.g. NRMA' }) +
+      dvF('vfRsT', 'Phone', v.roadsidePhone, { key: 'roadsidePhone', type: 'tel', ph: 'e.g. 13 11 22' }) + dvF('vfRsM', 'Membership no.', v.roadsideMembership, { key: 'roadsideMembership' }) + '</div>' +
+      (v.roadsidePhone ? '<p class="small" style="margin:8px 0 0"><a href="tel:' + esc(dvTel(v.roadsidePhone)) + '">Call ' + esc(v.roadsideProvider || 'roadside assist') + ' · ' + esc(v.roadsidePhone) + '</a></p>' : ''));
     h += sec('Tolls', '', '<div class="st-grid2">' + dvF('vfTagP', 'E-tag provider', v.etagProvider, { key: 'etagProvider', ph: 'e.g. Linkt' }) + dvF('vfTagN', 'E-tag number', v.etagNumber, { key: 'etagNumber' }) +
       dvF('vfToll', 'Toll account', v.tollAccount, { key: 'tollAccount', span: 2 }) + '</div>');
     var svcRows = (v.services || []).map(function (s) {
@@ -2920,7 +2928,8 @@
       '<div class="field"><label for="vfStatus">Status</label><select id="vfStatus" data-vf="status">' + ['Active', 'Off the road', 'Sold'].map(function (s) { return '<option' + (String(v.status || 'Active') === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div></div>' +
       (svcRows ? '<div class="dv-svcs">' + svcRows + '</div>' : (v.isNew ? '' : '<p class="small muted">No services recorded yet.</p>')) + add);
     h += sec('Notes and other documents', '', '<div class="field"><label for="vfNotes">Notes</label><input id="vfNotes" data-vf="notes" value="' + esc(v.notes || '') + '"></div>' + dvDocs(v, ['other']));
-    h += '</div><div class="dv-card-foot"><p class="notice error" id="dvErr" role="alert" hidden></p><span class="small muted">Documents are saved to Drive › Field App – Vehicles › ' + esc(v.plate || 'the plate') + '.</span><button type="button" class="btn btn-dark" id="vfSave">Save</button></div>';
+    h += '</div><div class="dv-card-foot"><p class="notice error" id="dvErr" role="alert" hidden></p><span class="small muted">Documents are saved to Drive › Field App – Vehicles › ' + esc(v.plate || 'the plate') + '.</span>' +
+      (v.isNew ? '' : '<button type="button" class="btn btn-outline dv-del" id="vfDelete">Delete vehicle</button>') + '<button type="button" class="btn btn-dark" id="vfSave">Save</button></div>';
     return h;
   }
   function drawVehicles(sel) {
@@ -2959,6 +2968,16 @@
         if (v.isNew) { location.hash = '#/vehicles/' + encodeURIComponent(r.id); return; }
         return dvReloadVehicle(r.id).then(function () { var s = document.getElementById('vfSave'); if (s) { s.textContent = 'Saved'; setTimeout(function () { if (s.isConnected) s.textContent = 'Save'; }, 1800); } });
       }).catch(function (e) { fail(e); btn.disabled = false; btn.textContent = 'Save'; });
+    };
+    var del = document.getElementById('vfDelete');
+    if (del) del.onclick = function () {
+      var name = v.model + (v.plate ? ' (' + v.plate + ')' : ' (no plate)');
+      if (!confirm('Delete the ' + name + '?\n\nIt comes off the list, with its service history and odometer readings. Documents stay in Drive. This can\'t be undone.')) return;
+      del.disabled = true; del.textContent = 'Deleting…'; err.hidden = true;
+      apiPost({ action: 'vehDelete', vehicleId: v.id }).then(function () {
+        delete dv.veh[v.id]; dv.vform = null; dv.svc = null;
+        return dvLoad(true).then(function () { if (location.hash === '#/vehicles') drawVehicles(); else location.hash = '#/vehicles'; });
+      }).catch(function (e) { fail(e); del.disabled = false; del.textContent = 'Delete vehicle'; });
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-upkind]'), function (inp) {
       inp.addEventListener('change', function () {
@@ -3000,6 +3019,12 @@
         .then(function () { dv.svc = null; return dvReloadVehicle(v.id); })
         .catch(function (e) { fail(e); save.disabled = false; save.textContent = 'Save service'; });
     };
+    var own = document.getElementById('vfOwn');
+    if (own) own.addEventListener('change', function () {
+      var cur = Object.assign({}, v, dvReadVehicle(v), { isNew: v.isNew, id: v.id });
+      if (v.isNew) dv.vform = cur; else dv.veh[v.id] = cur;
+      drawVehicles(sel);
+    });
     if (v.isNew) {
       Array.prototype.forEach.call(document.querySelectorAll('[data-vf]'), function (el) {
         el.addEventListener('input', function () { dv.vform = Object.assign(dvBlankVehicle(), dvReadVehicle(v), { isNew: true }); });
@@ -3015,11 +3040,14 @@
   function drawMyVehicle(list, msg) {
     var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc((state.user || {}).name || '') + '</span><h1>My vehicle</h1>' +
       '<span class="small">Enter your odometer once a week. It keeps the service reminders right.</span></section>';
-    if (!list.length) body += '<section class="section"><p class="notice">No company vehicle is set up for you. If that\'s wrong, let Simon or Troy know.</p></section>';
+    if (!list.length) body += '<section class="section"><p class="notice">No vehicle is set up for you. If that\'s wrong, let Simon or Troy know.</p></section>';
     list.forEach(function (v) {
       body += '<section class="section stack" style="gap:12px;max-width:560px"><div class="dv-mycar"><b>' + esc(v.model) + '</b>' + (v.plate ? '<span class="dv-plate">' + esc(v.plate) + '</span>' : '') + '</div>' +
         '<p class="small" style="margin:0">' + (v.odometer ? 'Last reading: <b>' + esc(dvKm(v.odometer)) + '</b> on ' + esc(dvFmtDate(v.odometerDate)) : 'No reading yet.') + '</p>' +
-        (v.odometerDue ? '<p class="st-note" style="margin:0">This week\'s reading is due.</p>' : '<p class="small muted" style="margin:0">Done for this week. Thanks.</p>') +
+        (v.roadsidePhone ? '<a class="btn btn-outline" href="tel:' + esc(dvTel(v.roadsidePhone)) + '">' + I.phone + 'Roadside assist: ' + esc(v.roadsideProvider || '') + ' ' + esc(v.roadsidePhone) + '</a>' +
+          (v.roadsideMembership ? '<p class="small muted" style="margin:0">Membership / policy: ' + esc(v.roadsideMembership) + '</p>' : '') : '') +
+        (v.staffOwned ? '<p class="small muted" style="margin:0">Your own car, listed for work. Odometer readings are optional.</p>' :
+        (v.odometerDue ? '<p class="st-note" style="margin:0">This week\'s reading is due.</p>' : '<p class="small muted" style="margin:0">Done for this week. Thanks.</p>')) +
         (v.service && (v.service.level === 'warn' || v.service.level === 'bad') ? '<p class="notice' + (v.service.level === 'bad' ? ' error' : '') + '" style="margin:0">Service ' + (v.service.level === 'bad' ? 'overdue' : 'due soon') +
           (v.nextServiceDate ? ': ' + esc(dvFmtDate(v.nextServiceDate)) : '') + (v.nextServiceKm ? ' or at ' + esc(dvKm(v.nextServiceKm)) : '') + '. Simon and Troy know.</p>' : '') +
         '<div class="field"><label for="odo-' + esc(v.id) + '">Odometer now (km)</label><div class="st-addrow"><input id="odo-' + esc(v.id) + '" type="text" inputmode="numeric" placeholder="e.g. 119250">' +

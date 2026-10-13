@@ -791,6 +791,8 @@ a.dv-row:hover { background: #F2F0EC; }
 .dv-card-foot .notice { flex-basis: 100%; margin: 0; }
 .dv-card-foot .small { flex: 1; min-width: 160px; }
 .dv-card-foot .btn { min-width: 120px; }
+.dv-card-foot .dv-del { color: #C0392B; border-color: #C0392B; background: transparent; }
+.dv-card-foot .dv-del:hover { background: #C0392B; color: #FAFAFA; }
 .dv-sec { font-size: 14px; margin-top: 4px; }
 .dv-page .field input:not([type=checkbox]), .dv-page .field select { width: 100%; box-sizing: border-box; min-height: 44px; padding: 0 12px; border: 0; background: var(--sandstone); font: inherit; font-size: 15px; color: var(--ink); }
 .dv-page .field input[readonly] { background: #F2F0EC; color: var(--ink-muted); }
