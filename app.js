@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '30'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '31'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -3558,8 +3558,10 @@
   function renderLeaveNew() {
     if (!lvForm) lvForm = Object.assign(lvBlank(), store('fa-leave-draft') || {}, { files: [], confirm: false });
     var f = lvForm, u = state.user || {};
-    var sick = /sick|carer/i.test(f.type);
-    var types = ['Annual leave', 'Personal / sick leave', "Carer's leave", 'Leave without pay', 'Long service leave', 'Other'];
+    var sick = /personal|sick|carer/i.test(f.type) && !/unpaid/i.test(f.type);
+    var types = ['Annual leave', "Personal / carer's leave", "Unpaid carer's leave", 'Compassionate leave', 'Family and domestic violence leave', 'Long service leave', 'Parental leave',
+      'Community service leave', 'Defence Reserve leave', 'Public holiday absence', 'Time off in lieu / RDO', 'Leave without pay', 'Other leave'];
+    if (types.indexOf(f.type) < 0) f.type = 'Annual leave';
     var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(u.name || '') + ' · ' + esc(u.email || '') + '</span><h1>Request leave</h1>' +
       '<span class="small">It goes to the office to approve. You\'ll get an email either way.</span></section>';
     body += '<section class="section stack lv-form" style="gap:16px;max-width:560px">' +

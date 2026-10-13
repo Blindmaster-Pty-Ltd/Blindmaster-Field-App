@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blindmaster | Leave Request</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --monument-grey: #404141;
+    --pastel-blue: #9DBCD0;
+    --sandstone: #E9E6E0;
+    --natural-white: #FAFAFA;
+    --black: #000000;
+    --white: #FFFFFF;
+    --space-inset: 28px;
+    --space-gutter: 29px;
+    --radius-card: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Manrope, system-ui, sans-serif; font-weight: 400; font-size: 15px; line-height: 22px; background: var(--natural-white); color: var(--black); padding: 0 0 56px; }
+
+  .header { background: var(--monument-grey); color: var(--white); padding: 32px 24px 44px; position: relative; overflow: hidden; }
+  .header::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--pastel-blue); }
+  .header-inner { max-width: 960px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; }
+  .brand-mark { display: flex; flex-direction: column; gap: 10px; }
+  .brand-logo { height: 26px; width: auto; display: block; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; color: var(--white); }
+  .doc-title .ref { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--pastel-blue); margin-top: 2px; }
+
+  .container { max-width: 960px; margin: 32px auto 0; padding: 0 24px; }
+
+  .card { background: var(--sandstone); border-radius: var(--radius-card); padding: var(--space-inset); margin-bottom: var(--space-gutter); display: grid; grid-template-columns: 200px 1fr; gap: var(--space-gutter); }
+  .section-title { margin: 0; font-size: 22px; line-height: 30px; font-weight: 700; color: var(--monument-grey); }
+  .card-body { min-width: 0; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+  .field { margin-bottom: 18px; }
+  .card-body > :last-child { margin-bottom: 0; }
+
+  label { display: block; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--black); margin-bottom: 6px; }
+  .req { color: var(--monument-grey); }
+  input[type="text"], input[type="date"], textarea, select {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--monument-grey); border-radius: 0;
+    font-family: inherit; font-size: 15px; line-height: 22px; font-weight: 400; color: var(--black); background: var(--white);
+  }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, .file-btn:focus-within {
+    outline: 3px solid var(--monument-grey); outline-offset: 2px;
+  }
+  input[type="date"]:disabled { background: var(--natural-white); color: var(--monument-grey); }
+  textarea { resize: vertical; min-height: 96px; }
+  .hint { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--monument-grey); margin-top: 4px; }
+
+  .check-row { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--black); margin: 0 0 18px; cursor: pointer; }
+  .check-row input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--monument-grey); flex-shrink: 0; }
+
+  .info-box { background: var(--pastel-blue); color: var(--monument-grey); padding: 16px 18px; margin: 0 0 18px; font-size: 14px; line-height: 21px; font-weight: 500; }
+  .info-box b { font-weight: 700; }
+  .doc-panel { background: var(--white); color: var(--black); padding: 16px 18px; margin: 0 0 18px; font-size: 14px; line-height: 21px; }
+  .doc-panel h4 { margin: 0 0 6px; font-size: 15px; line-height: 22px; font-weight: 700; color: var(--monument-grey); }
+  .legal-note { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--monument-grey); margin-top: 8px; }
+  .media-tab-note { font-size: 14px; line-height: 21px; color: var(--monument-grey); margin-bottom: 14px; }
+
+  .days-pill { display: inline-block; background: var(--monument-grey); color: var(--white); font-weight: 700; font-size: 15px; padding: 9px 16px; }
+
+  .media-uploader { background: var(--natural-white); border: 1.5px dashed var(--monument-grey); padding: 22px; text-align: center; }
+  .media-uploader.has-files { background: var(--pastel-blue); }
+  .m-title { font-weight: 700; font-size: 15px; color: var(--monument-grey); margin-bottom: 2px; }
+  .m-sub { font-size: 13px; font-weight: 500; color: var(--monument-grey); margin-bottom: 12px; }
+  .file-input-wrap { display: inline-block; }
+  .file-btn { display: inline-block; margin: 0; background: var(--monument-grey); color: var(--white); padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .file-btn:hover { background: var(--black); }
+  input[type="file"] { display: none; }
+  .file-list { margin-top: 12px; text-align: left; }
+  .file-chip { display: flex; align-items: center; justify-content: space-between; background: var(--white); padding: 8px 12px; margin-bottom: 6px; font-size: 14px; }
+  .file-chip .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .remove-file { background: none; border: none; color: var(--monument-grey); cursor: pointer; font-weight: 700; font-size: 18px; line-height: 1; padding: 0 4px; }
+  .remove-file:hover { color: var(--black); }
+
+  .sig-pad-wrap { position: relative; border: 1.5px solid var(--monument-grey); background: var(--white); overflow: hidden; }
+  .sig-pad { display: block; width: 100%; height: 180px; touch-action: none; cursor: crosshair; }
+  .sig-pad-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--monument-grey); font-size: 14px; font-weight: 500; pointer-events: none; }
+  .clear-sig-btn { background: var(--white); color: var(--monument-grey); border: 1.5px solid var(--monument-grey); padding: 8px 16px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .clear-sig-btn:hover { background: var(--monument-grey); color: var(--white); }
+
+  .status-banner { max-width: 960px; margin: 0 auto 16px; padding: 0 24px; }
+  .status-banner .inner { display: none; padding: 16px 20px; font-size: 15px; line-height: 22px; font-weight: 700; white-space: pre-line; }
+  .status-banner.error .inner { display: block; background: var(--monument-grey); color: var(--white); }
+  .status-banner.success .inner { display: block; background: var(--pastel-blue); color: var(--monument-grey); }
+
+  .submit-row { max-width: 960px; margin: 0 auto; padding: 0 24px; display: flex; justify-content: flex-end; }
+  .btn-primary { background: var(--pastel-blue); color: var(--monument-grey); border: none; padding: 15px 36px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .btn-primary:hover:not(:disabled) { background: var(--monument-grey); color: var(--white); }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+
+  .footer-note { max-width: 960px; margin: 40px auto 0; padding: 0 24px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--monument-grey); }
+  .footer-note p { margin: 0 0 4px; }
+
+  @media (max-width: 760px) {
+    .card { grid-template-columns: 1fr; gap: 16px; padding: 22px 20px; }
+    .grid { grid-template-columns: 1fr; }
+    .header-inner { flex-direction: column; align-items: flex-start; }
+    .doc-title { text-align: left; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="brand-mark">
+      <img src="data:image/png;base64,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" alt="Blindmaster" class="brand-logo">
+    </div>
+    <div class="doc-title">
+      <h1>Leave request</h1>
+      <div class="ref">Goes to Simon and Troy for approval before it reaches the diary</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 1 YOUR DETAILS -->
+  <div class="card">
+    <h2 class="section-title">Your details</h2>
+    <div class="card-body">
+    <div class="grid">
+      <div class="field" style="grid-column:1/-1">
+        <label>Sign in with your Blindmaster Google account <span class="req">*</span></label>
+        <div id="signinBox" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:44px">
+          <div id="gsiBtn"></div>
+          <span id="whoami" style="font-weight:700"></span>
+          <button type="button" id="signOutBtn" style="display:none;background:none;border:0;text-decoration:underline;font:inherit;cursor:pointer;padding:0" onclick="signOutLeave()">Not you?</button>
+        </div>
+        <input type="hidden" id="employee"><input type="hidden" id="email">
+      </div>
+      <div class="field">
+        <label>Contact number while away</label>
+        <input type="text" id="phone" inputmode="tel" placeholder="Optional">
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- 2 LEAVE DETAILS -->
+  <div class="card">
+    <h2 class="section-title">Leave details</h2>
+    <div class="card-body">
+
+    <div class="field">
+      <label>Type of leave <span class="req">*</span></label>
+      <select id="leaveType" onchange="onTypeChange()"><option value="" disabled selected>Select leave type</option></select>
+    </div>
+    <div id="typeInfo" class="info-box" style="display:none;"></div>
+
+    <div class="field" id="personalReasonWrap" style="display:none;">
+      <label>Reason <span class="req">*</span></label>
+      <select id="personalReason">
+        <option value="" disabled selected>Select reason</option>
+        <option>My own illness or injury</option>
+        <option>Caring for a family or household member who is sick or injured</option>
+        <option>Unexpected family or household emergency</option>
+      </select>
+    </div>
+
+    <div class="grid">
+      <div class="field">
+        <label>First day of leave <span class="req">*</span></label>
+        <input type="date" id="startDate" onchange="onDatesChange('start')">
+      </div>
+      <div class="field">
+        <label>Last day of leave <span class="req">*</span></label>
+        <input type="date" id="endDate" onchange="onDatesChange('end')">
+      </div>
+    </div>
+
+    <label class="check-row"><input type="checkbox" id="partDay" onchange="onPartDayChange()"> <span>Part day only (single day, taking some hours rather than the whole day)</span></label>
+
+    <div id="partDayTimes" class="grid" style="display:none;">
+      <div class="field">
+        <label>Leaving at <span class="req">*</span></label>
+        <select id="leaveFrom" onchange="updateDays()"></select>
+      </div>
+      <div class="field">
+        <label>Back at</label>
+        <select id="leaveTo" onchange="updateDays()"></select>
+        <div class="hint">Leave this as the end of the day if you're away until finish.</div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:6px;">
+      <label>Total time requested</label>
+      <span class="days-pill" id="daysPill">Select dates</span>
+      <div class="hint">Weekdays only. Accounts will adjust for public holidays and rostered days.</div>
+    </div>
+    </div>
+  </div>
+
+  <!-- 3 NOTES -->
+  <div class="card">
+    <h2 class="section-title">Notes and jobs affected</h2>
+    <div class="card-body">
+    <div class="field">
+      <label>Notes <span class="req" id="notesReq" style="display:none;">*</span></label>
+      <textarea id="notes" placeholder="Anything Simon, Troy or accounts should know. You don't need to give medical details."></textarea>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Booked jobs affected</label>
+      <textarea id="jobsAffected" style="min-height:70px;" placeholder="List any confirmed installs, job numbers or clients that fall in these dates and who could cover them. Your calendar is also checked automatically."></textarea>
+    </div>
+    </div>
+  </div>
+
+  <!-- 4 DOCUMENTS -->
+  <div class="card">
+    <h2 class="section-title">Supporting documents</h2>
+    <div class="card-body">
+    <div id="docPanel" class="doc-panel" style="display:none;"></div>
+    <div id="docEmpty" class="media-tab-note">Choose a leave type above to see whether documents are needed.</div>
+
+    <label class="check-row" id="docsLaterWrap" style="display:none;"><input type="checkbox" id="docsLater"> <span>I can't attach this now. I'll give it to Jan or accounts as soon as I have it.</span></label>
+
+    <div class="media-uploader" id="uploader-docs" style="margin-bottom:0;">
+            <div class="m-title">Add documents</div>
+      <div class="m-sub">Photo of a certificate, or a PDF</div>
+      <div class="file-input-wrap">
+        <label class="file-btn" for="docInput">Choose files</label>
+        <input type="file" id="docInput" accept="image/*,application/pdf" multiple onchange="handleDocs(this.files)">
+      </div>
+      <div class="file-list" id="fileList-docs"></div>
+    </div>
+    <div class="legal-note" id="privacyNote">Documents are stored privately and only shared with Simon, Troy and accounts for this request.</div>
+    </div>
+  </div>
+
+  <!-- 5 DECLARATION -->
+  <div class="card">
+    <h2 class="section-title">Declaration</h2>
+    <div class="card-body">
+    <label class="check-row"><input type="checkbox" id="declare"> <span>I confirm the details in this request are true and correct, and that any documents I've attached are genuine.</span></label>
+    <div class="grid">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="signDate">
+      </div>
+    </div>
+    <div class="field">
+      <label>Signature <span class="req">*</span></label>
+      <div class="sig-pad-wrap">
+        <canvas id="sigPad" class="sig-pad" width="800" height="180"></canvas>
+        <div class="sig-pad-placeholder" id="sigPlaceholder">Sign here with your finger or mouse</div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+        <button type="button" class="clear-sig-btn" onclick="clearSignature()">Clear signature</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="statusBanner" class="status-banner"><div class="inner" id="statusBannerInner"></div></div>
+
+<div class="submit-row">
+  <button type="button" id="submitBtn" class="btn-primary" onclick="submitRequest()">Send for approval</button>
+</div>
+
+<div class="footer-note">
+  <p>Blindmaster Pty Ltd &middot; Showroom: 28 Sydenham Road, Brookvale NSW 2100</p>
+  <p>T 02 9909 6700 &middot; info@blindmaster.com.au &middot; blindmaster.com.au</p>
+  <p>ABN 87 002 515 157 &middot; Lic. 250658C</p>
+  <p>Entitlements are summarised from the National Employment Standards and NSW law. Accounts confirms your balance.</p>
+</div>
+
+<script>
+  // Requests go straight into the Blindmaster Field App (same leave list, approval, calendar and leave register as the app).
+  const FIELD_APP_URL = 'https://script.google.com/macros/s/AKfycby8NMk1Bs9bwDznUcBFfhYP5kr2JkDIDi2_Oe8kHKwl2ZFJxBfRrTaCS3n-is8HAkGwnA/exec';
+  const GOOGLE_CLIENT_ID = '109655414089-70sej679mor7qm4kjfs42djvitfjnrjg.apps.googleusercontent.com';
+  let idToken = '', idTokenExp = 0;
+
+  // ---------- sign in (Google, same as the app) ----------
+  function decodeJwt(t) { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) { return {}; } }
+  function initSignIn() {
+    if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(initSignIn, 200); return; }
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true });
+    google.accounts.id.renderButton(document.getElementById('gsiBtn'), { theme: 'outline', size: 'large', text: 'signin_with' });
+    google.accounts.id.prompt();
+  }
+  async function onCredential(resp) {
+    const c = decodeJwt(resp.credential);
+    idToken = resp.credential; idTokenExp = (c.exp || 0) * 1000;
+    document.getElementById('whoami').textContent = 'Checking ' + (c.email || '') + '…';
+    try {
+      const r = await fetch(FIELD_APP_URL + '?action=me&idToken=' + encodeURIComponent(idToken), { redirect: 'follow' }).then(x => x.json());
+      if (!r.ok) throw new Error(r.error || 'Not recognised');
+      document.getElementById('employee').value = r.user.name;
+      document.getElementById('email').value = r.user.email;
+      document.getElementById('whoami').textContent = r.user.name + ' · ' + r.user.email;
+      document.getElementById('gsiBtn').style.display = 'none';
+      document.getElementById('signOutBtn').style.display = 'inline';
+      clearBanner();
+    } catch (e) {
+      idToken = '';
+      document.getElementById('whoami').textContent = '';
+      showBanner('error', 'That Google account isn\'t on the Blindmaster staff list (' + describeError(e) + '). Sign in with your work account, or ask Simon or Troy to add you.');
+    }
+  }
+  function signOutLeave() {
+    try { google.accounts.id.disableAutoSelect(); } catch (e) {}
+    idToken = ''; document.getElementById('employee').value = ''; document.getElementById('email').value = '';
+    document.getElementById('whoami').textContent = ''; document.getElementById('signOutBtn').style.display = 'none';
+    document.getElementById('gsiBtn').style.display = '';
+  }
+
+  // evidence: 'none' | 'required' (can be marked "to follow")
+  const LEAVE_TYPES = [
+    { id: 'annual', label: 'Annual leave', paid: 'Paid', evidence: 'none',
+      info: 'Full-time and part-time employees build up 4 weeks a year (5 for some shiftworkers). Please give as much notice as you can, especially in busy install periods.',
+      docs: '' },
+    { id: 'personal', label: "Personal / carer's leave (sick or caring)", paid: 'Paid', evidence: 'required', reason: true,
+      info: "10 days a year for full-time employees (pro rata for part-time), and unused days carry over. For your own illness or injury, or to care for an immediate family or household member who is sick, injured or has an unexpected emergency. Casuals can take unpaid carer's leave instead.",
+      docs: "A medical certificate from a registered health practitioner, or a statutory declaration if you couldn't see one. We can ask for evidence that would satisfy a reasonable person. If you're caring for someone, it can be about them." },
+    { id: 'carers_unpaid', label: "Unpaid carer's leave (2 days per occasion)", paid: 'Unpaid', evidence: 'required',
+      info: 'Up to 2 days per occasion, for everyone including casuals, when you need to care for an immediate family or household member who is sick, injured or has an unexpected emergency, and you have no paid personal leave left or you are casual.',
+      docs: 'A medical certificate for the person you are caring for, or a statutory declaration.' },
+    { id: 'compassionate', label: 'Compassionate leave', paid: 'Paid (unpaid for casuals)', evidence: 'required',
+      info: '2 days per occasion when an immediate family or household member dies, or has a life-threatening illness or injury.',
+      docs: 'A death certificate, funeral notice or order of service, a letter from a hospital or doctor, or a statutory declaration.' },
+    { id: 'fdv', label: 'Family and domestic violence leave', paid: 'Paid', evidence: 'required', confidential: true,
+      info: "10 days paid leave in each 12 months, for all employees including casuals. It covers time to deal with the impact of family or domestic violence, such as medical appointments, court, counselling or relocating. This leave type won't show on the team calendar.",
+      docs: "Only what is needed. Any document that would satisfy a reasonable person, such as a police report, court order, letter from a doctor, counsellor, support service or lawyer, or a statutory declaration. Need support? 1800RESPECT: 1800 737 732." },
+    { id: 'lsl', label: 'Long service leave (NSW)', paid: 'Paid', evidence: 'none',
+      info: "Under the Long Service Leave Act 1955 (NSW), generally 2 months after 10 years of continuous service. Accounts will confirm your entitlement and balance. Please give as much notice as possible (usually at least a month) and say in the notes if you want it in one block or several.",
+      docs: '' },
+    { id: 'parental', label: 'Parental leave (birth, adoption, special maternity)', paid: 'Unpaid (Government pay claimed separately)', evidence: 'required',
+      info: 'Up to 12 months unpaid (with a right to request another 12) once you have 12 months of service. Government Paid Parental Leave is claimed through Services Australia. Usual notice is at least 10 weeks before starting, then confirm dates at least 4 weeks before. Special maternity leave covers pregnancy-related illness or the end of a pregnancy.',
+      docs: 'A medical certificate showing the expected due date (or the birth), adoption or placement documents, or for special maternity leave, a medical certificate.' },
+    { id: 'community', label: 'Community service leave (jury service, RFS/SES and similar)', paid: 'Unpaid (make-up pay for jury service)', evidence: 'required',
+      info: 'For jury service and voluntary emergency management work such as RFS or SES callouts. Full-time and part-time employees get make-up pay for the first 10 days of jury service (the difference between jury pay and normal pay).',
+      docs: 'Jury summons and attendance certificate, or a letter from the emergency services organisation.' },
+    { id: 'defence', label: 'Defence Reserve leave', paid: 'Unpaid', evidence: 'required',
+      info: 'Unpaid leave for Australian Defence Force Reserve service, under the Defence Reserve Service (Protection) Act 2001. Usually up to 4 weeks a year (8 in your first year) without needing to use other leave.',
+      docs: 'Your orders, or a notice or letter from the Defence Force about the service.' },
+    { id: 'publicholiday', label: 'Public holiday absence request', paid: 'Unpaid', evidence: 'none',
+      info: "Use this if you've been asked to work on a public holiday and want to be absent. Employees can refuse a request to work a public holiday if the refusal is reasonable.",
+      docs: '' },
+    { id: 'tilo', label: 'Time off in lieu / rostered day off', paid: 'By agreement', evidence: 'none',
+      info: 'Not a statutory leave type. Only available by agreement with Simon or Troy for time you have already worked or accrued.',
+      docs: '' },
+    { id: 'unpaid', label: 'Leave without pay (by agreement)', paid: 'Unpaid', evidence: 'none',
+      info: 'Not a legal entitlement. It needs approval and may affect your leave accruals.',
+      docs: '' },
+    { id: 'other', label: 'Other (explain in notes)', paid: '', evidence: 'none', notesRequired: true,
+      info: 'Please explain what you need in the notes below.',
+      docs: '' }
+  ];
+
+  const docStore = [];
+
+  // ---------- setup ----------
+  function buildTimeOptions(selectedDefault) {
+    let html = '';
+    for (let h = 5; h <= 18; h++) {
+      const maxMinute = (h === 18) ? 0 : 45;
+      for (let m = 0; m <= maxMinute; m += 15) {
+        const v = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+        html += '<option value="' + v + '"' + (v === selectedDefault ? ' selected' : '') + '>' + v + '</option>';
+      }
+    }
+    return html;
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    initSignIn();
+
+    const lt = document.getElementById('leaveType');
+    LEAVE_TYPES.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.label; lt.appendChild(o); });
+
+    document.getElementById('leaveFrom').innerHTML = buildTimeOptions('12:00');
+    document.getElementById('leaveTo').innerHTML = buildTimeOptions('18:00');
+    document.getElementById('signDate').value = new Date().toISOString().split('T')[0];
+
+
+    initSignaturePad();
+  });
+
+  function getType() {
+    const id = document.getElementById('leaveType').value;
+    return LEAVE_TYPES.find(t => t.id === id) || null;
+  }
+
+  function onTypeChange() {
+    const t = getType();
+    const info = document.getElementById('typeInfo');
+    const panel = document.getElementById('docPanel');
+    const empty = document.getElementById('docEmpty');
+    const laterWrap = document.getElementById('docsLaterWrap');
+
+    document.getElementById('personalReasonWrap').style.display = (t && t.reason) ? 'block' : 'none';
+    document.getElementById('notesReq').style.display = (t && t.notesRequired) ? 'inline' : 'none';
+
+    if (!t) return;
+
+    const cls = t.paid.toLowerCase().startsWith('unpaid') ? 'unpaid' : 'paid';
+    info.innerHTML = (t.paid ? '<b>' + t.paid + '.</b> ' : '') + t.info;
+    info.style.display = 'block';
+
+    empty.style.display = 'none';
+    panel.style.display = 'block';
+    if (t.evidence === 'required') {
+      panel.innerHTML = '<h4>Documents needed for this leave</h4>' + t.docs +
+        '<br><span class="legal-note">You can attach them now, or tick the box below and hand them in as soon as you have them. Retrospective leave (like a sick day) often means getting the certificate afterwards.</span>';
+      laterWrap.style.display = 'flex';
+    } else {
+      panel.innerHTML = '<h4>No documents needed</h4>Nothing is legally required for this leave type. You can still attach anything useful below.';
+      laterWrap.style.display = 'none';
+      document.getElementById('docsLater').checked = false;
+    }
+    document.getElementById('privacyNote').textContent = t.confidential
+      ? 'Handled confidentially. These documents are only shared with Simon, Troy and accounts for this request, and the team calendar will just show "On leave".'
+      : 'Documents are stored privately and only shared with Simon, Troy and accounts for this request.';
+  }
+
+  // ---------- dates ----------
+  function parseDate(v) { const [y, m, d] = v.split('-').map(Number); return new Date(y, m - 1, d); }
+
+  function onDatesChange(which) {
+    const s = document.getElementById('startDate');
+    const e = document.getElementById('endDate');
+    if (document.getElementById('partDay').checked) e.value = s.value;
+    else if (s.value && (!e.value || e.value < s.value)) e.value = s.value;
+    updateDays();
+  }
+
+  function onPartDayChange() {
+    const part = document.getElementById('partDay').checked;
+    document.getElementById('partDayTimes').style.display = part ? 'grid' : 'none';
+    const e = document.getElementById('endDate');
+    e.disabled = part;
+    if (part) e.value = document.getElementById('startDate').value;
+    updateDays();
+  }
+
+  function calcDaysLabel() {
+    const sv = document.getElementById('startDate').value;
+    const ev = document.getElementById('endDate').value;
+    if (!sv || !ev) return '';
+    if (document.getElementById('partDay').checked) {
+      const f = document.getElementById('leaveFrom').value.split(':').map(Number);
+      const t = document.getElementById('leaveTo').value.split(':').map(Number);
+      const mins = (t[0] * 60 + t[1]) - (f[0] * 60 + f[1]);
+      if (mins <= 0) return '';
+      const h = Math.floor(mins / 60), m = mins % 60;
+      return (h ? h + (h === 1 ? ' hour' : ' hours') : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '') + ' (part day)';
+    }
+    const s = parseDate(sv), e = parseDate(ev);
+    if (e < s) return '';
+    let count = 0;
+    for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+      const wd = d.getDay();
+      if (wd !== 0 && wd !== 6) count++;
+    }
+    return count + (count === 1 ? ' working day' : ' working days');
+  }
+
+  function updateDays() {
+    const label = calcDaysLabel();
+    document.getElementById('daysPill').textContent = label || 'Select dates';
+  }
+
+  // ---------- documents ----------
+  function handleDocs(fileList) {
+    Array.from(fileList).forEach(f => docStore.push(f));
+    document.getElementById('docInput').value = '';
+    renderDocs();
+  }
+  function renderDocs() {
+    const c = document.getElementById('fileList-docs');
+    c.innerHTML = '';
+    document.getElementById('uploader-docs').classList.toggle('has-files', docStore.length > 0);
+    docStore.forEach((f, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'file-chip';
+      const nm = document.createElement('span');
+      nm.className = 'fname';
+      nm.textContent = f.name;
+      const rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'remove-file'; rm.innerHTML = '&times;';
+      rm.onclick = () => { docStore.splice(i, 1); renderDocs(); };
+      chip.appendChild(nm); chip.appendChild(rm);
+      c.appendChild(chip);
+    });
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // Shrinks phone photos before upload so submissions stay fast. PDFs pass through untouched.
+  async function prepareFile(file) {
+    const original = await fileToDataUrl(file);
+    if (!file.type.startsWith('image/')) return { name: file.name, dataUrl: original };
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = original; });
+      const max = 1800;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+      return { name, dataUrl: c.toDataURL('image/jpeg', 0.85) };
+    } catch (e) {
+      return { name: file.name, dataUrl: original };
+    }
+  }
+
+  // ---------- banner ----------
+  function showBanner(type, message) {
+    const banner = document.getElementById('statusBanner');
+    banner.className = 'status-banner ' + type;
+    document.getElementById('statusBannerInner').textContent = message;
+    banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  function clearBanner() {
+    document.getElementById('statusBanner').className = 'status-banner';
+    document.getElementById('statusBannerInner').textContent = '';
+  }
+  function describeError(err) {
+    if (!err) return 'Unknown error';
+    if (typeof err === 'string') return err;
+    return err.message || String(err);
+  }
+
+  // ---------- submit ----------
+  async function submitRequest() {
+    clearBanner();
+    const t = getType();
+    const missing = [];
+
+    if (!idToken || !document.getElementById('email').value) missing.push('Sign in with your Blindmaster Google account (top of the form)');
+    else if (idTokenExp && idTokenExp < Date.now() + 60000) { signOutLeave(); missing.push('Your sign-in has timed out. Sign in again at the top of the form'); }
+    const email = document.getElementById('email').value.trim();
+    if (!t) missing.push('Type of leave');
+    if (t && t.reason && !document.getElementById('personalReason').value) missing.push('Reason for personal / carer\'s leave');
+
+    const sv = document.getElementById('startDate').value;
+    const ev = document.getElementById('endDate').value;
+    if (!sv) missing.push('First day of leave');
+    if (!ev) missing.push('Last day of leave');
+    if (sv && ev && ev < sv) missing.push('Last day can\'t be before the first day');
+    const part = document.getElementById('partDay').checked;
+    if (part && calcDaysLabel() === '') missing.push('"Back at" must be later than "Leaving at"');
+
+    if (t && t.notesRequired && !document.getElementById('notes').value.trim()) missing.push('Notes (please explain the leave)');
+    if (t && t.evidence === 'required' && docStore.length === 0 && !document.getElementById('docsLater').checked) {
+      missing.push('Supporting documents (attach them, or tick that you will provide them later)');
+    }
+    if (!document.getElementById('declare').checked) missing.push('Tick the declaration');
+    if (!hasSignature) missing.push('Signature');
+
+    if (missing.length) {
+      showBanner('error', 'Please fix the following before sending:\n\n' + missing.map(m => '\u2022 ' + m).join('\n'));
+      return;
+    }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    showBanner('success', 'Sending your request. This can take a little longer with photos attached. Please keep this page open.');
+
+    try {
+      let docs = [];
+      try {
+        for (const f of docStore) docs.push(await prepareFile(f));
+      } catch (e) {
+        throw new Error('Could not read one of the attached documents: ' + describeError(e));
+      }
+      const body = {
+        action: 'leaveForm', idToken: idToken,
+        phone: document.getElementById('phone').value.trim(),
+        leaveTypeId: t.id, leaveTypeLabel: t.label,
+        personalReason: t.reason ? document.getElementById('personalReason').value : '',
+        startDate: sv, endDate: part ? sv : ev, partDay: part ? 'yes' : '',
+        startTime: part ? document.getElementById('leaveFrom').value : '', endTime: part ? document.getElementById('leaveTo').value : '',
+        notes: document.getElementById('notes').value.trim(), jobsAffected: document.getElementById('jobsAffected').value.trim(),
+        docsLater: document.getElementById('docsLater').checked ? 'yes' : '', declare: 'yes',
+        signDate: document.getElementById('signDate').value, signatureDataUrl: document.getElementById('sigPad').toDataURL('image/png'),
+        docs: docs
+      };
+
+      let response;
+      try {
+        // plain text body: Apps Script can't answer a CORS preflight
+        response = await fetch(FIELD_APP_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+      } catch (netErr) {
+        throw new Error('Could not reach the server. Check your connection and try again.');
+      }
+      let result;
+      try { result = await response.json(); }
+      catch (e) { throw new Error('The server sent back something unexpected (HTTP ' + response.status + '). Try again shortly, or tell Jan.'); }
+      result.success = result.ok; result.requestId = result.id;
+
+      if (result.success) {
+        showBanner('success', 'Request sent. Reference ' + result.requestId + '.\n\nSimon and Troy have been notified. You will get an email at ' + email + ' when it is decided. You can also see it in the Field App under Me › Leave.' + (result.warning ? '\n\n' + result.warning : ''));
+        btn.textContent = 'Sent';
+      } else {
+        showBanner('error', 'Could not send: ' + (result.error || 'unknown error') + (/sign in|expired/i.test(result.error || '') ? '\n\nSign in again at the top of the form, then press Send.' : ''));
+        btn.disabled = false; btn.textContent = 'Send for approval';
+      }
+    } catch (err) {
+      showBanner('error', describeError(err));
+      btn.disabled = false; btn.textContent = 'Send for approval';
+    }
+  }
+
+  // ---------- signature pad ----------
+  let sigCtx = null, isDrawing = false, hasSignature = false;
+
+  function initSignaturePad() {
+    const canvas = document.getElementById('sigPad');
+    const placeholder = document.getElementById('sigPlaceholder');
+    sigCtx = canvas.getContext('2d');
+
+    function size() {
+      const ratio = window.devicePixelRatio || 1;
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const w = Math.round(r.width * ratio), h = Math.round(r.height * ratio);
+      if (canvas.width === w && canvas.height === h) return;
+      canvas.width = w; canvas.height = h;
+      sigCtx.scale(ratio, ratio);
+      sigCtx.strokeStyle = '#0B1E3D';
+      sigCtx.lineWidth = 2.2;
+      sigCtx.lineCap = 'round';
+      sigCtx.lineJoin = 'round';
+      hasSignature = false;
+      placeholder.style.display = 'block';
+    }
+    size();
+    if (window.ResizeObserver) new ResizeObserver(size).observe(canvas);
+    else { window.addEventListener('resize', size); setTimeout(size, 300); }
+
+    function pos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      isDrawing = true; hasSignature = true;
+      placeholder.style.display = 'none';
+      const p = pos(e);
+      sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!isDrawing) return;
+      e.preventDefault();
+      const p = pos(e);
+      sigCtx.lineTo(p.x, p.y); sigCtx.stroke();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => canvas.addEventListener(ev, () => { isDrawing = false; }));
+  }
+
+  function clearSignature() {
+    const canvas = document.getElementById('sigPad');
+    sigCtx.save();
+    sigCtx.setTransform(1, 0, 0, 1, 0, 0);
+    sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+    sigCtx.restore();
+    hasSignature = false;
+    document.getElementById('sigPlaceholder').style.display = 'block';
+  }
+</script>
+
+</body>
+</html>
