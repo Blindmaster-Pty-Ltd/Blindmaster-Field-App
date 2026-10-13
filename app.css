@@ -908,3 +908,26 @@ a.dv-row:hover { background: #F2F0EC; }
   .sd-tk > :nth-child(2) { grid-column: 1 / -1; order: 3; }
   .sd-photo img { max-height: 240px; }
 }
+
+/* Ask Jan */
+.ask-page { display: flex; flex-direction: column; max-width: 760px; margin: 0 auto; padding: 0 0 24px; min-height: calc(100vh - 140px); }
+.ask-head { padding: 22px 16px 10px; display: flex; flex-direction: column; gap: 4px; }
+.ask-head h1 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 26px; }
+.ask-convo { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; }
+.ask-empty { text-align: center; margin: 24px 0; }
+.ask-q { align-self: flex-end; max-width: 82%; padding: 10px 14px; background: var(--monument-grey); color: var(--natural-white); font-size: 15px; line-height: 1.4; white-space: pre-wrap; }
+.ask-a { align-self: flex-start; max-width: 94%; padding: 12px 14px; background: var(--sandstone); border-left: 4px solid var(--pastel-blue); font-size: 15px; line-height: 1.5; }
+.ask-a.is-err { background: #F3E9E9; border-left-color: #C0392B; }
+.ask-a.is-busy { opacity: .8; }
+.ask-a p { margin: 0 0 8px; } .ask-a p:last-child { margin-bottom: 0; }
+.ask-a ul { margin: 4px 0 8px; padding-left: 20px; } .ask-a li { margin: 4px 0; }
+.ask-a a { font-weight: 700; }
+.ask-lbl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink-muted); margin-bottom: 6px; }
+.ask-lbl svg { width: 16px; height: 16px; }
+.ask-bar { position: sticky; bottom: 0; padding: 10px 16px 12px; background: var(--natural-white); border-top: 1px solid var(--sandstone); display: flex; flex-direction: column; gap: 10px; }
+.mode-phone .ask-bar { bottom: 64px; }
+.ask-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.ask-chip { flex-shrink: 0; min-height: 36px; padding: 0 12px; border: 1.5px solid var(--monument-grey); background: var(--natural-white); font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.ask-form { display: flex; gap: 8px; }
+.ask-form input { flex: 1; min-height: 48px; }
+.ask-bar .link-btn { align-self: flex-start; min-height: 32px; }

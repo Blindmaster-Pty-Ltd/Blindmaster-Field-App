@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '29'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '30'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -93,6 +93,7 @@
     user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
     planner: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17"/><path d="M3 9h18M9 9v12M15 9v12M8 2v4M16 2v4"/></svg>',
     mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    spark: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     play: '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -734,7 +735,7 @@
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets' || r.name === 'ask') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -758,6 +759,7 @@
     if (r.name === 'staff') return renderStaff(r.arg, r.arg2);
     if (r.name === 'ticket' && r.arg) return renderTicket(r.arg);
     if (r.name === 'mytickets') return renderMyTickets();
+    if (r.name === 'ask') return renderAsk();
     if (r.name === 'vehicles') return renderVehicles(r.arg);
     if (r.name === 'myvehicle') return renderMyVehicle();
     if (r.name === 'leave') return r.arg === 'new' ? renderLeaveNew() : r.arg ? renderLeaveItem(r.arg) : renderLeave();
@@ -792,6 +794,7 @@
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (isManagerUser()) items.push({ key: 'staff', href: '#/staff', icon: I.idcard, label: 'Staff' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
+    items.push({ key: 'ask', href: '#/ask', icon: I.spark, label: 'Ask Jan' });
     items.push({ key: 'me', href: '#/me', icon: I.user, label: 'Me' }); // to do, receipts, leave, clock, account
 
     return items;
@@ -2851,6 +2854,65 @@
     if (a.level === 'warn') return dvSt(a, a.km != null && a.km <= 1000 ? 'Due in ' + dvKm(a.km) : 'Due in ' + a.days + ' days');
     return dvSt(a, v.nextServiceDate ? dvFmtDate(v.nextServiceDate) : 'At ' + dvKm(v.nextServiceKm));
   }
+  /* Ask Jan: ask a question, find anything in the app */
+  var ask = { turns: [], busy: false, draft: '' };
+  function askSuggestions() {
+    if (isManagerUser()) return ['What needs me today?', 'Tickets expiring in the next 60 days', 'Vehicles due for rego or service', 'Who\'s on leave this month?'];
+    if (isOffice()) return ['Unconfirmed bookings this week', 'Who\'s free Thursday afternoon?', 'Who\'s away next week?', 'Jobs in Manly this month'];
+    if (canSchedule()) return ['My consults this week', 'Jobs I\'m booked on next week', 'My receipts this month', 'My leave'];
+    return ['What\'s on tomorrow?', 'Where is my next job?', 'My receipts this month', 'When do my tickets expire?'];
+  }
+  function askMd(text) {
+    var lines = esc(text || '').split('\n'), out = [], list = false;
+    var inline = function (s) {
+      return s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+        .replace(/\[([^\]]+)\]\(((?:#\/|https:\/\/)[^)\s]+)\)/g, function (m, label, href) {
+          var ext = /^https:/.test(href);
+          return '<a href="' + href + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '>' + label + '</a>';
+        });
+    };
+    lines.forEach(function (l) {
+      var m = l.match(/^\s*[-•*]\s+(.*)$/);
+      if (m) { if (!list) { out.push('<ul>'); list = true; } out.push('<li>' + inline(m[1]) + '</li>'); return; }
+      if (list) { out.push('</ul>'); list = false; }
+      if (/^#{1,3}\s+/.test(l)) l = '<b>' + l.replace(/^#{1,3}\s+/, '') + '</b>';
+      out.push(l.trim() ? '<p>' + inline(l) + '</p>' : '');
+    });
+    if (list) out.push('</ul>');
+    return out.join('');
+  }
+  function renderAsk() {
+    var u = state.user || {};
+    var convo = ask.turns.map(function (t) {
+      return '<div class="ask-q">' + esc(t.q) + '</div>' + (t.a ? '<div class="ask-a' + (t.err ? ' is-err' : '') + '"><span class="ask-lbl">' + (t.err ? I.lock + 'Couldn\'t answer' : I.spark + 'Ask Jan') + '</span>' + (t.err ? '<p>' + esc(t.a) + '</p>' : askMd(t.a)) + '</div>' :
+        '<div class="ask-a is-busy"><span class="ask-lbl">' + I.spark + 'Ask Jan</span><p class="muted">Looking that up…</p></div>');
+    }).join('');
+    var body = '<div class="ask-page"><section class="ask-head"><h1>' + I.spark + 'Ask Jan</h1><span class="small">Ask about a job, a customer, your day, your tickets. Answers come only from what you can already see in the app.</span></section>' +
+      '<section class="ask-convo" id="askConvo">' + (convo || '<p class="muted ask-empty">Try one of these, or type your own question.</p>') + '</section>' +
+      '<section class="ask-bar"><div class="ask-chips">' + askSuggestions().map(function (s) { return '<button type="button" class="ask-chip" data-askq="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') + '</div>' +
+      '<form class="ask-form" id="askForm"><input id="askIn" autocomplete="off" placeholder="Ask about a job, a customer, your day…" value="' + esc(ask.draft) + '"' + (ask.busy ? ' disabled' : '') + '>' +
+      '<button type="submit" class="btn btn-dark"' + (ask.busy ? ' disabled' : '') + '>Ask</button></form>' +
+      (ask.turns.length ? '<button type="button" class="link-btn small" id="askClear">Start again</button>' : '') + '</section></div>';
+    app.innerHTML = wide() ? shell('ask', null, '<div class="pane-solo">' + body + '</div>') : topbar({ title: 'Ask Jan' }) + '<main>' + body + '</main>' + tabbar('ask');
+    var cv = document.getElementById('askConvo'); if (cv) cv.scrollTop = cv.scrollHeight;
+    var last = cv && cv.lastElementChild; if (last && ask.turns.length) last.scrollIntoView({ block: 'end' });
+    var form = document.getElementById('askForm'), inp = document.getElementById('askIn');
+    if (inp) { inp.addEventListener('input', function () { ask.draft = inp.value; }); if (!ask.busy && wide()) inp.focus(); }
+    form.onsubmit = function (e) { e.preventDefault(); askSend(inp.value); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-askq]'), function (b) { b.onclick = function () { askSend(b.getAttribute('data-askq')); }; });
+    var clr = document.getElementById('askClear'); if (clr) clr.onclick = function () { ask.turns = []; renderAsk(); };
+  }
+  function askSend(q) {
+    q = String(q || '').trim();
+    if (!q || ask.busy) return;
+    var history = ask.turns.filter(function (t) { return t.a && !t.err; }).slice(-6).map(function (t) { return { q: t.q, a: t.a }; });
+    var turn = { q: q, a: '' };
+    ask.turns.push(turn); ask.busy = true; ask.draft = '';
+    if (route().name === 'ask') renderAsk();
+    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; }, function (e) { turn.a = e.message; turn.err = true; })
+      .then(function () { ask.busy = false; if (route().name === 'ask') renderAsk(); });
+  }
+
   /* Staff documents, licences and tickets (Simon and Troy) */
   var sd = { docs: {}, open: null, tk: null, busy: false };
   function sdTkStatus(t) {
