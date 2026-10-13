@@ -867,3 +867,44 @@ a.dv-row:hover { background: #F2F0EC; }
 
 .dv-lockline { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin: 4px 0 14px; background: var(--sandstone, #E9E6E0); font-size: 13px; line-height: 1.45; }
 .dv-lockline svg { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; }
+
+/* Staff documents, licences and tickets */
+.dv-ptabs { display: flex; gap: 4px; padding: 0 24px; background: var(--pastel-blue); }
+.dv-ptabs a { padding: 10px 16px; color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500; }
+.dv-ptabs a[aria-selected="true"] { background: var(--natural-white); font-weight: 700; }
+.sd-tform { padding: 14px; background: var(--sandstone); }
+.sd-tform input, .sd-tform select, .sd-tform textarea { background: var(--natural-white); }
+.sd-tform .dv-up { background: var(--natural-white); }
+.dv-up.sd-big { min-height: 72px; justify-content: center; border: 2px dashed var(--monument-grey); }
+.sd-file { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--sandstone); }
+.sd-file > a { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.sd-file > a svg { width: 16px; height: 16px; flex-shrink: 0; }
+.sd-tk { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--sandstone); }
+.sd-tk-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sd-tk-name b { font-size: 14px; }
+.sd-tk-acts { display: flex; align-items: center; gap: 10px; }
+.sd-tk-acts svg { width: 16px; height: 16px; }
+.sd-tk-acts .link-btn { min-height: 36px; font-size: 13px; }
+.sd-note { grid-column: 1 / -1; font-size: 13px; padding: 8px 10px; background: #FBEAEA; }
+.sd-wait { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: #EAF1F6; font-size: 13px; }
+.sd-wait a { font-weight: 700; }
+.sd-hist { margin-top: 6px; }
+.sd-hist summary { cursor: pointer; padding: 6px 0; }
+.sd-chip { background: #EAF1F6; font-weight: 700; }
+.sd-approve { max-width: 640px; }
+.sd-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.sd-photo { position: relative; display: block; background: var(--sandstone); min-height: 140px; }
+.sd-photo img { display: block; width: 100%; height: auto; max-height: 360px; object-fit: contain; }
+.sd-photo span { position: absolute; left: 0; bottom: 0; padding: 4px 8px; background: rgba(64,65,65,.85); color: var(--natural-white); font-size: 12px; font-weight: 700; }
+.sd-dl { margin: 0; display: grid; grid-template-columns: 110px 1fr; row-gap: 10px; column-gap: 12px; font-size: 14px; }
+.sd-dl dt { color: var(--ink-muted); font-weight: 600; }
+.sd-dl dd { margin: 0; }
+.sd-decide { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.sd-decide .btn { min-height: 52px; }
+.sd-mine { max-width: 640px; }
+@media (max-width: 767px) {
+  .dv-ptabs { padding: 0 16px; }
+  .sd-tk { grid-template-columns: minmax(0, 1fr) auto; }
+  .sd-tk > :nth-child(2) { grid-column: 1 / -1; order: 3; }
+  .sd-photo img { max-height: 240px; }
+}

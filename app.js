@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '28'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '29'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -734,7 +734,7 @@
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -755,7 +755,9 @@
     if (r.name === 'measure' && r.arg) return renderMeasure(r.arg, r.arg2 || todayStr());
     if (r.name === 'capture' && r.arg) return renderCapture(r.arg, r.arg2 || todayStr(), r.arg3);
     if (r.name === 'todo') return renderTodo();
-    if (r.name === 'staff') return renderStaff(r.arg);
+    if (r.name === 'staff') return renderStaff(r.arg, r.arg2);
+    if (r.name === 'ticket' && r.arg) return renderTicket(r.arg);
+    if (r.name === 'mytickets') return renderMyTickets();
     if (r.name === 'vehicles') return renderVehicles(r.arg);
     if (r.name === 'myvehicle') return renderMyVehicle();
     if (r.name === 'leave') return r.arg === 'new' ? renderLeaveNew() : r.arg ? renderLeaveItem(r.arg) : renderLeave();
@@ -2626,6 +2628,8 @@
       if (h && h.can.approve) body += row('#/leave', I.check, 'Approve leave', h.leave.toApprove ? h.leave.toApprove + ' waiting for you' : 'Nothing waiting', h.leave.toApprove ? String(h.leave.toApprove) : '');
       if (h && h.can.clock) body += row('#/clock', I.clock, 'Clock in / out', h.clock && h.clock.in ? 'Clocked in since ' + hhmm(new Date(h.clock.in.since)) : 'You\'re clocked out · ' + hm(h.clock ? h.clock.weekMin : 0) + ' this week');
       (h && h.vehicles || []).forEach(function (v) { body += row('#/myvehicle', I.car, 'My vehicle', v.model + (v.plate ? ' · ' + v.plate : '') + (v.odometerDue ? ' · odometer due this week' : ''), v.odometerDue ? '!' : ''); });
+      body += row('#/mytickets', I.idcard, 'My licences and tickets', h && h.tickets ? (h.tickets.waiting ? h.tickets.waiting + ' waiting for approval' : h.tickets.due ? h.tickets.due + ' need renewing' : h.tickets.count ? 'All current' : 'Upload your licence and tickets') : 'Licence, white card, heights and other tickets', h && h.tickets && h.tickets.due ? '!' : '');
+      if (h && h.can.directory && h.ticketsToApprove) body += row('#/staff', I.check, 'Approve tickets', h.ticketsToApprove + ' renewed ' + (h.ticketsToApprove === 1 ? 'ticket' : 'tickets') + ' waiting', String(h.ticketsToApprove));
       if (h && h.can.hours) body += row('#/hours', I.clock, 'Team hours', 'Everyone\'s clock times this week');
       if (h && h.can.directory && !wide()) body += row('#/staff', I.idcard, 'Staff directory', 'People, access and company vehicles');
       if (!wide() && isOffice()) {
@@ -2671,10 +2675,11 @@
   }
 
   /* People */
-  function renderStaff(sel) {
+  function renderStaff(sel, tab) {
     if (state.user && !isManagerUser()) return dvNoAccess();
     if (!dv.data) app.innerHTML = dvPage('<section class="section"><p class="muted">Loading the staff directory…</p></section>');
-    dvLoad(!dv.data).then(function () { if (route().name === 'staff') drawStaff(sel); }, function (e) { if (e.auth) return showError(e); showError(e, function () { renderStaff(sel); }); });
+    if (dv.lastSel !== sel) { sd.open = null; sd.tk = null; dv.lastSel = sel; }
+    dvLoad(!dv.data).then(function () { if (route().name === 'staff') drawStaff(sel, tab); }, function (e) { if (e.auth) return showError(e); showError(e, function () { renderStaff(sel); }); });
   }
   function dvPeopleFiltered() {
     var q = dv.q.toLowerCase();
@@ -2694,9 +2699,17 @@
       return '<a class="dv-row dv-prow' + (p.email === selEmail ? ' is-sel' : '') + '" href="#/staff/' + encodeURIComponent(p.email) + '">' +
         '<span class="dv-who"><b>' + esc(p.name) + (p.manager ? ' <span class="dv-mgr">Manager</span>' : '') + '</b><span>' + esc(p.email) + '</span></span>' +
         '<span class="dv-chips">' + p.roles.map(function (r) { return '<span class="dv-chip">' + esc(dvRoleLabel(r)) + '</span>'; }).join('') + '</span>' +
-        '<span class="dv-cell">' + (p.mobile ? esc(p.mobile) : dvMissing()) + '</span>' +
-        '<span class="dv-cell">' + (p.address ? esc(suburb(p.address)) : dvMissing()) + '</span></a>';
+        '<span class="dv-cell">' + (p.tickets ? dvSt(p.tickets, p.tickets.text) + (p.tickets.pending ? ' <span class="dv-chip sd-chip">To approve</span>' : '') : '') + '</span>' +
+        '<span class="dv-cell">' + (p.mobile ? esc(p.mobile) : dvMissing()) + '</span></a>';
     }).join('');
+  }
+  function dvPeopleAlerts() {
+    var pend = dv.data.pendingTickets || [];
+    var due = [];
+    dv.data.people.forEach(function (p) { if (p.active && p.tickets && (p.tickets.level === 'bad' || p.tickets.level === 'warn')) due.push(firstName(p.name) + ': ' + p.tickets.text); });
+    if (!pend.length && !due.length) return '';
+    return '<div class="dv-soon">' + (pend.length ? '<b>To approve:</b><span>' + pend.map(function (t) { return '<a href="#/ticket/' + encodeURIComponent(t.id) + '">' + esc(firstName(t.name) + '\'s ' + t.type) + '</a>'; }).join(' · ') + '</span>' : '') +
+      (due.length ? '<b>Coming up:</b><span>' + esc(due.join(' · ')) + '</span>' : '') + '</div>';
   }
   function dvPeopleList(selEmail) {
     var all = dv.data.people.filter(function (p) { return p.active; });
@@ -2704,10 +2717,10 @@
     var f = function (k, l) { return '<button type="button" role="tab" data-dvf="' + k + '" aria-selected="' + (dv.filter === k) + '">' + l + '</button>'; };
     return dvTabs('people') +
       '<div class="dv-head"><div><h1>Staff directory</h1>' + dvLock() + '<span class="small muted">' + all.length + ' people' + (missing ? ' · ' + missing + ' missing details' : '') + '</span></div>' +
-      '<a class="btn btn-dark" href="#/staff/new">+ Add a person</a></div>' +
+      '<a class="btn btn-dark" href="#/staff/new">+ Add a person</a></div>' + dvPeopleAlerts() +
       '<div class="dv-tools"><input type="search" id="dvQ" placeholder="Search name, email, suburb" value="' + esc(dv.q) + '">' +
       '<div class="dv-filter" role="tablist">' + f('all', 'Everyone') + f('office', 'Office') + f('installers', 'Installers') + f('off', 'Switched off') + '</div></div>' +
-      '<div class="dv-table" role="table" aria-label="Staff"><div class="dv-row dv-prow dv-th" role="row"><span>Name · sign-in email</span><span>Access</span><span>Mobile</span><span>Home</span></div>' +
+      '<div class="dv-table" role="table" aria-label="Staff"><div class="dv-row dv-prow dv-th" role="row"><span>Name · sign-in email</span><span>Access</span><span>Licences and tickets</span><span>Mobile</span></div>' +
       '<div id="dvRows">' + dvPeopleRows(selEmail) + '</div></div>' +
       '<p class="small muted dv-foot">Saved in the sheet <a href="' + esc(dv.data.sheetUrl) + '" target="_blank" rel="noopener">Field App – Staff directory (private)</a>, in Simon\'s Drive.</p>';
   }
@@ -2730,6 +2743,7 @@
       '<h2>' + esc(p.isNew ? 'Add a person' : p.name) + '</h2>' +
       (p.isNew ? '<span class="small">They can sign in as soon as you save.</span>' : '<span class="small">' + (p.updated ? 'Updated ' + esc(p.updated) + (p.updatedBy ? ' by ' + esc(p.updatedBy) : '') : '') + '</span>') + '</div>' +
       (wide() ? '<a class="icon-btn" href="#/staff" aria-label="Close">' + I.x + '</a>' : '') + '</div>';
+    h += dvPTabs(p, 'details', p.tickets && p.tickets.files);
     h += '<div class="dv-card-body stack" style="gap:14px">';
     h += '<b class="dv-sec">Details</b><div class="st-grid2"><div class="field"><label for="dvName">Full name</label><input id="dvName" value="' + esc(p.name) + '" autocomplete="off"></div>' +
       '<div class="field"><label for="dvMobile">Mobile</label><input id="dvMobile" type="tel" inputmode="tel" value="' + esc(p.mobile) + '" placeholder="04xx xxx xxx"></div></div>';
@@ -2749,21 +2763,23 @@
       '<button type="button" class="btn btn-dark" id="dvSave">Save</button></div>';
     return h;
   }
-  function drawStaff(sel) {
+  function drawStaff(sel, tab) {
     var p = null;
+    if (tab === undefined) tab = route().arg2;
     if (sel === 'new') p = dvBlankPerson();
     else if (sel) p = dv.data.people.filter(function (x) { return x.email === sel; })[0] || null;
     var selEmail = p && !p.isNew ? p.email : '';
+    var docsTab = !!(p && !p.isNew && tab === 'docs');
     if (wide()) {
       app.innerHTML = dvPage('<div class="dv-split"><div class="dv-main">' + dvPeopleList(selEmail) + '</div>' +
-        '<aside class="dv-side">' + (p ? dvPersonForm(p) : '<div class="dv-side-empty"><p class="muted">Choose a person to see and change their details and access.</p></div>') + '</aside></div>');
+        '<aside class="dv-side' + (docsTab ? ' dv-side-wide' : '') + '">' + (p ? (docsTab ? dvPersonDocs(p) : dvPersonForm(p)) : '<div class="dv-side-empty"><p class="muted">Choose a person to see and change their details and access.</p></div>') + '</aside></div>');
     } else if (p) {
-      app.innerHTML = dvPage('<div class="dv-card">' + dvPersonForm(p) + '</div>', ['#/staff', 'Staff']);
+      app.innerHTML = dvPage('<div class="dv-card">' + (docsTab ? dvPersonDocs(p) : dvPersonForm(p)) + '</div>', ['#/staff', 'Staff']);
     } else {
       app.innerHTML = dvPage('<div class="dv-main">' + dvPeopleList('') + '</div>');
     }
     dvBindList(selEmail, dvPeopleRows);
-    if (p) dvBindPerson(p);
+    if (p) { if (docsTab) dvBindDocs(p); else dvBindPerson(p); }
   }
   function dvBindPerson(p) {
     var addr = document.getElementById('dvAddr');
@@ -2835,6 +2851,228 @@
     if (a.level === 'warn') return dvSt(a, a.km != null && a.km <= 1000 ? 'Due in ' + dvKm(a.km) : 'Due in ' + a.days + ' days');
     return dvSt(a, v.nextServiceDate ? dvFmtDate(v.nextServiceDate) : 'At ' + dvKm(v.nextServiceKm));
   }
+  /* Staff documents, licences and tickets (Simon and Troy) */
+  var sd = { docs: {}, open: null, tk: null, busy: false };
+  function sdTkStatus(t) {
+    if (t.status === 'Pending') return '<span class="dv-st dv-none">Waiting for Simon or Troy</span>';
+    if (t.status === 'Sent back') return '<span class="dv-st dv-bad">Sent back</span>';
+    if (!t.expires) return dvSt({ level: 'ok' }, 'Current · no expiry');
+    if (t.level === 'bad') return dvSt(t, 'Expired ' + dvFmtDate(t.expires));
+    if (t.level === 'warn') return dvSt(t, 'Expires in ' + t.days + (t.days === 1 ? ' day' : ' days'));
+    return dvSt(t, 'Current · ' + dvFmtDate(t.expires));
+  }
+  function dvPTabs(p, active, count) {
+    if (p.isNew) return '';
+    var base = '#/staff/' + encodeURIComponent(p.email);
+    return '<div class="dv-ptabs" role="tablist"><a role="tab" href="' + base + '" aria-selected="' + (active === 'details') + '">Details and access</a>' +
+      '<a role="tab" href="' + base + '/docs" aria-selected="' + (active === 'docs') + '">Documents' + (count ? ' · ' + count : '') + '</a></div>';
+  }
+  function sdFileInput(id, label, opts) {
+    opts = opts || {};
+    return '<label class="dv-up' + (opts.big ? ' sd-big' : '') + '" for="' + id + '">' + I.camera + '<span id="' + id + 'Name">' + esc(label) + '</span></label>' +
+      '<input type="file" id="' + id + '" accept="' + (opts.accept || 'image/*,application/pdf') + '" hidden>';
+  }
+  function sdReadFile(input) {
+    var f = input && input.files && input.files[0];
+    if (!f) return Promise.resolve(null);
+    return dvPrep(f).then(function (blob) { return toBase64(blob).then(function (data) { return { data: data, mime: blob.type || f.type, name: f.name }; }); });
+  }
+  function sdWatchFile(id, empty) {
+    var inp = document.getElementById(id);
+    if (inp) inp.addEventListener('change', function () { var f = inp.files && inp.files[0]; document.getElementById(id + 'Name').textContent = f ? f.name : empty; });
+  }
+  function sdTicketForm(prefix, t, types, isStaff) {
+    t = t || {};
+    var known = types.indexOf(t.type) >= 0;
+    return '<div class="sd-tform stack" style="gap:10px">' +
+      (t.renewOf ? '<b>Renew: ' + esc(t.type) + '</b>' : '<b>' + (isStaff ? 'Upload a renewed ticket' : 'Add a licence or ticket') + '</b>') +
+      '<div class="st-grid2"><div class="field"><label for="' + prefix + 'Type">Which ticket</label><select id="' + prefix + 'Type">' +
+      types.map(function (x) { return '<option' + ((known ? t.type === x : (t.type && x === 'Other')) ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="' + prefix + 'Num">Number or unit code</label><input id="' + prefix + 'Num" value="' + esc(t.number || '') + '"></div></div>' +
+      '<div class="field" id="' + prefix + 'OtherBox"' + ((t.type && !known) || t.type === 'Other' ? '' : ' style="display:none"') + '><label for="' + prefix + 'Other">Name of the ticket</label><input id="' + prefix + 'Other" value="' + esc(known ? '' : (t.type || '')) + '" placeholder="e.g. Asbestos awareness"></div>' +
+      '<div class="st-grid2"><div class="field"><label for="' + prefix + 'Iss">Issued</label><input id="' + prefix + 'Iss" type="date"></div>' +
+      '<div class="field"><label for="' + prefix + 'Exp">Expires</label><input id="' + prefix + 'Exp" type="date"></div></div>' +
+      '<div class="st-grid2">' + sdFileInput(prefix + 'Front', 'Photo of the front', { big: true }) + sdFileInput(prefix + 'Back', 'Back (optional)', { big: true }) + '</div>' +
+      '<p class="notice error" id="' + prefix + 'Err" role="alert" hidden></p>' +
+      '<div class="dv-row-btns"><button type="button" class="btn btn-dark" id="' + prefix + 'Save">' + (isStaff ? 'Send to Simon and Troy' : 'Save ticket') + '</button>' +
+      '<button type="button" class="btn btn-sand" id="' + prefix + 'Cancel">Cancel</button></div>' +
+      (isStaff ? '<span class="small muted">It counts once Simon or Troy approves it. Until then your current one stays on file.</span>' : (t.renewOf ? '<span class="small muted">The old one is kept in the folder as history.</span>' : '')) + '</div>';
+  }
+  function sdBindTicketForm(prefix, onSave, onCancel) {
+    var sel = document.getElementById(prefix + 'Type');
+    if (!sel) return;
+    sel.addEventListener('change', function () { document.getElementById(prefix + 'OtherBox').style.display = sel.value === 'Other' ? '' : 'none'; });
+    sdWatchFile(prefix + 'Front', 'Photo of the front'); sdWatchFile(prefix + 'Back', 'Back (optional)');
+    document.getElementById(prefix + 'Cancel').onclick = onCancel;
+    var btn = document.getElementById(prefix + 'Save'), err = document.getElementById(prefix + 'Err');
+    btn.onclick = function () {
+      var label = btn.textContent; err.hidden = true; btn.disabled = true; btn.textContent = 'Uploading…';
+      Promise.all([sdReadFile(document.getElementById(prefix + 'Front')), sdReadFile(document.getElementById(prefix + 'Back'))]).then(function (files) {
+        return onSave({ type: sel.value, otherType: document.getElementById(prefix + 'Other').value, number: document.getElementById(prefix + 'Num').value,
+          issued: document.getElementById(prefix + 'Iss').value, expires: document.getElementById(prefix + 'Exp').value, front: files[0], back: files[1] });
+      }).catch(function (e) { err.textContent = e.message; err.hidden = false; btn.disabled = false; btn.textContent = label; });
+    };
+  }
+  function sdDocRow(d) {
+    return '<div class="sd-file"><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + I.doc + esc(d.title) + '</a><span class="small muted">' + esc(dvFmtDate(d.date)) + (d.addedBy ? ' · ' + esc(d.addedBy) : '') + '</span>' +
+      '<button type="button" class="dv-x" data-sdrm="' + esc(d.id) + '" aria-label="Take ' + esc(d.title) + ' off the list">' + I.x + '</button></div>';
+  }
+  function sdSection(title, note, inner) {
+    return '<section class="dv-vsec"><div class="dv-vsec-h"><b>' + esc(title) + '</b>' + (note ? '<span class="small muted">' + esc(note) + '</span>' : '') + '</div>' + inner + '</section>';
+  }
+  function dvPersonDocs(p) {
+    var d = sd.docs[p.email];
+    var h = '<div class="dv-card-head"><div><span class="small" style="font-weight:700">' + esc(p.roles.map(dvRoleLabel).join(' · ')) + '</span><h2>' + esc(p.name) + '</h2></div>' +
+      (wide() ? '<a class="icon-btn" href="#/staff" aria-label="Close">' + I.x + '</a>' : '') + '</div>' + dvPTabs(p, 'docs', p.tickets && p.tickets.files);
+    if (!d) return h + '<div class="dv-card-body"><p class="muted">Loading documents…</p></div>';
+    var body = '';
+    var upForm = function (section) {
+      return sd.open === section ? '<div class="sd-tform stack" style="gap:10px"><div class="st-grid2"><div class="field"><label for="sdTitle">Title</label><input id="sdTitle" placeholder="' + esc({ employment: 'e.g. Employment contract', notes: 'e.g. Quarterly check-in', other: 'e.g. Uniform sign-off' }[section]) + '"></div>' +
+        '<div class="field"><label for="sdDate">Date</label><input id="sdDate" type="date" value="' + esc(todayStr()) + '"></div></div>' +
+        sdFileInput('sdFile', 'Choose the file (PDF, photo or document)', { accept: 'image/*,application/pdf,.doc,.docx,.xls,.xlsx' }) +
+        '<p class="notice error" id="sdErr" role="alert" hidden></p><div class="dv-row-btns"><button type="button" class="btn btn-dark" id="sdUp" data-section="' + section + '">Upload</button><button type="button" class="btn btn-sand" data-sdcancel>Cancel</button></div></div>' :
+        '<button type="button" class="btn btn-outline dv-addsvc" data-sdopen="' + section + '">+ Add a document</button>';
+    };
+    var docsIn = function (s) { return d.docs.filter(function (x) { return x.section === s; }); };
+    body += sdSection('Employment', 'Contract, job description, letters', docsIn('employment').map(sdDocRow).join('') + upForm('employment'));
+    // tickets
+    var tk = '';
+    d.pending.forEach(function (t) { tk += '<div class="sd-wait"><span><b>Renewal waiting:</b> ' + esc(t.type) + ', uploaded ' + esc(t.added) + '</span><a href="#/ticket/' + encodeURIComponent(t.id) + '">Review</a></div>'; });
+    tk += d.current.map(function (t) {
+      return '<div class="sd-tk"><span class="sd-tk-name"><b>' + esc(t.type) + '</b><span class="small muted">' + esc(t.number || '') + '</span></span>' +
+        '<span>' + sdTkStatus(t) + '</span><span class="sd-tk-acts">' + (t.frontUrl ? '<a href="' + esc(t.frontUrl) + '" target="_blank" rel="noopener" aria-label="Front">' + I.doc + '</a>' : '') +
+        (t.backUrl ? '<a href="' + esc(t.backUrl) + '" target="_blank" rel="noopener" aria-label="Back">' + I.doc + '</a>' : '') +
+        '<button type="button" class="link-btn" data-sdrenew="' + esc(t.id) + '">Renew</button><button type="button" class="dv-x" data-sdtkrm="' + esc(t.id) + '" aria-label="Remove ' + esc(t.type) + '">' + I.x + '</button></span></div>';
+    }).join('');
+    if (!d.current.length && !d.pending.length) tk += '<p class="small muted">No licences or tickets yet.</p>';
+    tk += sd.tk ? sdTicketForm('sdT', sd.tk, d.types, false) : '<button type="button" class="btn btn-outline dv-addsvc" id="sdTNew">+ Add a licence or ticket</button>';
+    if (d.history.length) tk += '<details class="sd-hist"><summary class="small">' + d.history.length + ' older ' + (d.history.length === 1 ? 'certificate' : 'certificates') + '</summary>' +
+      d.history.map(function (t) { return '<div class="sd-file"><a href="' + esc(t.frontUrl) + '" target="_blank" rel="noopener">' + I.doc + esc(t.type) + '</a><span class="small muted">' + (t.expires ? 'expired ' + esc(dvFmtDate(t.expires)) : '') + '</span></div>'; }).join('') + '</details>';
+    body += sdSection('Licences and tickets', 'Expiry dates send reminders', tk);
+    var notes = docsIn('notes').map(sdDocRow).join('');
+    if (sd.open === 'write') notes += '<div class="sd-tform stack" style="gap:10px"><div class="st-grid2"><div class="field"><label for="sdNTitle">Title</label><input id="sdNTitle" value="Meeting notes"></div>' +
+      '<div class="field"><label for="sdNDate">Date</label><input id="sdNDate" type="date" value="' + esc(todayStr()) + '"></div></div>' +
+      '<div class="field"><label for="sdNText">Notes</label><textarea id="sdNText" rows="7"></textarea></div><p class="notice error" id="sdNErr" role="alert" hidden></p>' +
+      '<div class="dv-row-btns"><button type="button" class="btn btn-dark" id="sdNSave">Save as a Google Doc</button><button type="button" class="btn btn-sand" data-sdcancel>Cancel</button></div></div>';
+    else if (sd.open === 'notes') notes += upForm('notes');
+    else notes += '<div class="dv-row-btns"><button type="button" class="btn btn-outline" data-sdopen="write">+ Write notes</button><button type="button" class="btn btn-outline" data-sdopen="notes">+ Upload notes</button></div>';
+    body += sdSection('Meeting notes', 'Only Simon and Troy', notes);
+    body += sdSection('Other', '', docsIn('other').map(sdDocRow).join('') + upForm('other'));
+    return h + '<div class="dv-card-body">' + body + '</div><div class="dv-card-foot"><div class="dv-lockline" style="margin:0">' + I.lock + '<span>Saved to Drive › Management › BLINDMASTER PEOPLE › Staff files › ' + esc(p.name) + '. Shared with Simon and Troy only. ' +
+      esc(firstName(p.name)) + ' sees only their own licences and tickets.' + (d.folderUrl ? ' <a href="' + esc(d.folderUrl) + '" target="_blank" rel="noopener">Open the folder</a>' : '') + '</span></div></div>';
+  }
+  function sdLoad(email, force) {
+    if (sd.docs[email] && !force) return Promise.resolve(sd.docs[email]);
+    return api({ action: 'staffDocs', email: email }).then(function (r) { sd.docs[email] = r.docs; return r.docs; });
+  }
+  function sdRefresh(p) {
+    return Promise.all([sdLoad(p.email, true), dvLoad(true)]).then(function () { if (route().name === 'staff' && route().arg === p.email) drawStaff(p.email, 'docs'); });
+  }
+  function dvBindDocs(p) {
+    if (!sd.docs[p.email]) { sdLoad(p.email).then(function () { if (route().name === 'staff' && route().arg === p.email) drawStaff(p.email, 'docs'); }, function (e) { showError(e); }); return; }
+    var redraw = function () { drawStaff(p.email, 'docs'); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sdopen]'), function (b) { b.onclick = function () { sd.open = b.getAttribute('data-sdopen'); sd.tk = null; redraw(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sdcancel]'), function (b) { b.onclick = function () { sd.open = null; redraw(); }; });
+    sdWatchFile('sdFile', 'Choose the file (PDF, photo or document)');
+    var up = document.getElementById('sdUp');
+    if (up) up.onclick = function () {
+      var err = document.getElementById('sdErr'), inp = document.getElementById('sdFile');
+      if (!inp.files || !inp.files[0]) { err.textContent = 'Choose a file first.'; err.hidden = false; return; }
+      up.disabled = true; up.textContent = 'Uploading…'; err.hidden = true;
+      sdReadFile(inp).then(function (f) {
+        return apiPost({ action: 'docUpload', email: p.email, section: up.getAttribute('data-section'), title: document.getElementById('sdTitle').value, date: document.getElementById('sdDate').value, name: f.name, mime: f.mime, data: f.data });
+      }).then(function () { sd.open = null; return sdRefresh(p); }).catch(function (e) { err.textContent = e.message; err.hidden = false; up.disabled = false; up.textContent = 'Upload'; });
+    };
+    var ns = document.getElementById('sdNSave');
+    if (ns) ns.onclick = function () {
+      var err = document.getElementById('sdNErr'); ns.disabled = true; ns.textContent = 'Saving…'; err.hidden = true;
+      apiPost({ action: 'noteWrite', email: p.email, title: document.getElementById('sdNTitle').value, date: document.getElementById('sdNDate').value, text: document.getElementById('sdNText').value })
+        .then(function () { sd.open = null; return sdRefresh(p); }).catch(function (e) { err.textContent = e.message; err.hidden = false; ns.disabled = false; ns.textContent = 'Save as a Google Doc'; });
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sdrm]'), function (b) {
+      b.onclick = function () { if (!confirm('Take this off the list? The file stays in ' + firstName(p.name) + '\'s Drive folder.')) return; apiPost({ action: 'docRemove', id: b.getAttribute('data-sdrm') }).then(function () { return sdRefresh(p); }).catch(function (e) { alert(e.message); }); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sdtkrm]'), function (b) {
+      b.onclick = function () { if (!confirm('Remove this licence or ticket from the list? The photo stays in the Drive folder.')) return; apiPost({ action: 'ticketRemove', id: b.getAttribute('data-sdtkrm') }).then(function () { return sdRefresh(p); }).catch(function (e) { alert(e.message); }); };
+    });
+    var tn = document.getElementById('sdTNew');
+    if (tn) tn.onclick = function () { sd.tk = { type: 'Driver licence' }; sd.open = null; redraw(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sdrenew]'), function (b) {
+      b.onclick = function () { var t = sd.docs[p.email].current.filter(function (x) { return x.id === b.getAttribute('data-sdrenew'); })[0]; sd.tk = { type: t.type, number: t.number, renewOf: t.id }; sd.open = null; redraw(); };
+    });
+    sdBindTicketForm('sdT', function (t) {
+      return apiPost(Object.assign({ action: 'ticketSave', email: p.email }, t)).then(function () { sd.tk = null; return sdRefresh(p); });
+    }, function () { sd.tk = null; redraw(); });
+  }
+
+  /* Approve a renewed ticket */
+  function renderTicket(id) {
+    if (state.user && !isManagerUser()) return dvNoAccess();
+    app.innerHTML = dvPage('<section class="section"><p class="muted">Loading the ticket…</p></section>', ['#/staff', 'Staff']);
+    api({ action: 'ticket', id: id }).then(function (d) { drawTicket(d.ticket); }, function (e) { if (e.auth) return showError(e); showError(e, function () { renderTicket(id); }); });
+  }
+  function drawTicket(t, done) {
+    var img = function (src, label, url) { return src ? '<a class="sd-photo" href="' + esc(url || src) + '" target="_blank" rel="noopener"><img src="' + src + '" alt="' + esc(label) + '"><span>' + esc(label) + '</span></a>' : ''; };
+    var body = '<div class="sd-approve"><section class="hero"><span class="small" style="font-weight:700">' + (t.status === 'Pending' ? 'Waiting for you or ' + (myEmailSafe() === 'troy@blindmaster.com.au' ? 'Simon' : 'Troy') : esc(t.status === 'Current' ? 'Approved' : t.status) + (t.decidedBy ? ' by ' + esc(t.decidedBy) : '')) + ' · sent ' + esc(t.added) + '</span>' +
+      '<h1>' + esc(t.name) + ': ' + esc(t.type.toLowerCase()) + '</h1></section>';
+    if (done) body += '<section class="section"><p class="notice">' + esc(done) + '</p><a class="btn btn-sand" href="#/staff/' + encodeURIComponent(t.email) + '/docs">Open ' + esc(firstName(t.name)) + '\'s documents</a></section>';
+    else {
+      body += '<section class="section sd-photos">' + (img(t.front, 'Front', t.frontUrl) || '<p class="muted">No photo.</p>') + img(t.back, 'Back', t.backUrl) + '</section>';
+      body += '<section class="section"><dl class="sd-dl"><dt>Ticket</dt><dd><b>' + esc(t.type) + (t.number ? ' · ' + esc(t.number) : '') + '</b></dd>' +
+        (t.issued ? '<dt>Issued</dt><dd>' + esc(dvFmtDate(t.issued)) + '</dd>' : '') + '<dt>Expires</dt><dd><b>' + esc(t.expires ? dvFmtDate(t.expires) : 'No expiry') + '</b></dd>' +
+        '<dt>Replaces</dt><dd>' + (t.replaces ? esc(t.replaces.type) + (t.replaces.expires ? ', ' + (t.replaces.level === 'bad' ? 'expired ' : 'expires ') + esc(dvFmtDate(t.replaces.expires)) : '') : 'Nothing (new ticket)') + '</dd></dl>' +
+        '<p class="small muted">Check the name, the dates and the number match the photo before approving.</p></section>';
+      if (t.status === 'Pending') body += '<section class="section stack" style="gap:6px"><label for="tkNote" style="font-size:13px;font-weight:700">Note to ' + esc(firstName(t.name)) + ' (needed if you send it back)</label><input id="tkNote" placeholder="e.g. The photo is blurry, please retake it">' +
+        '<p class="notice error" id="tkErr" role="alert" hidden></p><div class="sd-decide"><button type="button" class="btn btn-outline" id="tkBack">Send back</button><button type="button" class="btn btn-dark" id="tkOk">Approve</button></div></section>';
+      else body += '<section class="section"><p class="notice">This one has already been dealt with' + (t.decidedBy ? ' by ' + esc(t.decidedBy) : '') + '.</p></section>';
+    }
+    app.innerHTML = dvPage(body + '</div>', ['#/staff', 'Staff']);
+    var decide = function (decision, btn) {
+      var err = document.getElementById('tkErr'); err.hidden = true;
+      document.getElementById('tkOk').disabled = document.getElementById('tkBack').disabled = true; btn.textContent = 'Saving…';
+      apiPost({ action: 'ticketDecide', id: t.id, decision: decision, note: document.getElementById('tkNote').value }).then(function () {
+        delete sd.docs[t.email]; dv.data = null;
+        drawTicket(t, decision === 'approve' ? 'Approved. Saved to ' + firstName(t.name) + '\'s folder with the old one kept as history. ' + firstName(t.name) + ' has been emailed.' : 'Sent back. ' + firstName(t.name) + ' has been emailed your note and can upload it again.');
+      }).catch(function (e) { err.textContent = e.message; err.hidden = false; document.getElementById('tkOk').disabled = document.getElementById('tkBack').disabled = false; btn.textContent = decision === 'approve' ? 'Approve' : 'Send back'; });
+    };
+    var ok = document.getElementById('tkOk'), back = document.getElementById('tkBack');
+    if (ok) ok.onclick = function () { decide('approve', ok); };
+    if (back) back.onclick = function () { decide('back', back); };
+  }
+
+  /* My licences and tickets (everyone) */
+  var mt = { data: null, form: null, msg: '' };
+  function renderMyTickets() {
+    if (!mt.data) app.innerHTML = staffPage('me', '<section class="section"><p class="muted">Loading your licences and tickets…</p></section>', ['#/me', 'Me']);
+    api({ action: 'myTickets' }).then(function (d) { state.user = d.user || state.user; mt.data = d.tickets; drawMyTickets(); }, function (e) { if (mt.data) drawMyTickets(e.message); else showError(e, renderMyTickets); });
+  }
+  function drawMyTickets(err) {
+    var d = mt.data, u = state.user || {};
+    var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc(u.name || '') + '</span><h1>My licences and tickets</h1><span class="small">Keep these current so you can work on every job.</span></section>';
+    body += '<section class="section sd-mine">';
+    if (!d.current.length && !d.waiting.length) body += '<p class="muted">Nothing on file yet. Upload your licence and tickets below.</p>';
+    d.current.forEach(function (t) {
+      body += '<div class="sd-tk"><span class="sd-tk-name"><b>' + esc(t.type) + '</b><span class="small muted">' + esc(t.number || '') + '</span></span><span>' + sdTkStatus(t) + '</span>' +
+        '<span class="sd-tk-acts"><button type="button" class="link-btn" data-mtrenew="' + esc(t.type) + '">Renew</button></span></div>';
+    });
+    d.waiting.forEach(function (t) {
+      body += '<div class="sd-tk"><span class="sd-tk-name"><b>' + esc(t.type) + '</b><span class="small muted">' + (t.expires ? 'New one expires ' + esc(dvFmtDate(t.expires)) : 'Uploaded ' + esc(t.added)) + '</span></span><span>' + sdTkStatus(t) + '</span>' +
+        (t.status === 'Sent back' && t.note ? '<span class="sd-note">' + esc(t.decidedBy || '') + ': ' + esc(t.note) + '</span>' : '<span></span>') + '</div>';
+    });
+    body += '</section>';
+    if (mt.msg) body += '<div class="section"><p class="notice">' + esc(mt.msg) + '</p></div>';
+    body += '<section class="section">' + (mt.form ? sdTicketForm('mt', mt.form, d.types, true) : '<button type="button" class="btn btn-dark" id="mtNew">Upload a renewed or new ticket</button>') + '</section>';
+    if (err) body += '<div class="section">' + stErr(err) + '</div>';
+    body += '<p class="small muted section">You only see your own licences and tickets. You\'ll get an email 30 days and 7 days before one expires.</p><div style="height:24px"></div>';
+    app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    var nb = document.getElementById('mtNew');
+    if (nb) nb.onclick = function () { mt.form = { type: (d.current.filter(function (t) { return t.level !== 'ok'; })[0] || {}).type || 'Driver licence' }; mt.msg = ''; drawMyTickets(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mtrenew]'), function (b) { b.onclick = function () { mt.form = { type: b.getAttribute('data-mtrenew') }; mt.msg = ''; drawMyTickets(); var f = document.getElementById('mtNum'); if (f) f.scrollIntoView({ block: 'center' }); }; });
+    sdBindTicketForm('mt', function (t) {
+      return apiPost(Object.assign({ action: 'ticketSubmit' }, t)).then(function (r) { mt.data = r.tickets; mt.form = null; mt.msg = 'Sent. Simon and Troy have been told. You\'ll get an email when it\'s approved.'; state.stHome = null; drawMyTickets(); });
+    }, function () { mt.form = null; drawMyTickets(); });
+  }
+
   function dvComingUp(list) {
     var out = [];
     list.forEach(function (v) {
