@@ -15,7 +15,7 @@ window.FIELD_APP_CONFIG = {
   ENVIRONMENT: 'Sandbox',
 
   // Daily Installation Report form (opened from the end-of-day card). {email} and {date} are filled in.
-  DIR_FORM_URL: 'https://blindmaster-pty-ltd.github.io/Blindmaster-Job-Report/blindmaster-daily-report.html',
+  DIR_FORM_URL: 'https://blindmaster-pty-ltd.github.io/Blindmaster-Job-Report/blindmaster-daily-report.html?date={date}&installer={name}',
 
   // Warehouse address, used as the route start
   WAREHOUSE: '4/10 Orchard Road, Brookvale NSW 2100',

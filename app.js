@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '31'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '32'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -1005,7 +1005,8 @@
   function dirUrl(date) {
     var u = CFG.DIR_FORM_URL || '';
     var email = (state.user && state.user.email) || '';
-    return u.indexOf('{') >= 0 ? u.replace('{email}', encodeURIComponent(email)).replace('{date}', date) : u;
+    var name = (state.user && state.user.name) || '';
+    return u.indexOf('{') >= 0 ? u.replace('{email}', encodeURIComponent(email)).replace('{date}', date).replace('{name}', encodeURIComponent(name)) : u;
   }
 
   function dayFooter(day, date, appts) {
