@@ -931,3 +931,11 @@ a.dv-row:hover { background: #F2F0EC; }
 .ask-form { display: flex; gap: 8px; }
 .ask-form input { flex: 1; min-height: 48px; }
 .ask-bar .link-btn { align-self: flex-start; min-height: 32px; }
+
+.ask-act { margin-top: 10px; padding: 12px; background: var(--natural-white); display: flex; flex-direction: column; gap: 8px; border-left: 4px solid #B4772A; }
+.ask-act-title { font-size: 14px; }
+.ask-act-row { display: grid; grid-template-columns: 96px 1fr; gap: 10px; font-size: 14px; }
+.ask-act-row span { color: var(--ink-muted); font-weight: 600; }
+.ask-act-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ask-act-done { margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 700; color: #2E7D4F; }
+.ask-act-done svg { width: 18px; height: 18px; }

@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '32'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '33'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -2860,8 +2860,8 @@
   function askSuggestions() {
     if (isManagerUser()) return ['What needs me today?', 'Tickets expiring in the next 60 days', 'Vehicles due for rego or service', 'Who\'s on leave this month?'];
     if (isOffice()) return ['Unconfirmed bookings this week', 'Who\'s free Thursday afternoon?', 'Who\'s away next week?', 'Jobs in Manly this month'];
-    if (canSchedule()) return ['My consults this week', 'Jobs I\'m booked on next week', 'My receipts this month', 'My leave'];
-    return ['What\'s on tomorrow?', 'Where is my next job?', 'My receipts this month', 'When do my tickets expire?'];
+    if (canSchedule()) return ['My consults this week', 'Jobs I\'m booked on next week', 'Request a day off', 'My leave'];
+    return ['What\'s on tomorrow?', 'Where is my next job?', 'Request a day off', 'When do my tickets expire?'];
   }
   function askMd(text) {
     var lines = esc(text || '').split('\n'), out = [], list = false;
@@ -2882,10 +2882,33 @@
     if (list) out.push('</ul>');
     return out.join('');
   }
+  function askActions(t, ti) {
+    return (t.actions || []).map(function (a, ai) {
+      var rows = a.rows.map(function (r) { return '<div class="ask-act-row"><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>'; }).join('');
+      var foot;
+      if (a.status === 'done') foot = '<p class="ask-act-done">' + I.check + esc(a.doneText) + (a.link ? ' <a href="' + a.link + '">Open</a>' : '') + '</p>';
+      else if (a.status === 'cancelled') foot = '<p class="small muted" style="margin:0">Cancelled. Nothing was sent.</p>';
+      else foot = (a.note ? '<p class="small" style="margin:0">' + esc(a.note) + '</p>' : '') + (a.error ? '<p class="notice error" style="margin:0">' + esc(a.error) + '</p>' : '') +
+        '<div class="ask-act-btns"><button type="button" class="btn btn-dark" data-askok="' + ti + ':' + ai + '"' + (a.status === 'busy' ? ' disabled' : '') + '>' + esc(a.status === 'busy' ? 'Sending…' : a.confirmLabel || 'Confirm') + '</button>' +
+        '<button type="button" class="btn btn-sand" data-askno="' + ti + ':' + ai + '"' + (a.status === 'busy' ? ' disabled' : '') + '>Cancel</button></div>';
+      return '<div class="ask-act"><b class="ask-act-title">' + esc(a.title) + '</b>' + rows + foot + '</div>';
+    }).join('');
+  }
+  function askDoAction(ti, ai, ok) {
+    var a = ask.turns[ti] && ask.turns[ti].actions[ai];
+    if (!a || a.status === 'done' || a.status === 'busy') return;
+    if (!ok) { a.status = 'cancelled'; return renderAsk(); }
+    a.status = 'busy'; a.error = ''; renderAsk();
+    apiPost(a.payload).then(function (r) {
+      a.status = 'done';
+      if (a.kind === 'leave') { a.doneText = 'Sent. Simon or Troy will approve it and you\'ll get an email.'; a.link = r.id ? '#/leave/' + encodeURIComponent(r.id) : '#/leave'; state.stHome = null; }
+      else { a.doneText = 'Saved to your to-do list.'; a.link = '#/todo'; if (typeof td !== 'undefined') td.data = null; }
+    }, function (e) { a.status = ''; a.error = e.message; }).then(renderAsk);
+  }
   function renderAsk() {
     var u = state.user || {};
-    var convo = ask.turns.map(function (t) {
-      return '<div class="ask-q">' + esc(t.q) + '</div>' + (t.a ? '<div class="ask-a' + (t.err ? ' is-err' : '') + '"><span class="ask-lbl">' + (t.err ? I.lock + 'Couldn\'t answer' : I.spark + 'Ask Jan') + '</span>' + (t.err ? '<p>' + esc(t.a) + '</p>' : askMd(t.a)) + '</div>' :
+    var convo = ask.turns.map(function (t, ti) {
+      return '<div class="ask-q">' + esc(t.q) + '</div>' + (t.a ? '<div class="ask-a' + (t.err ? ' is-err' : '') + '"><span class="ask-lbl">' + (t.err ? I.lock + 'Couldn\'t answer' : I.spark + 'Ask Jan') + '</span>' + (t.err ? '<p>' + esc(t.a) + '</p>' : askMd(t.a)) + askActions(t, ti) + '</div>' :
         '<div class="ask-a is-busy"><span class="ask-lbl">' + I.spark + 'Ask Jan</span><p class="muted">Looking that up…</p></div>');
     }).join('');
     var body = '<div class="ask-page"><section class="ask-head"><h1>' + I.spark + 'Ask Jan</h1><span class="small">Ask about a job, a customer, your day, your tickets. Answers come only from what you can already see in the app.</span></section>' +
@@ -2902,6 +2925,9 @@
     form.onsubmit = function (e) { e.preventDefault(); askSend(inp.value); };
     Array.prototype.forEach.call(document.querySelectorAll('[data-askq]'), function (b) { b.onclick = function () { askSend(b.getAttribute('data-askq')); }; });
     var clr = document.getElementById('askClear'); if (clr) clr.onclick = function () { ask.turns = []; renderAsk(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-askok],[data-askno]'), function (b) {
+      b.onclick = function () { var ok = b.hasAttribute('data-askok'), k = (b.getAttribute(ok ? 'data-askok' : 'data-askno')).split(':'); askDoAction(Number(k[0]), Number(k[1]), ok); };
+    });
   }
   function askSend(q) {
     q = String(q || '').trim();
@@ -2910,7 +2936,7 @@
     var turn = { q: q, a: '' };
     ask.turns.push(turn); ask.busy = true; ask.draft = '';
     if (route().name === 'ask') renderAsk();
-    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; }, function (e) { turn.a = e.message; turn.err = true; })
+    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; turn.actions = r.actions || []; }, function (e) { turn.a = e.message; turn.err = true; })
       .then(function () { ask.busy = false; if (route().name === 'ask') renderAsk(); });
   }
 
