@@ -2798,6 +2798,13 @@
         mainRole: document.getElementById('dvMain').value,
         active: document.getElementById('dvStatus').value === '1'
       };
+      var added = person.roles.filter(function (r) { return (p.roles || []).indexOf(r) < 0; });
+      var turnedOn = person.active && p.active === false;
+      if (added.length || turnedOn) {
+        var labels = added.map(function (k) { var r = dv.data.roles.filter(function (x) { return x.key === k; })[0]; return r ? r.label : k; });
+        var who = person.name || person.email || 'this person';
+        if (!confirm((p.isNew ? 'Give ' + who + ' access to the app' : 'Raise ' + who + '\'s access') + (labels.length ? ': ' + labels.join(', ') : '') + '?\n\nSimon and Troy will both get an email about this change.')) return;
+      }
       err.hidden = true; btn.disabled = true; btn.textContent = 'Saving…';
       apiPost({ action: 'dirSave', person: person, isNew: !!p.isNew }).then(function (r) {
         return dvLoad(true).then(function () {
