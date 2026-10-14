@@ -1,0 +1,23 @@
+{
+  "name": "Ask Jan \u00b7 Blindmaster",
+  "short_name": "Ask Jan",
+  "start_url": "./ask-jan.html",
+  "scope": "./ask-jan.html",
+  "display": "standalone",
+  "background_color": "#404141",
+  "theme_color": "#404141",
+  "icons": [
+    {
+      "src": "ask-jan-icon-192.png?v=1",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "ask-jan-icon-512.png?v=1",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

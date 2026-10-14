@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '38'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '39'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -2889,8 +2889,18 @@
         '<span class="dv-who"><b>' + esc(p.name) + (p.manager ? ' <span class="dv-mgr">Manager</span>' : '') + '</b><span>' + esc(p.email) + '</span></span>' +
         '<span class="dv-chips">' + p.roles.map(function (r) { return '<span class="dv-chip">' + esc(dvRoleLabel(r)) + '</span>'; }).join('') + '</span>' +
         '<span class="dv-cell">' + (p.tickets ? dvSt(p.tickets, p.tickets.text) + (p.tickets.pending ? ' <span class="dv-chip sd-chip">To approve</span>' : '') : '') + '</span>' +
-        '<span class="dv-cell">' + (p.mobile ? esc(p.mobile) : dvMissing()) + '</span></a>';
+        '<span class="dv-cell">' + (p.mobile ? esc(p.mobile) : dvMissing()) + '</span>' +
+        '<span class="dv-cell dv-ask">' + dvAskCell(p) + '</span></a>';
     }).join('');
+  }
+  function dvAskCell(p) {
+    var a = p.ask; if (!a) return '';
+    return '<b' + (a.today >= a.limit ? ' class="dv-ask-full"' : '') + '>' + a.today + ' / ' + a.limit + '</b><span class="small muted">' + a.month + ' in 30 days</span>';
+  }
+  function dvAskSummary() {
+    var t = 0, m = 0, who = 0;
+    dv.data.people.forEach(function (p) { if (p.ask) { t += p.ask.today; m += p.ask.month; if (p.ask.today) who++; } });
+    return ' · Ask Jan today: ' + t + (t === 1 ? ' question' : ' questions') + (who ? ' from ' + who + (who === 1 ? ' person' : ' people') : '') + ' (' + m + ' in 30 days)';
   }
   function dvPeopleAlerts() {
     var pend = dv.data.pendingTickets || [];
@@ -2905,11 +2915,11 @@
     var missing = all.filter(function (p) { return !p.mobile || !p.address; }).length;
     var f = function (k, l) { return '<button type="button" role="tab" data-dvf="' + k + '" aria-selected="' + (dv.filter === k) + '">' + l + '</button>'; };
     return dvTabs('people') +
-      '<div class="dv-head"><div><h1>Staff directory</h1>' + dvLock() + '<span class="small muted">' + all.length + ' people' + (missing ? ' · ' + missing + ' missing details' : '') + '</span></div>' +
+      '<div class="dv-head"><div><h1>Staff directory</h1>' + dvLock() + '<span class="small muted">' + all.length + ' people' + (missing ? ' · ' + missing + ' missing details' : '') + esc(dvAskSummary()) + '</span></div>' +
       '<a class="btn btn-dark" href="#/staff/new">+ Add a person</a></div>' + dvPeopleAlerts() +
       '<div class="dv-tools"><input type="search" id="dvQ" placeholder="Search name, email, suburb" value="' + esc(dv.q) + '">' +
       '<div class="dv-filter" role="tablist">' + f('all', 'Everyone') + f('office', 'Office') + f('installers', 'Installers') + f('off', 'Switched off') + '</div></div>' +
-      '<div class="dv-table" role="table" aria-label="Staff"><div class="dv-row dv-prow dv-th" role="row"><span>Name · sign-in email</span><span>Access</span><span>Licences and tickets</span><span>Mobile</span></div>' +
+      '<div class="dv-table" role="table" aria-label="Staff"><div class="dv-row dv-prow dv-th" role="row"><span>Name · sign-in email</span><span>Access</span><span>Licences and tickets</span><span>Mobile</span><span>Ask Jan · today</span></div>' +
       '<div id="dvRows">' + dvPeopleRows(selEmail) + '</div></div>' +
       '<p class="small muted dv-foot">Saved in the sheet <a href="' + esc(dv.data.sheetUrl) + '" target="_blank" rel="noopener">Field App – Staff directory (private)</a>, in Simon\'s Drive.</p>';
   }
@@ -2943,6 +2953,8 @@
     h += '<div class="st-grid2"><div class="field"><span class="lbl">Vehicle</span>' + (p.vehicle ? '<a class="dv-veh" href="#/vehicles/' + encodeURIComponent(p.vehicle.id) + '">' + esc(p.vehicle.model) + (p.vehicle.plate ? ' · ' + esc(p.vehicle.plate) : '') + '</a>' : '<span class="small muted dv-veh-none">None. Set the driver on the Vehicles page.</span>') + '</div>' +
       '<div class="field"><label for="dvEmerg">Emergency contact</label><input id="dvEmerg" value="' + esc(p.emergency) + '" placeholder="Name and phone"></div></div>';
     h += '<div class="field"><label for="dvNotes">Notes</label><input id="dvNotes" value="' + esc(p.notes) + '" placeholder="Optional"></div>';
+    if (!p.isNew && p.ask) h += '<b class="dv-sec">Ask Jan usage</b><div class="dv-askuse"><span><b>' + p.ask.today + ' of ' + p.ask.limit + '</b>today</span><span><b>' + p.ask.week + '</b>last 7 days</span><span><b>' + p.ask.month + '</b>last 30 days</span><span><b>' + esc(p.ask.last ? dvFmtDate(p.ask.last.slice(0, 10)) + p.ask.last.slice(10) : 'Never') + '</b>last asked</span></div>' +
+      '<span class="small muted">Counts the app and the Ask Jan page together. Daily limit ' + p.ask.limit + ': 100 for Simon, Troy and Jan, 50 for everyone else.</span>';
     h += '<b class="dv-sec">Access in the app · tick all that apply</b><div class="dv-ticks">' + roles.map(function (r) { return tick('dvR-' + r.key, p.roles.indexOf(r.key) >= 0, r.label, descs[r.key] || ''); }).join('') + '</div>';
     h += '<div class="dv-lockline">' + I.lock + '<span>' + (p.manager ? '<b>Manager</b> · approves leave, sees everyone\'s hours, this directory and vehicles.' : 'No manager access.') +
       ' Manager access is locked to Simon and Troy and can\'t be changed in the app.</span></div>';
@@ -3041,7 +3053,8 @@
     return dvSt(a, v.nextServiceDate ? dvFmtDate(v.nextServiceDate) : 'At ' + dvKm(v.nextServiceKm));
   }
   /* Ask Jan: ask a question, find anything in the app */
-  var ask = { turns: [], busy: false, draft: '' };
+  var ask = { turns: [], busy: false, draft: '', quota: null, quotaAsked: false };
+  function askQuotaText() { var q = ask.quota; return q ? q.left + (q.left === 1 ? ' question' : ' questions') + ' left today (of ' + q.limit + ')' : ''; }
   function askSuggestions() {
     if (isManagerUser()) return ['What needs me today?', 'Tickets expiring in the next 60 days', 'Vehicles due for rego or service', 'Who\'s on leave this month?'];
     if (isOffice()) return ['Unconfirmed bookings this week', 'Who\'s free Thursday afternoon?', 'Who\'s away next week?', 'Jobs in Manly this month'];
@@ -3098,7 +3111,7 @@
       return '<div class="ask-q">' + esc(t.q) + '</div>' + (t.a ? '<div class="ask-a' + (t.err ? ' is-err' : '') + '"><span class="ask-lbl">' + (t.err ? I.lock + 'Couldn\'t answer' : I.spark + 'Ask Jan') + '</span>' + (t.err ? '<p>' + esc(t.a) + '</p>' : askMd(t.a)) + askActions(t, ti) + '</div>' :
         '<div class="ask-a is-busy"><span class="ask-lbl">' + I.spark + 'Ask Jan</span><p class="muted">Looking that up…</p></div>');
     }).join('');
-    var body = '<div class="ask-page"><section class="ask-head"><h1>' + I.spark + 'Ask Jan</h1><span class="small">Ask about a job, a customer, your day, your tickets. Answers come only from what you can already see in the app.</span></section>' +
+    var body = '<div class="ask-page"><section class="ask-head"><h1>' + I.spark + 'Ask Jan</h1><span class="small">Ask about a job, a customer, your day, your tickets. Answers come only from what you can already see in the app.</span>' + (ask.quota ? '<span class="small ask-quota" style="font-weight:700">' + esc(askQuotaText()) + '</span>' : '') + '</section>' +
       '<section class="ask-convo" id="askConvo">' + (convo || '<p class="muted ask-empty">Try one of these, or type your own question.</p>') + '</section>' +
       '<section class="ask-bar"><div class="ask-chips">' + askSuggestions().map(function (s) { return '<button type="button" class="ask-chip" data-askq="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') + '</div>' +
       '<form class="ask-form" id="askForm"><input id="askIn" autocomplete="off" placeholder="Ask about a job, a customer, your day…" value="' + esc(ask.draft) + '"' + (ask.busy ? ' disabled' : '') + '>' +
@@ -3112,6 +3125,7 @@
     form.onsubmit = function (e) { e.preventDefault(); askSend(inp.value); };
     Array.prototype.forEach.call(document.querySelectorAll('[data-askq]'), function (b) { b.onclick = function () { askSend(b.getAttribute('data-askq')); }; });
     var clr = document.getElementById('askClear'); if (clr) clr.onclick = function () { ask.turns = []; renderAsk(); };
+    if (!ask.quotaAsked) { ask.quotaAsked = true; api({ action: 'askQuota' }).then(function (r) { ask.quota = r.quota; if (route().name === 'ask' && !ask.busy) renderAsk(); }, function () {}); }
     Array.prototype.forEach.call(document.querySelectorAll('[data-askundo]'), function (b) {
       b.onclick = function () {
         var k = b.getAttribute('data-askundo').split(':'), a = ask.turns[+k[0]].actions[+k[1]];
@@ -3130,7 +3144,7 @@
     var turn = { q: q, a: '' };
     ask.turns.push(turn); ask.busy = true; ask.draft = '';
     if (route().name === 'ask') renderAsk();
-    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; turn.actions = r.actions || []; if (turn.actions.some(function (a) { return a.kind === 'todo'; }) && typeof td !== 'undefined') td.data = null; }, function (e) { turn.a = e.message; turn.err = true; })
+    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; turn.actions = r.actions || []; if (r.quota) ask.quota = r.quota; if (turn.actions.some(function (a) { return a.kind === 'todo'; }) && typeof td !== 'undefined') td.data = null; }, function (e) { turn.a = e.message; turn.err = true; })
       .then(function () { ask.busy = false; if (route().name === 'ask') renderAsk(); });
   }
 

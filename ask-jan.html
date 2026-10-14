@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#404141">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ask Jan">
+<title>Blindmaster | Ask Jan</title>
+<link rel="manifest" href="ask-jan.webmanifest?v=1">
+<link rel="icon" href="ask-jan-favicon.ico?v=1" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="ask-jan-icon-192.png?v=1">
+<link rel="apple-touch-icon" sizes="180x180" href="ask-jan-icon-180.png?v=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root { --grey: #404141; --blue: #9DBCD0; --sand: #E9E6E0; --white: #FAFAFA; --ink: #404141; --muted: #5A5B5B; --err: #B03A2E; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--white); color: var(--ink); font-family: Manrope, system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  button, input { font-family: inherit; font-size: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--grey); outline-offset: 2px; }
+  .hidden { display: none !important; }
+  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  /* sign in */
+  #signin { min-height: 100%; background: var(--grey); color: var(--white); display: flex; flex-direction: column; }
+  #signin .in { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: 72px 28px 32px; display: flex; flex-direction: column; gap: 22px; }
+  #signin .logo { width: 132px; height: 132px; display: block; }
+  #signin h1 { margin: 0 0 8px; font-size: 30px; line-height: 36px; }
+  #signin p { margin: 0; color: var(--sand); }
+  #signin .small { font-size: 13px; line-height: 19px; }
+  #gsiBtn { min-height: 44px; }
+  #signin .tip { background: var(--blue); color: var(--grey); font-size: 13px; line-height: 19px; font-weight: 500; padding: 16px 28px 28px; }
+  #signin .tip .in2 { max-width: 520px; margin: 0 auto; display: flex; gap: 10px; }
+  .notice { padding: 12px 14px; font-size: 14px; font-weight: 500; background: var(--sand); color: var(--ink); }
+  .notice.err { background: #F3E9E9; border-left: 4px solid var(--err); }
+
+  /* app */
+  #app { height: 100%; display: flex; flex-direction: column; }
+  header.top { flex-shrink: 0; position: relative; background: var(--grey); color: var(--white); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; padding-top: env(safe-area-inset-top); min-height: 64px; }
+  header.top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--blue); }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+  .brand img { width: 34px; height: 34px; display: block; }
+  .who { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 12px; text-align: right; }
+  .who button { background: none; border: 0; padding: 4px 0; text-decoration: underline; font-size: 12px; color: var(--white); }
+  .who .q { color: var(--blue); font-weight: 700; }
+  .body { flex: 1; display: flex; min-height: 0; }
+  aside.side { display: none; }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  #convo { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .sep { font-size: 12px; color: var(--muted); text-align: center; }
+  .sep button { background: none; border: 0; padding: 0; text-decoration: underline; font-size: 12px; color: var(--muted); }
+  .uq { align-self: flex-end; max-width: 82%; padding: 10px 14px; background: var(--grey); color: var(--white); font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ans { align-self: flex-start; max-width: 92%; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: var(--sand); border-left: 4px solid var(--blue); overflow-wrap: anywhere; }
+  .ans.err { background: #F3E9E9; border-left-color: var(--err); }
+  .ans .lbl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .ans p { margin: 0; }
+  .ans ul { margin: 0; padding-left: 20px; }
+  .ans a { color: var(--ink); font-weight: 700; }
+  .ans a.fa::after { content: " ↗"; font-weight: 700; }
+  .busy p { color: var(--muted); }
+  .act { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--white); }
+  .act .t { font-weight: 700; font-size: 14px; }
+  .act .row { display: flex; gap: 10px; font-size: 13px; }
+  .act .row span { width: 82px; flex-shrink: 0; color: var(--muted); font-weight: 700; }
+  .act .btns { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .btn { min-height: 44px; padding: 0 16px; border: 0; font-weight: 700; font-size: 14px; }
+  .btn-dark { background: var(--grey); color: var(--white); }
+  .btn-sand { background: var(--sand); }
+  .btn-line { background: var(--white); border: 1.5px solid var(--grey); min-height: 36px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .done { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; margin: 0; }
+  .done > span { flex: 1; }
+  .done .btn-line { margin-top: -6px; }
+  .act .note { font-size: 13px; margin: 0; }
+  .bar { flex-shrink: 0; padding: 10px 16px 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--sand); display: flex; flex-direction: column; gap: 10px; background: var(--white); }
+  .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; min-height: 36px; padding: 0 12px; border: 1.5px solid var(--grey); background: var(--white); font-size: 13px; font-weight: 700; white-space: nowrap; }
+  form.ask { display: flex; gap: 8px; }
+  form.ask input { flex: 1; min-width: 0; min-height: 48px; padding: 0 12px; border: 0; background: var(--sand); font-size: 16px; }
+  .mic { width: 48px; min-height: 48px; border: 0; background: var(--sand); display: flex; align-items: center; justify-content: center; }
+  .mic.on { background: var(--grey); color: var(--white); outline: 3px solid var(--blue); }
+  .send { min-height: 48px; padding: 0 16px; border: 0; background: var(--grey); color: var(--white); font-weight: 700; }
+  .empty { color: var(--muted); }
+
+  /* desktop */
+  @media (min-width: 900px) {
+    aside.side { display: flex; flex-direction: column; gap: 10px; width: 300px; flex-shrink: 0; background: var(--sand); padding: 22px 20px; overflow-y: auto; }
+    aside.side b.h { font-size: 13px; letter-spacing: .02em; }
+    aside.side .sug { text-align: left; min-height: 40px; padding: 8px 12px; border: 0; background: var(--white); font-size: 14px; }
+    aside.side .rec { text-align: left; background: none; border: 0; padding: 4px 0; font-size: 13px; color: var(--muted); }
+    aside.side .grow { flex: 1; }
+    aside.side a { font-size: 13px; font-weight: 700; color: var(--ink); }
+    #convo { padding: 24px max(40px, calc(100% - 900px)) 24px 40px; }
+    .bar { padding-left: 40px; padding-right: 40px; }
+    .bar > * { max-width: 860px; }
+    .chips .mob { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIGN IN -->
+<div id="signin" class="hidden">
+  <div class="in">
+    <img class="logo" src="ask-jan-icon-512.png?v=1" alt="Ask Jan">
+    <div><h1>Ask Jan</h1><p>Find anything in the Field App: your jobs, customers, notes, receipts, leave and to-dos. Type or speak.</p></div>
+    <div id="gsiBtn"></div>
+    <div id="signinErr" class="notice err hidden" role="alert"></div>
+    <p class="small">Use your Blindmaster Google account. Same answers as the Ask Jan tab in the app: you only ever see what your own login can see.</p>
+  </div>
+  <div class="tip"><div class="in2"><b>Tip</b><span>Keep it on your home screen: iPhone Safari › Share › Add to Home Screen. Android Chrome › ⋮ › Add to Home screen.</span></div></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header class="top">
+    <span class="brand"><img src="ask-jan-icon-192.png?v=1" alt="">Ask Jan</span>
+    <span class="who"><span><b id="whoName"></b> · <button type="button" id="signOut">Sign out</button></span><span class="q" id="quota"></span></span>
+  </header>
+  <div class="body">
+    <aside class="side" aria-label="Suggestions">
+      <b class="h">TRY ASKING</b><div id="sideSug" style="display:flex;flex-direction:column;gap:8px"></div>
+      <b class="h" style="margin-top:18px">RECENT</b><div id="sideRec" style="display:flex;flex-direction:column"></div>
+      <span class="grow"></span>
+      <a href="./" target="_blank" rel="noopener">Open the Field App ↗</a>
+    </aside>
+    <main>
+      <div id="convo" aria-live="polite"></div>
+      <div class="bar">
+        <div class="chips" id="chips"></div>
+        <form class="ask" id="askForm" autocomplete="off">
+          <input id="askIn" placeholder="Ask about a job, a customer, your day…" enterkeyhint="send" aria-label="Your question">
+          <button type="button" class="mic" id="mic" aria-label="Speak your question" title="Speak"><svg class="i" viewBox="0 0 24 24" style="width:20px;height:20px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+          <button type="submit" class="send" id="sendBtn">Ask</button>
+        </form>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var CFG = window.FIELD_APP_CONFIG || {};
+  var API = CFG.API_URL, CLIENT = CFG.GOOGLE_CLIENT_ID;
+  var $ = function (id) { return document.getElementById(id); };
+  var SPARK = '<svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
+  var LOCK = '<svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px"><rect x="5" y="11" width="14" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  var TICK = '<svg class="i" viewBox="0 0 24 24" style="stroke-width:2.5"><path d="M4 12l5 5L20 6"/></svg>';
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function put(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  /* ---------- sign-in: Google once, then the Field App's own 90-day session ---------- */
+  var S = get('askjan-session') || {}; // { email, name, idToken, idExp, sess, sessExp, user }
+  var st = { turns: [], busy: false, quota: null };
+  function authParams() {
+    if (S.sess && S.sessExp > Date.now() + 60000) return { session: S.sess };
+    if (S.idToken && S.idExp * 1000 > Date.now() + 60000) return { idToken: S.idToken };
+    return null;
+  }
+  function keep(user) {
+    if (!user) return;
+    S.user = { email: user.email, name: user.name, role: user.role, roles: user.roles || [], manager: !!user.manager };
+    S.email = user.email; S.name = user.name;
+    if (user.session) { S.sess = user.session; S.sessExp = user.sessionExp; }
+    put('askjan-session', S);
+  }
+  function isAuthErr(msg) { return /sign in|sign-in|recognised|verified|blindmaster account|expired|switched off/i.test(msg || ''); }
+  function apiGet(params) {
+    var a = authParams(); if (!a) return Promise.reject(Object.assign(new Error('Please sign in.'), { auth: true }));
+    var q = Object.assign({}, params, a);
+    var url = API + '?' + Object.keys(q).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(q[k]); }).join('&');
+    return fetch(url, { redirect: 'follow' }).then(function (r) { return r.json(); }).then(done);
+  }
+  function apiPost(body) {
+    var a = authParams(); if (!a) return Promise.reject(Object.assign(new Error('Please sign in.'), { auth: true }));
+    return fetch(API, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({}, body, a)) })
+      .then(function (r) { return r.json(); }).then(done);
+  }
+  function done(d) {
+    if (!d.ok) { var e = new Error(d.error || 'Something went wrong.'); e.auth = isAuthErr(d.error); if (e.auth) signedOut(d.error); throw e; }
+    if (d.user) keep(d.user);
+    return d;
+  }
+  function decodeJwt(t) { try { return JSON.parse(decodeURIComponent(escape(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))))); } catch (e) { return {}; } }
+  function onCredential(resp) {
+    var c = decodeJwt(resp.credential);
+    if (S.email && c.email && String(c.email).toLowerCase() !== S.email) { put('askjan-turns-' + S.email, null); st.turns = []; }
+    S = { idToken: resp.credential, idExp: c.exp, email: String(c.email || '').toLowerCase(), name: c.name };
+    put('askjan-session', S);
+    $('signinErr').classList.add('hidden');
+    start();
+  }
+  function initGoogle() {
+    if (!(window.google && google.accounts && google.accounts.id)) { setTimeout(initGoogle, 200); return; }
+    google.accounts.id.initialize({ client_id: CLIENT, callback: onCredential, auto_select: true, cancel_on_tap_outside: false });
+    google.accounts.id.renderButton($('gsiBtn'), { theme: 'filled_black', size: 'large', text: 'signin_with', shape: 'rectangular' });
+    if (!authParams()) google.accounts.id.prompt();
+  }
+  function showSignIn(msg) {
+    $('app').classList.add('hidden'); $('signin').classList.remove('hidden');
+    if (msg) { $('signinErr').textContent = msg; $('signinErr').classList.remove('hidden'); }
+    initGoogle();
+  }
+  function signedOut(msg) { S.sess = ''; S.sessExp = 0; S.idToken = ''; put('askjan-session', S); showSignIn(msg); }
+  $('signOut').onclick = function () {
+    if (S.email) put('askjan-turns-' + S.email, null);
+    put('askjan-session', null); S = {}; st.turns = []; st.quota = null;
+    try { google.accounts.id.disableAutoSelect(); } catch (e) {}
+    showSignIn();
+  };
+
+  /* ---------- start ---------- */
+  function start() {
+    $('signin').classList.add('hidden'); $('app').classList.remove('hidden');
+    st.turns = (get('askjan-turns-' + S.email) || []).map(function (t) { if (t.actions) t.actions.forEach(function (a) { if (a.status === 'busy') a.status = ''; }); return t; });
+    render();
+    apiGet({ action: 'askQuota' }).then(function (d) { st.quota = d.quota; render(); }, function (e) { if (!e.auth) showErrTurn(e.message); });
+  }
+  function save() { put('askjan-turns-' + S.email, st.turns.slice(-30)); }
+
+  /* ---------- suggestions ---------- */
+  function suggestions() {
+    var u = S.user || {}, roles = [u.role].concat(u.roles || []).join(' ');
+    if (u.manager) return ['What needs me today?', 'Tickets expiring in the next 60 days', 'Vehicles due for rego or service', 'Who\'s on leave this month?'];
+    if (/office|admin/i.test(roles)) return ['Unconfirmed bookings this week', 'Who\'s free Thursday afternoon?', 'Who\'s away next week?', 'Jobs in Manly this month'];
+    if (/sales|pm/i.test(roles)) return ['My consults this week', 'Jobs I\'m booked on next week', 'Request a day off', 'My leave'];
+    return ['What\'s on tomorrow?', 'Where is my next job?', 'Request a day off', 'When do my tickets expire?'];
+  }
+
+  /* ---------- answers: light Markdown; app links open the Field App in a new tab ---------- */
+  function md(text) {
+    var lines = esc(text || '').split('\n'), out = [], list = false;
+    var inline = function (s) {
+      return s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[([^\]]+)\]\(((?:#\/|https:\/\/)[^)\s]+)\)/g, function (m, label, href) {
+        var app = /^#\//.test(href);
+        return '<a href="' + (app ? './' + href : href) + '" target="_blank" rel="noopener"' + (app ? ' class="fa" title="Opens in the Field App"' : '') + '>' + label + '</a>';
+      });
+    };
+    lines.forEach(function (l) {
+      var m = l.match(/^\s*[-•*]\s+(.*)$/);
+      if (m) { if (!list) { out.push('<ul>'); list = true; } out.push('<li>' + inline(m[1]) + '</li>'); return; }
+      if (list) { out.push('</ul>'); list = false; }
+      if (/^#{1,3}\s+/.test(l)) l = '<b>' + l.replace(/^#{1,3}\s+/, '') + '</b>';
+      if (l.trim()) out.push('<p>' + inline(l) + '</p>');
+    });
+    if (list) out.push('</ul>');
+    return out.join('');
+  }
+  function actions(t, ti) {
+    return (t.actions || []).map(function (a, ai) {
+      var rows = (a.rows || []).map(function (r) { return '<div class="row"><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>'; }).join('');
+      var foot, k = ti + ':' + ai;
+      if (a.status === 'done') foot = '<p class="done">' + TICK + '<span>' + esc(a.doneText) + '</span>' + (a.link ? ' <a href="./' + a.link + '" target="_blank" rel="noopener" class="fa">Open</a>' : '') +
+        (a.undo ? ' <button type="button" class="btn btn-line" data-undo="' + k + '">Undo</button>' : '') + '</p>';
+      else if (a.status === 'undone') foot = '<p class="note">Removed from your list.</p>';
+      else if (a.status === 'cancelled') foot = '<p class="note">Cancelled. Nothing was sent.</p>';
+      else foot = (a.note ? '<p class="note">' + esc(a.note) + '</p>' : '') + (a.error ? '<p class="notice err" style="margin:0">' + esc(a.error) + '</p>' : '') +
+        '<div class="btns"><button type="button" class="btn btn-dark" data-ok="' + k + '"' + (a.status === 'busy' ? ' disabled' : '') + '>' + esc(a.status === 'busy' ? 'Sending…' : a.confirmLabel || 'Confirm') + '</button>' +
+        '<button type="button" class="btn btn-sand" data-no="' + k + '"' + (a.status === 'busy' ? ' disabled' : '') + '>Cancel</button></div>';
+      return '<div class="act"><span class="t">' + esc(a.title) + '</span>' + rows + foot + '</div>';
+    }).join('');
+  }
+  function quotaText() { var q = st.quota; return q ? q.left + (q.left === 1 ? ' question' : ' questions') + ' left today' : ''; }
+
+  function render() {
+    $('whoName').textContent = (S.user && S.user.name) || S.name || S.email || '';
+    $('quota').textContent = quotaText();
+    var today = new Date().toDateString(), lastDay = '';
+    var html = st.turns.map(function (t, ti) {
+      var day = t.at ? new Date(t.at).toDateString() : today, sep = '';
+      if (day !== lastDay) { sep = '<div class="sep">' + (day === today ? 'Today' : new Date(t.at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })) + (ti === 0 ? ' · kept on this phone · <button type="button" id="clearBtn">Clear</button>' : '') + '</div>'; lastDay = day; }
+      var a = !t.a ? '<div class="ans busy"><span class="lbl">' + SPARK + 'Ask Jan</span><p>Looking that up…</p></div>' :
+        '<div class="ans' + (t.err ? ' err' : '') + '"><span class="lbl">' + (t.err ? LOCK + 'Couldn\'t answer' : SPARK + 'Ask Jan') + '</span>' + (t.err ? '<p>' + esc(t.a) + '</p>' : md(t.a)) + actions(t, ti) + '</div>';
+      return sep + (t.q ? '<div class="uq">' + esc(t.q) + '</div>' : '') + a;
+    }).join('');
+    $('convo').innerHTML = html || '<p class="empty">Ask about a job, a customer, your day or your tickets. Try one of the suggestions below.</p>';
+    var cv = $('convo'); cv.scrollTop = cv.scrollHeight;
+    var sug = suggestions();
+    $('chips').innerHTML = sug.map(function (s, i) { return '<button type="button" class="chip' + (i > 2 ? ' mob' : '') + '" data-q="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') +
+      '<button type="button" class="chip" data-q="My to-dos">My to-dos</button>';
+    $('sideSug').innerHTML = sug.map(function (s) { return '<button type="button" class="sug" data-q="' + esc(s) + '">' + esc(s) + '</button>'; }).join('');
+    var recent = []; st.turns.slice().reverse().forEach(function (t) { if (t.q && recent.indexOf(t.q) < 0 && recent.length < 6) recent.push(t.q); });
+    $('sideRec').innerHTML = recent.length ? recent.map(function (q) { return '<button type="button" class="rec" data-q="' + esc(q) + '">' + esc(q) + '</button>'; }).join('') : '<span class="rec">Nothing yet</span>';
+    $('askIn').disabled = st.busy; $('sendBtn').disabled = st.busy;
+    var c = $('clearBtn'); if (c) c.onclick = function () { if (confirm('Clear this conversation from this phone?')) { st.turns = []; save(); render(); } };
+  }
+  function showErrTurn(msg) { st.turns.push({ q: '', a: msg, err: true, at: Date.now() }); render(); }
+
+  /* ---------- asking ---------- */
+  function send(q) {
+    q = String(q || '').trim();
+    if (!q || st.busy) return;
+    var history = st.turns.filter(function (t) { return t.q && t.a && !t.err; }).slice(-6).map(function (t) { return { q: t.q, a: t.a }; });
+    var turn = { q: q, a: '', at: Date.now() };
+    st.turns.push(turn); st.busy = true; $('askIn').value = ''; render();
+    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) {
+      turn.a = r.answer; turn.actions = r.actions || []; if (r.quota) st.quota = r.quota;
+    }, function (e) {
+      turn.a = e.message; turn.err = true;
+      if (/limit of \d+/.test(e.message || '') && st.quota) st.quota.left = 0;
+    }).then(function () { st.busy = false; save(); render(); if (window.matchMedia('(min-width: 900px)').matches) $('askIn').focus(); });
+  }
+  $('askForm').onsubmit = function (e) { e.preventDefault(); send($('askIn').value); };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-q],[data-ok],[data-no],[data-undo]');
+    if (!b) return;
+    if (b.hasAttribute('data-q')) return send(b.getAttribute('data-q'));
+    var key = (b.getAttribute('data-ok') || b.getAttribute('data-no') || b.getAttribute('data-undo')).split(':');
+    var a = st.turns[+key[0]] && st.turns[+key[0]].actions[+key[1]];
+    if (!a) return;
+    if (b.hasAttribute('data-undo')) {
+      b.disabled = true; b.textContent = 'Undoing…';
+      apiPost(a.undo).then(function () { a.status = 'undone'; }, function (er) { a.error = er.message; }).then(function () { save(); render(); });
+      return;
+    }
+    if (a.status === 'done' || a.status === 'busy') return;
+    if (b.hasAttribute('data-no')) { a.status = 'cancelled'; save(); return render(); }
+    a.status = 'busy'; a.error = ''; render();
+    apiPost(a.payload).then(function (r) {
+      a.status = 'done';
+      if (a.kind === 'leave') { a.doneText = 'Sent. Simon or Troy will approve it and you\'ll get an email.'; a.link = r.id ? '#/leave/' + encodeURIComponent(r.id) : '#/leave'; }
+      else { a.doneText = 'Saved to your to-do list.'; a.link = '#/todo'; }
+    }, function (er) { a.status = ''; a.error = er.message; }).then(function () { save(); render(); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement !== $('askIn') && !$('app').classList.contains('hidden')) { e.preventDefault(); $('askIn').focus(); }
+  });
+
+  /* ---------- voice ---------- */
+  var rec = null, recOn = false;
+  $('mic').onclick = function () {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('Voice input isn\'t supported in this browser. Try Safari on iPhone or Chrome on Android.'); return; }
+    if (recOn) { rec.stop(); return; }
+    rec = new SR(); rec.lang = 'en-AU'; rec.interimResults = false; rec.continuous = false;
+    rec.onresult = function (ev) { var said = Array.prototype.map.call(ev.results, function (r) { return r[0].transcript; }).join(' ').trim(); var cur = $('askIn').value.trim(); $('askIn').value = (cur ? cur + ' ' : '') + said; };
+    rec.onend = rec.onerror = function () { recOn = false; $('mic').classList.remove('on'); if ($('askIn').value.trim()) send($('askIn').value); };
+    rec.start(); recOn = true; $('mic').classList.add('on');
+  };
+
+  /* ---------- go ---------- */
+  if (!API || !CLIENT) { document.body.innerHTML = '<p style="padding:24px">Setup needed: config.js with API_URL and GOOGLE_CLIENT_ID must sit next to this page.</p>'; return; }
+  if (authParams()) start(); else showSignIn();
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && authParams() && !st.busy && !$('app').classList.contains('hidden')) apiGet({ action: 'askQuota' }).then(function (d) { st.quota = d.quota; render(); }, function () {}); });
+})();
+</script>
+</body>
+</html>
