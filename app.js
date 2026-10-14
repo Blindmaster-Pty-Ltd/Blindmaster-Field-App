@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '33'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '35'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -185,12 +185,12 @@
   }
 
   /** POST to the script (used for uploads). Plain-text body avoids a CORS preflight, which Apps Script can't answer. */
-  function apiPost(body) {
+  function apiPost(body, opts) {
     if (viewAs()) return Promise.reject(new Error('You\'re viewing as ' + roleLabel(viewAs()) + '. Tap "Back to my view" to make changes.'));
     var s = session() || {};
     var b = Object.assign({}, body);
     if (s.sess && s.sessExp > Date.now() + 60000) b.session = s.sess; else if (s.idToken) b.idToken = s.idToken; else if (s.devEmail) b.devEmail = s.devEmail;
-    return fetch(CFG.API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
+    return fetch(CFG.API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b), keepalive: !!(opts && opts.keepalive) })
       .then(function (r) { return r.json(); })
       .then(function (data) { if (!data.ok) throw new Error(data.error || 'Upload failed'); keepSession(data); return data; });
   }
@@ -713,6 +713,120 @@
     projectRef(key).collection('reads').doc(myEmail()).set({ lastReadAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(function () {});
   }
 
+  /* ---------- sales autosave ----------
+     Everything on a site visit (the item being measured, site notes, a sketch, photos and videos) is kept on the phone
+     as it's entered, so putting the phone down, locking it, or iOS closing the app in the background loses nothing.
+     Notes and sketches/measures live in localStorage; photos and videos wait in IndexedDB until they've uploaded. */
+  var VA_DAYS = 7, vaFlush = null, vaResumed = false;
+  function vaKey(id, date) { return 'fa-sd-' + id + '|' + date; }
+  function vaLoad(id, date) { var d = store(vaKey(id, date)); return d && d.at > Date.now() - VA_DAYS * 864e5 ? d : null; }
+  function vaSave(id, date, patch) {
+    var d = vaLoad(id, date) || {};
+    Object.keys(patch).forEach(function (k) { d[k] = patch[k]; });
+    d.at = Date.now(); d.id = id; d.date = date;
+    store(vaKey(id, date), d);
+    if (/^#\/(visit|measure|capture)\//.test(location.hash)) store('fa-sd-last', { id: id, date: date, hash: location.hash, at: d.at });
+  }
+  function vaDrop(id, date, field) {
+    var d = vaLoad(id, date); if (!d) return;
+    delete d[field];
+    if (!d.ms && d.notes == null && !(d.strokes && d.strokes.length)) { unstore(vaKey(id, date)); var l = store('fa-sd-last'); if (l && l.id === id && l.date === date) unstore('fa-sd-last'); }
+    else store(vaKey(id, date), d);
+  }
+  /** Reopened from the home screen after iOS closed it: go straight back to the visit screen they were on. */
+  function vaResume() {
+    if (vaResumed) return false; vaResumed = true;
+    var l = store('fa-sd-last');
+    if (!l || !l.hash || l.at < Date.now() - 12 * 36e5 || !vaLoad(l.id, l.date)) return false;
+    location.hash = l.hash; return true;
+  }
+  function dftNotes(id, date) { var d = vaLoad(id, date); return d ? d.notes : null; }
+  function vaSaveMs(id, date) {
+    if (ms.step === 'item' && ms.item) vaSave(id, date, { ms: JSON.parse(JSON.stringify(ms)) }); else vaDrop(id, date, 'ms');
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') { if (vaFlush) try { vaFlush(); } catch (e) {} }
+    else uqRun();
+  });
+  window.addEventListener('pagehide', function () { if (vaFlush) try { vaFlush(); } catch (e) {} });
+  window.addEventListener('online', function () { uqRun(); });
+
+  /* Upload queue: photos and videos are saved on the phone first, then sent. A dropped signal or a locked screen
+     just means they send later (when the app is next open with signal). */
+  var uq = { db: null, busy: false, timer: null, ok: typeof indexedDB !== 'undefined' };
+  function uqDb() {
+    if (!uq.db) uq.db = new Promise(function (res, rej) {
+      var r = indexedDB.open('bm-field-uploads', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('q', { keyPath: 'qid' }); };
+      r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+    });
+    return uq.db;
+  }
+  function uqTx(mode, fn) {
+    return uqDb().then(function (db) {
+      return new Promise(function (res, rej) {
+        var t = db.transaction('q', mode), req = fn(t.objectStore('q')), out;
+        if (req) req.onsuccess = function () { out = req.result; };
+        t.oncomplete = function () { res(out); }; t.onerror = t.onabort = function () { rej(t.error || new Error('Couldn\'t save on this phone')); };
+      });
+    });
+  }
+  function uqAll() { return uq.ok ? uqTx('readonly', function (s) { return s.getAll(); }).then(function (a) { return (a || []).sort(function (x, y) { return x.added - y.added; }); }, function () { return []; }) : Promise.resolve([]); }
+  /** job: { id, date, kind, mime, name, blob, extra }. Resolves once it's safely on the phone. */
+  function uqAdd(job) {
+    job.qid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7); job.added = Date.now(); job.tries = 0;
+    return uqTx('readwrite', function (s) { return s.put(job); }).then(function () { uqBars(); setTimeout(uqRun, 50); return job; });
+  }
+  function uqRun(force) {
+    if (!uq.ok || uq.busy || viewAs()) return;
+    if (!tokenValid(session())) return;
+    uq.busy = true; clearTimeout(uq.timer); uq.timer = null;
+    var sent = {}, offline = false;
+    uqAll().then(function (jobs) {
+      jobs = jobs.filter(function (j) { return force || j.tries < 3; });
+      return jobs.reduce(function (p, j) {
+        return p.then(function () {
+          if (offline) return;
+          uqBars(j);
+          return toBase64(j.blob).then(function (b64) {
+            return apiPost(Object.assign({ action: 'visitUpload', id: j.id, date: j.date, kind: j.kind, data: b64, mime: j.mime, name: j.name }, j.extra || {}));
+          }).then(function () {
+            sent[visitKey(j.id, j.date)] = 1;
+            return uqTx('readwrite', function (s) { return s['delete'](j.qid); });
+          }, function (e) {
+            if (e instanceof TypeError || !navigator.onLine) { offline = true; return; } // no signal: try again later
+            j.tries++; j.error = e.message || 'Upload failed';
+            return uqTx('readwrite', function (s) { return s.put(j); });
+          });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      uq.busy = false; uq.timer = offline ? setTimeout(function () { uq.timer = null; uqRun(); }, 30000) : null; uqBars();
+      var r = route(), k = r.arg && visitKey(r.arg, r.arg2 || todayStr());
+      if (k && sent[k] && (r.name === 'capture' || r.name === 'visit')) loadVisit(r.arg, r.arg2 || todayStr(), true).then(function () {
+        if (route().name === 'capture' && cap.tab !== 'notes' && cap.tab !== 'sketch') renderCapture(r.arg, r.arg2 || todayStr(), cap.tab);
+        else if (route().name === 'visit') drawVisit(r.arg, r.arg2 || todayStr(), vs.data);
+      }, function () {});
+    }, function () { uq.busy = false; });
+  }
+  /** Fills any "waiting to upload" line on screen ([data-uqbar="id|date"]). */
+  function uqBars(current) {
+    var bars = document.querySelectorAll('[data-uqbar]'); if (!bars.length) return;
+    uqAll().then(function (jobs) {
+      Array.prototype.forEach.call(bars, function (el) {
+        var k = el.getAttribute('data-uqbar'), mine = jobs.filter(function (j) { return visitKey(j.id, j.date) === k; });
+        var stuck = mine.filter(function (j) { return j.tries >= 3; }), wait = mine.length - stuck.length;
+        var vids = mine.filter(function (j) { return /^video/.test(j.mime); }).length, what = function (n, v) { return n + ' ' + (v === n ? (n === 1 ? 'video' : 'videos') : v ? 'files' : (n === 1 ? 'photo' : 'photos')); };
+        if (!mine.length) { el.hidden = true; el.innerHTML = ''; return; }
+        el.hidden = false;
+        el.innerHTML = (wait ? '<span>' + I.clock + '<span><b>' + what(wait, vids) + ' saved on this phone</b> · ' + (uq.busy ? 'uploading now…' : uq.timer && !uq.busy ? 'no signal, will send when you\'re back online' : navigator.onLine ? 'sending shortly' : 'will send when you have signal') + '</span></span>' : '') +
+          (stuck.length ? '<span><b>' + stuck.length + ' couldn\'t upload</b> (' + esc(stuck[0].error || 'error') + ') <button type="button" class="link-btn" data-uqretry>Try again</button></span>' : '');
+        var b = el.querySelector('[data-uqretry]'); if (b) b.onclick = function () { uqRun(true); };
+      });
+    });
+  }
+  function uqBar(id, date) { return '<div class="uq-bar" data-uqbar="' + esc(visitKey(id, date)) + '" role="status" hidden></div>'; }
+
   /* ---------- router ---------- */
 
   function route() {
@@ -732,6 +846,9 @@
     var s = session();
     if (!CFG.API_URL || /PASTE_/.test(CFG.API_URL)) return renderSetupNeeded();
     if (!tokenValid(s)) return renderSignIn();
+    vaFlush = null;
+    if (!vaResumed) setTimeout(uqRun, 1500);
+    if (!location.hash.replace(/^#\/?/, '') && vaResume()) return;
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
@@ -2171,7 +2288,15 @@
   function visitKey(id, date) { return id + '|' + date; }
   function loadVisit(id, date, force) {
     if (!force && vs.key === visitKey(id, date) && vs.data) return Promise.resolve(vs.data);
-    return api({ action: 'visit', id: id, date: date }).then(function (d) { state.user = d.user || state.user; vs.key = visitKey(id, date); vs.data = d.visit; return d.visit; });
+    return api({ action: 'visit', id: id, date: date }).then(function (d) {
+      state.user = d.user || state.user; vs.key = visitKey(id, date); vs.data = d.visit;
+      store('fa-visit-' + vs.key, d.visit); // a copy on the phone, so the visit still opens with no signal
+      return d.visit;
+    }, function (err) {
+      var saved = !err.auth && store('fa-visit-' + visitKey(id, date));
+      if (!saved) throw err;
+      saved.offline = true; vs.key = visitKey(id, date); vs.data = saved; return saved;
+    });
   }
   function visitHref(id, date, sub) { return '#/' + (sub || 'visit') + '/' + encodeURIComponent(id) + '/' + date; }
   function salesPage(body, back) {
@@ -2202,6 +2327,7 @@
       (a.address ? '<a class="btn btn-dark action" href="' + mapsDir(a.address) + '" target="_blank" rel="noopener">' + I.nav + 'Navigate</a>' : '<span class="btn btn-sand action" style="opacity:.55">' + I.nav + 'No address</span>') +
       (a.phone ? '<a class="btn btn-sand action" href="' + tel(a.phone) + '">' + I.phone + 'Call</a>' : '<span class="btn btn-sand action" style="opacity:.55">' + I.phone + 'Call</span>') +
       (sms ? '<a class="btn btn-sand action" href="' + sms + '">' + I.msg + 'On my way</a>' : '<span class="btn btn-sand action" style="opacity:.55">' + I.msg + 'On my way</span>') + '</div>';
+    if (v.offline) body += '<div class="section"><p class="notice" style="margin:0">No signal. Showing the copy saved on this phone. Anything you enter is kept and sends when you\'re back online.</p></div>';
     if (v.problem) body += '<div class="section"><p class="notice error" style="margin:0">' + esc(v.problem) + '</p></div>';
     if (v.folder) body += '<div class="section" style="padding-top:8px"><a class="sv-folder" href="' + esc(v.folder.url) + '" target="_blank" rel="noopener"><span class="sv-ico">' + I.folder + '</span><span class="st-txt"><b>' +
       (v.folder.linked ? 'Opportunity folder' : 'Visit folder') + '</b><span>' + esc(v.folder.linked ? v.folder.name + ' (Collateral)' : 'No opportunity folder linked yet, saving to ' + v.folder.name) + '</span></span>' + I.ext + '</a></div>';
@@ -2217,6 +2343,9 @@
       return '<a class="sv-item" href="' + visitHref(id, date, 'measure') + '" data-item="' + esc(it.itemId) + '"><span class="sv-id">' + esc(it.itemId) + '</span><span class="st-txt"><b>' + esc(it.product) + (it.supplier ? ' · ' + esc(it.supplier) : '') + '</b>' +
         '<span>' + esc([it.room, measuresText(it.measures), it.quantity > 1 ? '× ' + it.quantity : ''].filter(String).join(' · ')) + '</span></span>' + (it.photos ? '<span class="small muted">' + it.photos + ' photo' + (it.photos === 1 ? '' : 's') + '</span>' : '') + '</a>';
     }).join('');
+    var dft = vaLoad(id, date);
+    if (dft && dft.ms && dft.ms.item) body += '<a class="sv-item sv-unsaved" href="' + visitHref(id, date, 'measure') + '" data-resume><span class="sv-id">' + esc(dft.ms.item.itemId || '?') + '</span><span class="st-txt"><b>Not saved yet · tap to finish</b><span>' +
+      esc([dft.ms.item.room, measuresText(dft.ms.item.measures || {})].filter(String).join(' · ') || 'Item in progress') + '</span></span></a>';
     body += '<a class="btn btn-dark btn-lg" href="' + visitHref(id, date, 'measure') + '" data-newitem>' + (v.items.length ? 'Measure the next item' : 'Start measuring') + '</a>' +
       (v.sheetUrl ? '<a class="small" style="font-weight:700" href="' + esc(v.sheetUrl) + '" target="_blank" rel="noopener">Open the measure sheet</a>' : '') + '</section>';
 
@@ -2231,7 +2360,9 @@
     if (counts.Sketches) got.push(counts.Sketches + ' sketch' + (counts.Sketches === 1 ? '' : 'es'));
     if (counts.Videos) got.push(counts.Videos + ' video' + (counts.Videos === 1 ? '' : 's'));
     if (got.length) body += '<p class="small" style="margin:0"><b>Captured:</b> ' + esc(got.join(' · ')) + '</p>';
-    body += '</section>';
+    if (dft && dft.notes != null) body += '<p class="small" style="margin:0"><b>Site notes</b> not sent yet. They\'re kept on this phone.</p>';
+    if (dft && dft.strokes && dft.strokes.length) body += '<p class="small" style="margin:0"><b>Sketch</b> in progress, not saved yet.</p>';
+    body += uqBar(id, date) + '</section>';
 
     if (a.folderUrl || a.projectFolderUrl) body += '<section class="section"><a class="linkrow" href="#/collateral/' + encodeURIComponent(id) + '/' + date + '">' + I.grid + '<span class="text"><b>Collateral</b><span>Everything in the opportunity folder</span></span>' + I.right + '</a></section>';
     body += '<section class="panel stack" style="margin-top:24px;gap:8px"><div class="spread"><b>Proposal</b><span class="tag tag-light">Coming next</span></div><span class="small">Start a proposal from the costing templates (Umbris, markilux…) using what you\'ve measured.</span></section>';
@@ -2240,7 +2371,14 @@
     Array.prototype.forEach.call(app.querySelectorAll('[data-item]'), function (el) {
       el.onclick = function (e) { e.preventDefault(); var it = v.items.filter(function (x) { return x.itemId === el.getAttribute('data-item'); })[0]; openItem(id, date, it); };
     });
-    var n = app.querySelector('[data-newitem]'); if (n) n.onclick = function (e) { e.preventDefault(); ms = { step: 'cat', room: ms.room || '' }; location.hash = visitHref(id, date, 'measure'); };
+    var n = app.querySelector('[data-newitem]'); if (n) n.onclick = function (e) {
+      e.preventDefault();
+      var d = vaLoad(id, date);
+      if (d && d.ms && !confirm('Item ' + (d.ms.item.itemId || '') + ' isn\'t saved yet. Discard it and start a new item?')) { ms = d.ms; location.hash = visitHref(id, date, 'measure'); return; }
+      vaDrop(id, date, 'ms'); ms = { step: 'cat', room: ms.room || '' }; location.hash = visitHref(id, date, 'measure');
+    };
+    var rs = app.querySelector('[data-resume]'); if (rs) rs.onclick = function (e) { e.preventDefault(); var d = vaLoad(id, date); if (d && d.ms) { ms = d.ms; ms.restored = false; } location.hash = visitHref(id, date, 'measure'); };
+    uqBars();
   }
 
   /* Measure */
@@ -2252,6 +2390,8 @@
     });
   }
   function openItem(id, date, it) {
+    var d = vaLoad(id, date);
+    if (d && d.ms && d.ms.item && d.ms.originalId !== it.itemId && !confirm('Item ' + (d.ms.item.itemId || '') + ' isn\'t saved yet. Discard it and open ' + it.itemId + '?')) { ms = d.ms; location.hash = visitHref(id, date, 'measure'); if (route().name === 'measure') renderMeasure(id, date); return; }
     ms = { step: 'item', cat: it.cat, productId: it.productId, supplier: it.supplier || '', room: it.room, field: '', originalId: it.itemId,
       item: { itemId: it.itemId, room: it.room, measures: Object.assign({}, it.measures), answers: Object.assign({}, it.answers), photos: it.photos || 0 } };
     location.hash = visitHref(id, date, 'measure');
@@ -2267,6 +2407,7 @@
     var key = visitKey(id, date);
     if (vs.key !== key || !vs.data) { loading('Opening the visit…'); return loadVisit(id, date).then(function () { renderMeasure(id, date); }, function (e) { showError(e, function () { renderMeasure(id, date); }); }); }
     var v = vs.data, cfg = v.config, a = v.appointment, back = visitHref(id, date);
+    if (ms.step !== 'item') { var dft = vaLoad(id, date); if (dft && dft.ms && dft.ms.item) { ms = dft.ms; ms.restored = true; return drawItem(id, date); } }
     var head = '<div class="sv-sub"><span>' + esc(a.customer || a.title) + '</span><span>' + v.items.length + ' measured</span></div>';
     if (ms.step === 'cat' || !ms.step) {
       var body = head + '<section class="hero"><span class="small" style="font-weight:700">Item ' + (v.items.length + 1) + '</span><h1>What are you measuring?</h1></section>' +
@@ -2375,6 +2516,7 @@
     var body = '<div class="sv-sub"><span>' + esc(v.appointment.customer || v.appointment.title) + '</span><span>' + v.items.length + ' measured</span></div>' +
       '<section class="section stack ms-top"><div class="spread" style="align-items:flex-end;gap:12px"><div class="stack" style="gap:2px"><span class="small muted" style="font-weight:700">' + esc(prod.cat) + (ms.originalId ? ' · editing ' + esc(ms.originalId) : ' · item ' + (v.items.length + 1)) + '</span><h1>' + esc(prod.name) + '</h1></div>' +
       '<label class="ms-idbox">Item ID<input id="msId" value="' + esc(it.itemId) + '" maxlength="8" autocapitalize="characters"></label></div>' +
+      (ms.restored ? '<p class="notice" style="margin:0">Picked up where you left off. This item isn\'t saved to the measure sheet until you tap Save.</p>' : '') +
       '<div class="ms-rooms" role="group" aria-label="Room">' + rooms.map(function (r) { return '<button type="button" data-room="' + esc(r) + '" aria-pressed="' + (it.room === r) + '">' + esc(r) + '</button>'; }).join('') + '<button type="button" data-room="+">+ Room</button></div></section>';
     if (sps.length) body += '<section class="section stack" style="gap:8px"><span class="ms-qlab">Supplier</span><div class="ms-opts">' + sps.map(function (s) { return '<button type="button" data-supplier="' + esc(s.supplier) + '" aria-pressed="' + (ms.supplier === s.supplier) + '">' + esc(supName(s.supplier)) + (s.range ? ' · ' + esc(s.range) : '') + '</button>'; }).join('') + '</div></section>';
     body += '<section class="section stack" style="gap:10px"><h2 class="st-h2" style="margin:0">1 · Measurements</h2><div class="ms-meas" style="grid-template-columns:repeat(' + Math.min(fields.length, 3) + ',minmax(0,1fr))">' + fields.map(function (f) {
@@ -2385,20 +2527,22 @@
     body += '<section class="section stack" style="gap:14px"><h2 class="st-h2" style="margin:0">2 · Every item</h2>' + Q.common.filter(function (q) { return qShown(q, it.answers); }).map(function (q) { return qHtml(q, it.answers, cfg); }).join('') + '</section>';
     var pq = Q.prod.filter(function (q) { return qShown(q, it.answers); });
     if (pq.length) body += '<section class="section stack" style="gap:14px"><h2 class="st-h2" style="margin:0">3 · ' + esc(prod.name) + '</h2>' + pq.map(function (q) { return qHtml(q, it.answers, cfg); }).join('') + '</section>';
-    body += '<section class="section stack" style="gap:8px"><label class="btn btn-sand btn-lg" for="msPhoto">' + I.camera + 'Photo for ' + esc(it.itemId) + (it.photos ? ' · ' + it.photos + ' added' : '') + '</label><input type="file" id="msPhoto" accept="image/*" capture="environment" hidden><span class="small muted" id="msPhotoNote">Saved to Collateral › Photos as "' + esc(it.itemId + ' ' + (it.room || '') + ' ' + prod.name).replace(/\s+/g, ' ') + '".</span></section>';
+    body += '<section class="section stack" style="gap:8px"><label class="btn btn-sand btn-lg" for="msPhoto">' + I.camera + 'Photo for ' + esc(it.itemId) + (it.photos ? ' · ' + it.photos + ' added' : '') + '</label><input type="file" id="msPhoto" accept="image/*" capture="environment" hidden><span class="small muted" id="msPhotoNote">Saved to Collateral › Photos as "' + esc(it.itemId + ' ' + (it.room || '') + ' ' + prod.name).replace(/\s+/g, ' ') + '".</span>' + uqBar(id, date) + '</section>';
     body += '<p class="notice error section" id="msErr" role="alert" hidden style="margin:16px 16px 0"></p>' +
       '<div class="ms-save"><button type="button" class="btn btn-outline btn-lg" id="msDone">Save · done</button><button type="button" class="btn btn-dark btn-lg" id="msNext">Save · next item</button></div>' +
       (ms.originalId ? '<div class="section"><button type="button" class="link-btn" id="msDel">Delete ' + esc(ms.originalId) + '</button></div>' : '') + '<div style="height:24px"></div>';
     var y = window.scrollY;
     app.innerHTML = salesPage(body, [back, 'Visit']);
     window.scrollTo(0, y);
-    var bk = app.querySelector('.back'); if (bk) bk.onclick = function (e) { e.preventDefault(); if (confirm('Leave this item without saving?')) { ms.step = ms.originalId ? 'cat' : 'product'; renderMeasure(id, date); } };
+    var bk = app.querySelector('.back'); if (bk) bk.onclick = function (e) { e.preventDefault(); if (confirm('Leave this item without saving?')) { vaDrop(id, date, 'ms'); ms.step = ms.originalId ? 'cat' : 'product'; renderMeasure(id, date); } };
     bindItem(id, date, fields);
+    vaSaveMs(id, date); uqBars();
   }
   function bindItem(id, date, fields) {
     var v = vs.data, cfg = v.config, it = ms.item, redraw = function () { drawItem(id, date); };
-    var $ = function (s) { return app.querySelector(s); };
-    $('#msId').oninput = function () { it.itemId = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); };
+    var $ = function (s) { return app.querySelector(s); }, keep = function () { vaSaveMs(id, date); };
+    vaFlush = keep;
+    $('#msId').oninput = function () { it.itemId = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); keep(); };
     Array.prototype.forEach.call(app.querySelectorAll('[data-room]'), function (b) {
       b.onclick = function () {
         var r = b.getAttribute('data-room');
@@ -2419,6 +2563,7 @@
         var btn = app.querySelector('[data-field="' + ms.field + '"] b'), f = fields.filter(function (x) { return x.key === ms.field; })[0];
         if (btn) btn.innerHTML = (cur || '–') + (f && f.unit ? '<small> ' + f.unit + '</small>' : '');
         $('#msWarn').innerHTML = measureWarnings(cfg).map(function (w) { return '<p class="notice error" role="alert" style="margin:0 0 6px">' + esc(w) + '</p>'; }).join('');
+        keep();
       };
     });
     Array.prototype.forEach.call(app.querySelectorAll('[data-ans]'), function (b) {
@@ -2427,20 +2572,31 @@
     Array.prototype.forEach.call(app.querySelectorAll('[data-input]'), function (el) {
       var f = el.getAttribute('data-input');
       el.onchange = function () { var before = JSON.stringify(it.answers); it.answers[f] = el.value; if (el.tagName === 'SELECT' && JSON.stringify(it.answers) !== before) redraw(); };
-      el.oninput = function () { it.answers[f] = el.value; };
+      el.oninput = function () { it.answers[f] = el.value; keep(); };
     });
     Array.prototype.forEach.call(app.querySelectorAll('[data-stepq]'), function (b) {
       b.onclick = function () {
         var f = b.getAttribute('data-stepq'), q = itemQuestions(cfg).common.concat(itemQuestions(cfg).prod).filter(function (x) { return x.field === f; })[0] || {};
         var n = (Number(it.answers[f]) || 0) + Number(b.getAttribute('data-d'));
         if (q.min != null) n = Math.max(q.min, n); if (q.max != null) n = Math.min(q.max, n); n = Math.max(0, n);
-        it.answers[f] = String(n); b.parentNode.querySelector('b').textContent = n;
+        it.answers[f] = String(n); b.parentNode.querySelector('b').textContent = n; keep();
       };
     });
     $('#msPhoto').onchange = function () {
       var file = this.files && this.files[0]; if (!file) return;
-      var note = $('#msPhotoNote'); note.textContent = 'Uploading…';
-      var prod = cfgProduct(cfg, ms.productId);
+      var note = $('#msPhotoNote'), prod = cfgProduct(cfg, ms.productId), inp = this;
+      if (uq.ok) {
+        note.textContent = 'Saving…';
+        var n = (it.photos || 0) + 1;
+        return shrinkImage(file).then(function (img) {
+          return uqAdd({ id: id, date: date, kind: 'item', mime: 'image/jpeg', name: '', blob: img.blob, extra: { itemId: it.itemId, room: it.room, product: prod.name, n: n } });
+        }).then(function () {
+          it.photos = n; keep(); inp.value = '';
+          note.textContent = 'Photo ' + n + ' saved on this phone. It uploads to Collateral › Photos in the background.';
+          var l = app.querySelector('label[for="msPhoto"]'); if (l) l.innerHTML = I.camera + 'Photo for ' + esc(it.itemId) + ' · ' + it.photos + ' added';
+        }, function (e) { note.textContent = (e && e.message) || 'Couldn\'t save the photo. Try again.'; });
+      }
+      note.textContent = 'Uploading…';
       shrinkImage(file).then(function (img) { return toBase64(img.blob); }).then(function (b64) {
         return apiPost({ action: 'visitUpload', id: id, date: date, kind: 'item', data: b64, mime: 'image/jpeg', itemId: it.itemId, room: it.room, product: prod.name, n: (it.photos || 0) + 1 });
       }).then(function (r) { it.photos = (it.photos || 0) + 1; note.textContent = 'Saved as ' + r.file.name + '.'; var l = app.querySelector('label[for="msPhoto"]'); if (l) l.innerHTML = I.camera + 'Photo for ' + esc(it.itemId) + ' · ' + it.photos + ' added'; },
@@ -2460,18 +2616,19 @@
       err.hidden = true;
       apiPost({ action: 'measureSave', id: id, date: date, originalId: ms.originalId || '', item: { itemId: it.itemId, room: it.room, cat: prod.cat, product: prod.name, productId: prod.id, supplier: ms.supplier,
         measures: it.measures, answers: answers, details: details, photos: it.photos || 0 } }).then(function (r) {
-        v.items = r.items; v.sheetUrl = r.sheetUrl;
+        v.items = r.items; v.sheetUrl = r.sheetUrl; store('fa-visit-' + visitKey(id, date), v);
+        vaDrop(id, date, 'ms');
         var room = it.room;
         if (next) { ms = { step: 'cat', room: room }; renderMeasure(id, date); window.scrollTo(0, 0); }
         else { ms = { step: 'cat', room: room }; location.hash = visitHref(id, date); }
-      }, function (e) { Array.prototype.forEach.call(btns, function (b) { b.disabled = false; }); err.textContent = e.message || 'Couldn\'t save. Try again.'; err.hidden = false; });
+      }, function (e) { Array.prototype.forEach.call(btns, function (b) { b.disabled = false; }); err.textContent = (e instanceof TypeError || !navigator.onLine ? 'No signal right now. The item is kept on this phone; tap Save again when you have signal.' : e.message || 'Couldn\'t save. Try again.'); err.hidden = false; });
     }
     $('#msNext').onclick = function () { save(true); };
     $('#msDone').onclick = function () { save(false); };
     var del = $('#msDel');
     if (del) del.onclick = function () {
       if (!confirm('Delete item ' + ms.originalId + '?')) return;
-      apiPost({ action: 'measureDelete', id: id, date: date, itemId: ms.originalId }).then(function (r) { v.items = r.items; ms = { step: 'cat', room: it.room }; renderMeasure(id, date); }, function (e) { alert(e.message); });
+      apiPost({ action: 'measureDelete', id: id, date: date, itemId: ms.originalId }).then(function (r) { v.items = r.items; vaDrop(id, date, 'ms'); ms = { step: 'cat', room: it.room }; renderMeasure(id, date); }, function (e) { alert(e.message); });
     };
   }
 
@@ -2481,15 +2638,16 @@
     cap.tab = tab || cap.tab || 'notes';
     var key = visitKey(id, date);
     if (vs.key !== key || !vs.data) { loading('Opening the visit…'); return loadVisit(id, date).then(function () { renderCapture(id, date, cap.tab); }, function (e) { showError(e, function () { renderCapture(id, date, tab); }); }); }
-    var v = vs.data, a = v.appointment, back = visitHref(id, date);
+    var v = vs.data, a = v.appointment, back = visitHref(id, date), dft = vaLoad(id, date) || {};
+    if (cap.key !== key) { cap.key = key; cap.strokes = (dft.strokes || []).slice(); }
     var tabs = [['notes', 'Notes', 'Notes'], ['sketch', 'Sketch', 'Sketches'], ['photos', 'Photos', 'Photos'], ['video', 'Video', 'Videos']];
     var cur = tabs.filter(function (t) { return t[0] === cap.tab; })[0] || tabs[0];
     var body = '<div class="sv-sub"><span>' + esc(a.customer || a.title) + '</span><span>' + esc(refLabel(a)) + '</span></div>' +
       '<nav class="cp-tabs" aria-label="Capture type">' + tabs.map(function (t) { return '<a href="' + visitHref(id, date, 'capture') + '/' + t[0] + '" aria-current="' + (t[0] === cap.tab ? 'page' : 'false') + '">' + t[1] + '</a>'; }).join('') + '</nav>';
     if (cap.tab === 'notes') {
-      body += '<section class="section stack" style="gap:10px"><label for="cpNotes"><b>Site notes</b></label><textarea id="cpNotes" class="cp-notes" rows="14" placeholder="Orientation, fixing surfaces, what the client wants…">' + esc(v.notes || '') + '</textarea>' +
+      body += '<section class="section stack" style="gap:10px"><label for="cpNotes"><b>Site notes</b></label><textarea id="cpNotes" class="cp-notes" rows="14" placeholder="Orientation, fixing surfaces, what the client wants…">' + esc(dft.notes != null ? dft.notes : (v.notes || '')) + '</textarea>' +
         '<div class="st-grid2">' + (speechSupported() ? '<button type="button" class="btn btn-outline" id="cpMic" aria-pressed="false">' + I.mic + 'Dictate</button>' : '<span></span>') +
-        '<button type="button" class="btn btn-dark" id="cpSave">Save notes</button></div><span class="small muted" id="cpState">' + (v.notes ? 'Saved' : 'Saves as you type') + '</span></section>';
+        '<button type="button" class="btn btn-dark" id="cpSave">Save notes</button></div><span class="small muted" id="cpState">' + (dft.notes != null ? 'Kept on this phone, sending…' : v.notes ? 'Saved' : 'Saves as you type') + '</span></section>';
     } else if (cap.tab === 'sketch') {
       body += '<section class="section stack" style="gap:10px"><div class="spread"><b>Sketch</b><span class="small muted">Draw with your finger or a stylus</span></div>' +
         '<canvas id="cpCanvas" class="cp-canvas"></canvas><div class="cp-tools" role="toolbar" aria-label="Sketch tools">' +
@@ -2510,14 +2668,29 @@
         '<span class="small muted" id="cpState">Talk through the site as you film. Keep it under a minute or two (30 MB limit).</span>' +
         vids.map(function (x) { return '<a class="linkrow" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + I.video + '<span class="text"><b>' + esc(x.name) + '</b><span>Video</span></span>' + I.ext + '</a>'; }).join('') + '</section>';
     }
+    if (cap.tab === 'photos' || cap.tab === 'video') body += '<div class="section" style="padding-top:0">' + uqBar(id, date) + '</div>';
     body += '<div class="cp-foot">' + I.folder + '<span>Saving to <b>' + esc((v.folder ? v.folder.name : 'the visit folder') + ' › ' + cur[2]) + '</b></span></div><div style="height:24px"></div>';
     app.innerHTML = salesPage(body, [back, 'Visit']);
     bindCapture(id, date);
+    uqBars();
   }
   function capUploadFiles(id, date, files, kind) {
     var st = document.getElementById('cpState'), v = vs.data, done = 0;
     var list = Array.prototype.slice.call(files || []);
     if (!list.length) return;
+    if (uq.ok) {
+      if (st) st.textContent = 'Saving on this phone…';
+      return list.reduce(function (p, file) {
+        return p.then(function () {
+          var isImg = /^image\//.test(file.type);
+          return (isImg ? shrinkImage(file).then(function (img) { return img.blob; }) : Promise.resolve(file)).then(function (blob) {
+            return uqAdd({ id: id, date: date, kind: kind, mime: isImg ? 'image/jpeg' : (file.type || 'video/mp4'), name: file.name || '', blob: blob });
+          }).then(function () { done++; });
+        });
+      }, Promise.resolve()).then(function () {
+        if (st) st.textContent = done + (done === 1 ? ' file' : ' files') + ' saved on this phone. Uploading in the background, so you can carry on.';
+      }, function (e) { if (st) st.textContent = (done ? done + ' saved. ' : '') + ((e && e.message) || 'Couldn\'t save on this phone.') + ' Try again.'; });
+    }
     var run = list.reduce(function (p, file, i) {
       return p.then(function () {
         if (st) st.textContent = 'Uploading ' + (i + 1) + ' of ' + list.length + '…';
@@ -2534,13 +2707,20 @@
     var v = vs.data, st = document.getElementById('cpState');
     if (cap.tab === 'notes') {
       var ta = document.getElementById('cpNotes');
-      var saveNotes = function () {
+      var saveNotes = function (bg) {
         clearTimeout(cap.notesTimer);
-        st.textContent = 'Saving…';
-        return apiPost({ action: 'visitNotes', id: id, date: date, notes: ta.value }).then(function () { v.notes = ta.value; st.textContent = 'Saved ' + hhmm(new Date()); }, function (e) { st.textContent = e.message || 'Couldn\'t save. Try again.'; });
+        var text = ta.value;
+        if (!bg) st.textContent = 'Saving…';
+        return apiPost({ action: 'visitNotes', id: id, date: date, notes: text }, { keepalive: !!bg && text.length < 60000 }).then(function () {
+          v.notes = text; var d = vaLoad(id, date); if (d && d.notes === text) vaDrop(id, date, 'notes');
+          store('fa-visit-' + visitKey(id, date), v);
+          if (document.body.contains(st)) st.textContent = 'Saved ' + hhmm(new Date());
+        }, function (e) { if (document.body.contains(st)) st.textContent = (e instanceof TypeError || !navigator.onLine ? 'No signal. Kept on this phone, it sends when you\'re back online.' : e.message || 'Couldn\'t save. Kept on this phone.'); });
       };
-      ta.oninput = function () { st.textContent = 'Not saved yet'; clearTimeout(cap.notesTimer); cap.notesTimer = setTimeout(saveNotes, 2500); };
-      document.getElementById('cpSave').onclick = saveNotes;
+      ta.oninput = function () { vaSave(id, date, { notes: ta.value }); st.textContent = 'Kept on this phone · sending…'; clearTimeout(cap.notesTimer); cap.notesTimer = setTimeout(saveNotes, 1500); };
+      vaFlush = function () { var d = vaLoad(id, date); if (d && d.notes != null) saveNotes(true); };
+      if (dftNotes(id, date) != null) saveNotes();
+      document.getElementById('cpSave').onclick = function () { saveNotes(); };
       var mic = document.getElementById('cpMic');
       if (mic) mic.onclick = function () { toggleDictation(mic, ta, function () { ta.oninput(); }); };
     } else if (cap.tab === 'sketch') {
@@ -2563,7 +2743,7 @@
       var pos = function (e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
       cv.addEventListener('pointerdown', function (e) {
         e.preventDefault(); var p = pos(e);
-        if (cap.tool === 'text') { var t = prompt('Text'); if (t) { cap.strokes.push({ type: 'text', text: t, x: p[0], y: p[1] }); paint(); } return; }
+        if (cap.tool === 'text') { var t = prompt('Text'); if (t) { cap.strokes.push({ type: 'text', text: t, x: p[0], y: p[1] }); paint(); keepSketch(); } return; }
         drawing = { type: cap.tool, pts: [p] }; cap.strokes.push(drawing); cv.setPointerCapture(e.pointerId);
       });
       cv.addEventListener('pointermove', function (e) {
@@ -2571,18 +2751,20 @@
         if (drawing.type === 'line') drawing.pts = [drawing.pts[0], p]; else drawing.pts.push(p);
         paint();
       });
-      ['pointerup', 'pointercancel'].forEach(function (ev) { cv.addEventListener(ev, function () { drawing = null; }); });
+      var keepSketch = function () { if (cap.strokes.length) vaSave(id, date, { strokes: cap.strokes }); else vaDrop(id, date, 'strokes'); };
+      vaFlush = keepSketch;
+      ['pointerup', 'pointercancel'].forEach(function (ev) { cv.addEventListener(ev, function () { if (drawing) keepSketch(); drawing = null; }); });
       cv.style.touchAction = 'none';
       Array.prototype.forEach.call(app.querySelectorAll('[data-tool]'), function (b) { b.onclick = function () { cap.tool = b.getAttribute('data-tool'); Array.prototype.forEach.call(app.querySelectorAll('[data-tool]'), function (x) { x.setAttribute('aria-pressed', x === b); }); }; });
-      document.getElementById('cpUndo').onclick = function () { cap.strokes.pop(); paint(); };
-      document.getElementById('cpClear').onclick = function () { if (cap.strokes.length && confirm('Clear the sketch?')) { cap.strokes = []; paint(); } };
+      document.getElementById('cpUndo').onclick = function () { cap.strokes.pop(); paint(); keepSketch(); };
+      document.getElementById('cpClear').onclick = function () { if (cap.strokes.length && confirm('Clear the sketch?')) { cap.strokes = []; paint(); keepSketch(); } };
       document.getElementById('cpSketchSave').onclick = function () {
         if (!cap.strokes.length) { st.textContent = 'Draw something first.'; return; }
         var btn = this; btn.disabled = true; st.textContent = 'Saving…';
         var b64 = cv.toDataURL('image/png').split(',')[1];
         apiPost({ action: 'visitUpload', id: id, date: date, kind: 'sketch', data: b64, mime: 'image/png' }).then(function (r) {
-          cap.strokes = []; paint(); btn.disabled = false; st.textContent = 'Saved as ' + r.file.name + '.'; loadVisit(id, date, true);
-        }, function (e) { btn.disabled = false; st.textContent = e.message || 'Couldn\'t save. Try again.'; });
+          cap.strokes = []; vaDrop(id, date, 'strokes'); paint(); btn.disabled = false; st.textContent = 'Saved as ' + r.file.name + '.'; loadVisit(id, date, true);
+        }, function (e) { btn.disabled = false; st.textContent = (e instanceof TypeError || !navigator.onLine ? 'No signal. The sketch is kept on this phone; tap Save again when you have signal.' : e.message || 'Couldn\'t save. Try again.'); });
       };
     } else if (cap.tab === 'photos') {
       document.getElementById('cpCam').onchange = function () { capUploadFiles(id, date, this.files, 'photo'); };
@@ -2886,7 +3068,9 @@
     return (t.actions || []).map(function (a, ai) {
       var rows = a.rows.map(function (r) { return '<div class="ask-act-row"><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>'; }).join('');
       var foot;
-      if (a.status === 'done') foot = '<p class="ask-act-done">' + I.check + esc(a.doneText) + (a.link ? ' <a href="' + a.link + '">Open</a>' : '') + '</p>';
+      if (a.status === 'done') foot = '<p class="ask-act-done">' + I.check + esc(a.doneText) + (a.link ? ' <a href="' + a.link + '">Open</a>' : '') +
+        (a.undo ? ' <button type="button" class="link-btn small" data-askundo="' + ti + ':' + ai + '">Undo</button>' : '') + '</p>';
+      else if (a.status === 'undone') foot = '<p class="small muted" style="margin:0">Removed from your list.</p>';
       else if (a.status === 'cancelled') foot = '<p class="small muted" style="margin:0">Cancelled. Nothing was sent.</p>';
       else foot = (a.note ? '<p class="small" style="margin:0">' + esc(a.note) + '</p>' : '') + (a.error ? '<p class="notice error" style="margin:0">' + esc(a.error) + '</p>' : '') +
         '<div class="ask-act-btns"><button type="button" class="btn btn-dark" data-askok="' + ti + ':' + ai + '"' + (a.status === 'busy' ? ' disabled' : '') + '>' + esc(a.status === 'busy' ? 'Sending…' : a.confirmLabel || 'Confirm') + '</button>' +
@@ -2925,6 +3109,13 @@
     form.onsubmit = function (e) { e.preventDefault(); askSend(inp.value); };
     Array.prototype.forEach.call(document.querySelectorAll('[data-askq]'), function (b) { b.onclick = function () { askSend(b.getAttribute('data-askq')); }; });
     var clr = document.getElementById('askClear'); if (clr) clr.onclick = function () { ask.turns = []; renderAsk(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-askundo]'), function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute('data-askundo').split(':'), a = ask.turns[+k[0]].actions[+k[1]];
+        b.disabled = true; b.textContent = 'Undoing…';
+        apiPost(a.undo).then(function () { a.status = 'undone'; if (typeof td !== 'undefined') td.data = null; }, function (e) { a.error = e.message; }).then(renderAsk);
+      };
+    });
     Array.prototype.forEach.call(document.querySelectorAll('[data-askok],[data-askno]'), function (b) {
       b.onclick = function () { var ok = b.hasAttribute('data-askok'), k = (b.getAttribute(ok ? 'data-askok' : 'data-askno')).split(':'); askDoAction(Number(k[0]), Number(k[1]), ok); };
     });
@@ -2936,7 +3127,7 @@
     var turn = { q: q, a: '' };
     ask.turns.push(turn); ask.busy = true; ask.draft = '';
     if (route().name === 'ask') renderAsk();
-    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; turn.actions = r.actions || []; }, function (e) { turn.a = e.message; turn.err = true; })
+    apiPost({ action: 'askJan', question: q, history: history }).then(function (r) { turn.a = r.answer; turn.actions = r.actions || []; if (turn.actions.some(function (a) { return a.kind === 'todo'; }) && typeof td !== 'undefined') td.data = null; }, function (e) { turn.a = e.message; turn.err = true; })
       .then(function () { ask.busy = false; if (route().name === 'ask') renderAsk(); });
   }
 
@@ -3206,7 +3397,7 @@
   }
   function dvStaffOwned(v) { return /staff|private|own/i.test(String((v && v.ownership) || '')); }
   function dvTel(n) { return String(n || '').replace(/[^\d+]/g, ''); }
-  function dvBlankVehicle() { return { ownership: 'Company', roadsideProvider: '', roadsidePhone: '', roadsideMembership: '', id: '', model: '', year: '', plate: '', colour: '', vin: '', driver: '', regoExpiry: '', regoPeriod: '12 months', ctpInsurer: '', ctpPolicy: '', insurer: '', policy: '', cover: '', insuranceRenewal: '', etagProvider: '', etagNumber: '', tollAccount: '', serviceKm: '10000', serviceMonths: '6', nextServiceDate: '', nextServiceKm: '', odometer: '', odometerDate: '', status: 'Active', notes: '', docs: [], services: [], readings: [], isNew: true, alerts: { service: { level: 'none' } } }; }
+  function dvBlankVehicle() { return { ownership: 'Company', roadsideProvider: '', roadsidePhone: '', id: '', model: '', year: '', plate: '', colour: '', vin: '', driver: '', regoExpiry: '', regoPeriod: '12 months', ctpInsurer: '', ctpPolicy: '', insurer: '', policy: '', cover: '', insuranceRenewal: '', etagProvider: '', etagNumber: '', tollAccount: '', serviceKm: '10000', serviceMonths: '6', nextServiceDate: '', nextServiceKm: '', odometer: '', odometerDate: '', status: 'Active', notes: '', docs: [], services: [], readings: [], isNew: true, alerts: { service: { level: 'none' } } }; }
   function dvF(id, label, val, opts) {
     opts = opts || {};
     return '<div class="field' + (opts.span ? ' dv-span' + opts.span : '') + '"><label for="' + id + '">' + esc(label) + '</label><input id="' + id + '" data-vf="' + (opts.key || '') + '" type="' + (opts.type || 'text') + '"' +
@@ -3214,10 +3405,12 @@
   }
   function dvDocs(v, kinds) {
     var docs = (v.docs || []).filter(function (d) { return kinds.indexOf(d.kind) >= 0; });
+    var rn = { 'Green slip': 'CTP certificate', 'Certificate of currency': 'Insurance certificate' };
     return '<div class="dv-docs">' + docs.map(function (d) {
+      d = Object.assign({}, d, { label: rn[d.label] || d.label });
       return '<span class="dv-doc"><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + I.doc + esc(d.label) + '</a><button type="button" class="dv-x" data-rmdoc="' + esc(d.id) + '" aria-label="Remove ' + esc(d.label) + '">' + I.x + '</button></span>';
     }).join('') + (v.isNew ? '' : kinds.map(function (k) {
-      var l = { rego: 'Rego certificate', ctp: 'Green slip', insurance: 'Certificate of currency', other: 'Other document' }[k];
+      var l = { rego: 'Rego certificate', ctp: 'CTP certificate', insurance: 'Insurance certificate', other: 'Other document' }[k];
       return '<label class="dv-up" for="dvUp-' + k + '">' + I.camera + 'Add ' + esc(l.toLowerCase()) + '</label><input type="file" id="dvUp-' + k + '" data-upkind="' + k + '" accept="image/*,application/pdf" hidden>';
     }).join('')) + '</div>';
   }
@@ -3239,8 +3432,8 @@
       dvF('vfCtpI', 'CTP (green slip) insurer', v.ctpInsurer, { key: 'ctpInsurer' }) + dvF('vfCtpP', 'CTP policy number', v.ctpPolicy, { key: 'ctpPolicy' }) + '</div>' + dvDocs(v, ['rego', 'ctp']));
     h += sec('Insurance', '', '<div class="st-grid2">' + dvF('vfIns', 'Insurer', v.insurer, { key: 'insurer' }) + dvF('vfPol', 'Policy number', v.policy, { key: 'policy' }) +
       dvF('vfCover', 'Cover', v.cover, { key: 'cover', ph: 'e.g. Comprehensive (fleet)' }) + dvF('vfRen', 'Renewal date', v.insuranceRenewal, { key: 'insuranceRenewal', type: 'date' }) + '</div>' + dvDocs(v, ['insurance']));
-    h += sec('Roadside assist', '', '<div class="dv-g3">' + dvF('vfRsP', 'Provider', v.roadsideProvider, { key: 'roadsideProvider', ph: 'e.g. NRMA' }) +
-      dvF('vfRsT', 'Phone', v.roadsidePhone, { key: 'roadsidePhone', type: 'tel', ph: 'e.g. 13 11 22' }) + dvF('vfRsM', 'Membership no.', v.roadsideMembership, { key: 'roadsideMembership' }) + '</div>' +
+    h += sec('Roadside assist', 'Quote the plate when you call', '<div class="st-grid2">' + dvF('vfRsP', 'Provider', v.roadsideProvider, { key: 'roadsideProvider', ph: 'e.g. NRMA' }) +
+      dvF('vfRsT', 'Phone', v.roadsidePhone, { key: 'roadsidePhone', type: 'tel', ph: 'e.g. 13 11 22' }) + '</div>' +
       (v.roadsidePhone ? '<p class="small" style="margin:8px 0 0"><a href="tel:' + esc(dvTel(v.roadsidePhone)) + '">Call ' + esc(v.roadsideProvider || 'roadside assist') + ' · ' + esc(v.roadsidePhone) + '</a></p>' : ''));
     h += sec('Tolls', '', '<div class="st-grid2">' + dvF('vfTagP', 'E-tag provider', v.etagProvider, { key: 'etagProvider', ph: 'e.g. Linkt' }) + dvF('vfTagN', 'E-tag number', v.etagNumber, { key: 'etagNumber' }) +
       dvF('vfToll', 'Toll account', v.tollAccount, { key: 'tollAccount', span: 2 }) + '</div>');
@@ -3379,7 +3572,7 @@
       body += '<section class="section stack" style="gap:12px;max-width:560px"><div class="dv-mycar"><b>' + esc(v.model) + '</b>' + (v.plate ? '<span class="dv-plate">' + esc(v.plate) + '</span>' : '') + '</div>' +
         '<p class="small" style="margin:0">' + (v.odometer ? 'Last reading: <b>' + esc(dvKm(v.odometer)) + '</b> on ' + esc(dvFmtDate(v.odometerDate)) : 'No reading yet.') + '</p>' +
         (v.roadsidePhone ? '<a class="btn btn-outline" href="tel:' + esc(dvTel(v.roadsidePhone)) + '">' + I.phone + 'Roadside assist: ' + esc(v.roadsideProvider || '') + ' ' + esc(v.roadsidePhone) + '</a>' +
-          (v.roadsideMembership ? '<p class="small muted" style="margin:0">Membership / policy: ' + esc(v.roadsideMembership) + '</p>' : '') : '') +
+          '<p class="small muted" style="margin:0">Quote the plate' + (v.plate ? ' <b>' + esc(v.plate) + '</b>' : '') + ' when you call.</p>' : '') +
         (v.staffOwned ? '<p class="small muted" style="margin:0">Your own car, listed for work. Odometer readings are optional.</p>' :
         (v.odometerDue ? '<p class="st-note" style="margin:0">This week\'s reading is due.</p>' : '<p class="small muted" style="margin:0">Done for this week. Thanks.</p>')) +
         (v.service && (v.service.level === 'warn' || v.service.level === 'bad') ? '<p class="notice' + (v.service.level === 'bad' ? ' error' : '') + '" style="margin:0">Service ' + (v.service.level === 'bad' ? 'overdue' : 'due soon') +

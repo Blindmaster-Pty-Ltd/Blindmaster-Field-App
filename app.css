@@ -939,3 +939,10 @@ a.dv-row:hover { background: #F2F0EC; }
 .ask-act-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .ask-act-done { margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 700; color: #2E7D4F; }
 .ask-act-done svg { width: 18px; height: 18px; }
+
+/* Sales autosave + upload queue (Update 36) */
+.uq-bar { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; background: var(--sandstone); font-size: 13px; line-height: 1.4; }
+.uq-bar[hidden] { display: none; }
+.uq-bar span { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.uq-bar svg { width: 16px; height: 16px; flex-shrink: 0; }
+.sv-unsaved { outline: 2px dashed var(--ink); outline-offset: -2px; }
