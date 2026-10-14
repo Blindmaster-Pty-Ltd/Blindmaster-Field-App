@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '35'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '37'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -108,6 +108,7 @@
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
     grid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
+    download: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>',
     video: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12"/><path d="M16 10l5-3v10l-5-3z"/></svg>',
     report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg>'
   };
@@ -876,6 +877,7 @@
     if (r.name === 'staff') return renderStaff(r.arg, r.arg2);
     if (r.name === 'ticket' && r.arg) return renderTicket(r.arg);
     if (r.name === 'mytickets') return renderMyTickets();
+    if (r.name === 'tickets') return renderTicketRegister();
     if (r.name === 'ask') return renderAsk();
     if (r.name === 'vehicles') return renderVehicles(r.arg);
     if (r.name === 'myvehicle') return renderMyVehicle();
@@ -2815,6 +2817,7 @@
       if (h && h.can.clock) body += row('#/clock', I.clock, 'Clock in / out', h.clock && h.clock.in ? 'Clocked in since ' + hhmm(new Date(h.clock.in.since)) : 'You\'re clocked out · ' + hm(h.clock ? h.clock.weekMin : 0) + ' this week');
       (h && h.vehicles || []).forEach(function (v) { body += row('#/myvehicle', I.car, 'My vehicle', v.model + (v.plate ? ' · ' + v.plate : '') + (v.odometerDue ? ' · odometer due this week' : ''), v.odometerDue ? '!' : ''); });
       body += row('#/mytickets', I.idcard, 'My licences and tickets', h && h.tickets ? (h.tickets.waiting ? h.tickets.waiting + ' waiting for approval' : h.tickets.due ? h.tickets.due + ' need renewing' : h.tickets.count ? 'All current' : 'Upload your licence and tickets') : 'Licence, white card, heights and other tickets', h && h.tickets && h.tickets.due ? '!' : '');
+      if (h && h.can.ticketView) body += row('#/tickets', I.idcard, 'Staff licences and tickets', 'Everyone\'s current tickets · SWMS pack');
       if (h && h.can.directory && h.ticketsToApprove) body += row('#/staff', I.check, 'Approve tickets', h.ticketsToApprove + ' renewed ' + (h.ticketsToApprove === 1 ? 'ticket' : 'tickets') + ' waiting', String(h.ticketsToApprove));
       if (h && h.can.hours) body += row('#/hours', I.clock, 'Team hours', 'Everyone\'s clock times this week');
       if (h && h.can.directory && !wide()) body += row('#/staff', I.idcard, 'Staff directory', 'People, access and company vehicles');
@@ -3322,6 +3325,74 @@
 
   /* My licences and tickets (everyone) */
   var mt = { data: null, form: null, msg: '' };
+  /* Staff licences and tickets (read-only register for SWMS): Simon, Troy and anyone in TICKET_VIEWERS */
+  var tr = { data: null, pick: {}, open: '', view: null, busy: false, msg: '' };
+  function trDownload(f) {
+    var bin = atob(f.data), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([bytes], { type: f.mime })), a = document.createElement('a');
+    a.href = url; a.download = f.name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+  }
+  function renderTicketRegister() {
+    if (!tr.data) app.innerHTML = staffPage('me', '<section class="section"><p class="muted">Loading licences and tickets…</p></section>', ['#/me', 'Me']);
+    api({ action: 'ticketRegister' }).then(function (d) { state.user = d.user || state.user; tr.data = d.register; drawTicketRegister(); },
+      function (e) { if (tr.data) drawTicketRegister(e.message); else showError(e, renderTicketRegister); });
+  }
+  function drawTicketRegister(err) {
+    var d = tr.data, n = Object.keys(tr.pick).filter(function (e) { return tr.pick[e]; }).length;
+    var body = '<section class="hero"><span class="small" style="font-weight:700">Read only · for SWMS</span><h1>Staff licences and tickets</h1>' +
+      '<span class="small">Everyone\'s current licences and tickets. Tick the crew for a job and make a SWMS pack.</span></section>';
+    body += '<section class="section stack" style="gap:8px"><div class="spread"><button type="button" class="link-btn" id="trAll">' + (n === d.people.length ? 'Clear all' : 'Select all') + '</button>' +
+      '<span class="small muted">' + n + ' selected</span></div>';
+    d.people.forEach(function (p) {
+      body += '<div class="tr-person"><label class="tr-head"><input type="checkbox" data-trpick="' + esc(p.email) + '"' + (tr.pick[p.email] ? ' checked' : '') + '><b>' + esc(p.name) + '</b>' +
+        '<span class="small muted">' + (p.tickets.length ? p.tickets.length + (p.tickets.length === 1 ? ' ticket' : ' tickets') : 'Nothing on file') + '</span></label>';
+      p.tickets.forEach(function (t) {
+        var open = tr.open === t.id;
+        body += '<div class="sd-tk"><span class="sd-tk-name"><b>' + esc(t.type) + '</b><span class="small muted">' + esc(t.number || '') + '</span></span><span>' + sdTkStatus(t) + '</span>' +
+          '<span class="sd-tk-acts">' + (t.hasFront ? '<button type="button" class="link-btn" data-tropen="' + esc(t.id) + '">' + (open ? 'Hide' : 'Photo') + '</button>' : '<span class="small muted">No photo</span>') + '</span></div>';
+        if (open) {
+          var v = tr.view && tr.view.id === t.id ? tr.view : null;
+          body += '<div class="tr-photos">' + (!v ? '<p class="small muted">Loading the photo…</p>' : v.error ? stErr(v.error) :
+            ['front', 'back'].filter(function (s) { return v[s]; }).map(function (s) {
+              var f = v[s], isImg = /^image\//.test(f.mime);
+              return '<figure>' + (isImg ? '<img src="data:' + f.mime + ';base64,' + f.data + '" alt="' + esc(t.type + ' ' + s) + '">' : '<p class="small">' + esc(f.name) + '</p>') +
+                '<figcaption><button type="button" class="btn btn-outline" data-trdl="' + s + '">' + I.download + 'Download ' + (v.back ? s : '') + '</button></figcaption></figure>';
+            }).join('')) + '</div>';
+        }
+      });
+      body += '</div>';
+    });
+    body += '</section>';
+    if (tr.msg) body += '<div class="section"><p class="notice">' + esc(tr.msg) + '</p></div>';
+    if (err) body += '<div class="section">' + stErr(err) + '</div>';
+    body += '<div class="ms-save" style="grid-template-columns:1fr"><button type="button" class="btn btn-dark btn-lg" id="trPack"' + (n && !tr.busy ? '' : ' disabled') + '>' + (tr.busy ? 'Making the PDF…' : 'Make SWMS pack (PDF)' + (n ? ' · ' + n : '')) + '</button></div>';
+    body += '<p class="small muted section">Only current tickets show here. Contracts, notes and other staff files stay private to Simon and Troy.</p><div style="height:24px"></div>';
+    app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
+    document.getElementById('trAll').onclick = function () { var all = n !== d.people.length; tr.pick = {}; if (all) d.people.forEach(function (p) { tr.pick[p.email] = true; }); drawTicketRegister(); };
+    Array.prototype.forEach.call(app.querySelectorAll('[data-trpick]'), function (c) { c.onchange = function () { tr.pick[c.getAttribute('data-trpick')] = c.checked; drawTicketRegister(); }; });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-tropen]'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-tropen');
+        if (tr.open === id) { tr.open = ''; return drawTicketRegister(); }
+        tr.open = id; drawTicketRegister();
+        if (tr.view && tr.view.id === id) return;
+        var t = null; d.people.forEach(function (p) { p.tickets.forEach(function (x) { if (x.id === id) t = x; }); });
+        Promise.all([api({ action: 'ticketFile', id: id, side: 'front' }), t && t.hasBack ? api({ action: 'ticketFile', id: id, side: 'back' }) : Promise.resolve(null)]).then(function (r) {
+          tr.view = { id: id, front: r[0].file, back: r[1] && r[1].file }; if (tr.open === id) drawTicketRegister();
+        }, function (e) { tr.view = { id: id, error: e.message }; if (tr.open === id) drawTicketRegister(); });
+      };
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-trdl]'), function (b) { b.onclick = function () { trDownload(tr.view[b.getAttribute('data-trdl')]); }; });
+    document.getElementById('trPack').onclick = function () {
+      var emails = d.people.filter(function (p) { return tr.pick[p.email]; }).map(function (p) { return p.email; });
+      tr.busy = true; tr.msg = ''; drawTicketRegister();
+      apiPost({ action: 'ticketPack', emails: emails }).then(function (r) { tr.busy = false; tr.msg = 'Downloaded ' + r.file.name + '.'; trDownload(r.file); drawTicketRegister(); },
+        function (e) { tr.busy = false; drawTicketRegister(e.message); });
+    };
+  }
+
   function renderMyTickets() {
     if (!mt.data) app.innerHTML = staffPage('me', '<section class="section"><p class="muted">Loading your licences and tickets…</p></section>', ['#/me', 'Me']);
     api({ action: 'myTickets' }).then(function (d) { state.user = d.user || state.user; mt.data = d.tickets; drawMyTickets(); }, function (e) { if (mt.data) drawMyTickets(e.message); else showError(e, renderMyTickets); });
@@ -3969,7 +4040,7 @@
       if (flagged.length) body += '<section class="section stack" style="gap:6px"><h2 class="st-h2">To check</h2>' + flagged.map(function (f) {
         return '<div class="ck-rec"><span>' + esc(firstName(f.name) + ' · ' + shortDate(f.e.date)) + '</span><span>' + esc(f.e.in + ' – ' + (f.e.out || 'now')) + '</span><span class="small">' + esc(f.e.flag) + '</span></div>';
       }).join('') + '</section>';
-      body += '<section class="section"><a class="btn btn-sand btn-lg" href="' + esc(H.sheetUrl) + '" target="_blank" rel="noopener">' + I.ext + 'Open the timesheet to fix a time</a></section><div style="height:32px"></div>';
+      body += '<section class="section"><a class="btn btn-sand btn-lg" href="' + esc(H.sheetUrl) + '" target="_blank" rel="noopener">' + I.ext + 'Open the timesheet to fix a time</a><p class="small muted" style="margin:8px 0 0">Opens the Bundy Clock Time Log. Fix the time in the Timestamp column and it shows here on refresh.</p></section><div style="height:32px"></div>';
       app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
     }, function (e) { showError(e, function () { renderHours(from); }); });
   }
