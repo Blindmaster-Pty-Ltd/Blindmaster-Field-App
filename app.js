@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '42'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '43'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -1038,6 +1038,7 @@
       var d = addDays(mon, i), on = d === date, dt = new Date(d + 'T12:00:00');
       return '<a class="wk-day' + (d === t ? ' is-today' : '') + '" href="' + dayHref(d) + '"' + (on ? ' aria-current="date"' : '') + ' data-wk="' + d + '">' +
         '<span class="wk-dow">' + dt.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase() + '</span><span class="wk-num">' + dt.getDate() + '</span>' +
+        '<span class="wk-mon">' + ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][dt.getMonth()] + '</span>' +
         '<span class="wk-count">' + weekCount(d) + '</span></a>';
     }).join('');
     return '<nav class="wk" aria-label="This week">' +

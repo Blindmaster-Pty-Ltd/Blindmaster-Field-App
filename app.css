@@ -620,7 +620,7 @@ body.mode-desktop .pl-grid { grid-template-columns: repeat(var(--days, 6), minma
 .wk a { text-decoration: none; color: var(--ink); }
 .wk-arrow { display: flex; align-items: center; justify-content: center; background: var(--sandstone); }
 .wk-arrow svg { width: 18px; height: 18px; }
-.wk-day { min-height: 68px; border-left: 1px solid #D6D2CA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.wk-day { min-height: 84px; padding: 6px 0; border-left: 1px solid #D6D2CA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
 .wk-day + .wk-arrow { border-left: 1px solid #D6D2CA; }
 .wk-dow { font-size: 12px; font-weight: 700; letter-spacing: .06em; }
 .wk-num { font-size: 22px; font-weight: 800; line-height: 1.1; }
@@ -1010,3 +1010,6 @@ body.mode-desktop .rail-sec { padding: 12px 12px 4px; font-size: 11px; text-alig
 /* Team page: the same 5-day boxes as the Schedule (Update 44) */
 .team-head .wk { margin: 16px 16px 0; }
 body.mode-tablet .team-head .wk, body.mode-desktop .team-head .wk { margin: 24px 24px 0; }
+
+/* Month under the date in the weekday boxes (Update 46) */
+.wk-mon { font-size: 11px; font-weight: 700; letter-spacing: .06em; line-height: 1; }
