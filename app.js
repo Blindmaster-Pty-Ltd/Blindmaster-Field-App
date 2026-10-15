@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '40'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '42'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -65,6 +65,7 @@
   }
   function apptHref(a, date) { return '#/appt/' + encodeURIComponent(a.id) + '/' + date; }
   function dayHref(date) { return date === todayStr() ? '#/day' : '#/day/' + date; }
+  window.__bmDayHref = dayHref;
 
   function layoutMode() {
     var w = window.innerWidth;
@@ -1030,8 +1031,9 @@
 
   /** Mon–Fri tabs for the week of `date`, with arrows to the previous / next week. Counts fill in after loading. */
   function weekMonday(date) { var dow = new Date(date + 'T12:00:00').getDay(); return addDays(date, dow === 0 ? -6 : 1 - dow); }
-  function weekTabs(date) {
+  function weekTabs(date, page) {
     var mon = weekMonday(date), t = todayStr();
+    var dayHref = page ? function (d) { return d === t ? '#/' + page : '#/' + page + '/' + d; } : window.__bmDayHref;
     var cells = [0, 1, 2, 3, 4].map(function (i) {
       var d = addDays(mon, i), on = d === date, dt = new Date(d + 'T12:00:00');
       return '<a class="wk-day' + (d === t ? ' is-today' : '') + '" href="' + dayHref(d) + '"' + (on ? ' aria-current="date"' : '') + ' data-wk="' + d + '">' +
@@ -1041,7 +1043,7 @@
     return '<nav class="wk" aria-label="This week">' +
       '<a class="wk-arrow" href="' + dayHref(addDays(mon, -7)) + '" aria-label="Previous week">' + I.left + '</a>' + cells +
       '<a class="wk-arrow" href="' + dayHref(addDays(mon, 7)) + '" aria-label="Next week">' + I.right + '</a></nav>' +
-      (date === t || weekMonday(t) === mon ? '' : '<div class="section" style="padding-top:8px"><a class="today-btn" href="#/day">Back to today</a></div>');
+      (date === t || weekMonday(t) === mon ? '' : '<div class="section" style="padding-top:8px"><a class="today-btn" href="#/' + (page || 'day') + '">Back to today</a></div>');
   }
   function weekCount(d) {
     var c = state.cache[d];
@@ -1076,7 +1078,7 @@
     var jobs = appts.filter(function (a) { return a.isInstall && !/warehouse/i.test(a.type); }).length;
     var title = isOffice() ? (isToday ? 'Today' : shortDate(date)) : (isToday ? greeting() + ', ' + firstName(user.name) : shortDate(date));
     return '<section class="section stack" style="padding-top:16px;padding-bottom:20px">' +
-      '<span class="eyebrow">' + esc(longDate(date)) + (isOffice() ? ' · all crews' : '') + '</span>' +
+      '<span class="eyebrow">' + esc(longDate(date)) + (isOffice() ? (whoSel() ? ' · ' + esc(whoSel().name) : ' · all crews') : '') + '</span>' +
       '<h1>' + esc(title) + '</h1>' +
       '<p style="margin:4px 0 0;font-weight:500">' + (appts.length ? appts.length + ' appointment' + (appts.length === 1 ? '' : 's') + (jobs ? ' · ' + jobs + ' job' + (jobs === 1 ? '' : 's') : '') : 'Nothing scheduled') + '</p>' +
       awayLine(date) +
@@ -1105,6 +1107,40 @@
       '</div></section>';
   }
 
+
+  /* ---------- office: show one person's appointments (Schedule and Route) ----------
+     The choice is remembered on the device and shared by Schedule and Route. */
+  function whoSel() { var w = store('fa-who'); return w && w.email ? w : null; }
+  function whoFilter(appts) {
+    var w = whoSel();
+    if (!isOffice() || !w) return appts;
+    return appts.filter(function (a) { return w.email === '_none' ? !a.crew.length : a.crew.some(function (c) { return c.email === w.email; }); });
+  }
+  function whoBar(allAppts, cls) {
+    if (!isOffice()) return '';
+    var people = {}, w = whoSel(), none = 0;
+    allAppts.forEach(function (a) { if (!a.crew.length) none++; a.crew.forEach(function (c) { var p = people[c.email] = people[c.email] || { name: c.name, n: 0 }; p.n++; }); });
+    if (w && w.email !== '_none' && !people[w.email]) people[w.email] = { name: w.name, n: 0 };
+    var opts = Object.keys(people).sort(function (x, y) { return people[x].name.localeCompare(people[y].name); }).map(function (e) {
+      return '<option value="' + esc(e) + '"' + (w && w.email === e ? ' selected' : '') + '>' + esc(people[e].name) + ' (' + people[e].n + ')</option>';
+    });
+    if (none || (w && w.email === '_none')) opts.push('<option value="_none"' + (w && w.email === '_none' ? ' selected' : '') + '>No one assigned (' + none + ')</option>');
+    return '<div class="who-bar ' + (cls || '') + '"><label for="whoSel">' + I.user + '<span>Show</span></label><select id="whoSel" aria-label="Show appointments for">' +
+      '<option value="">Everyone (' + allAppts.length + ')</option>' + opts.join('') + '</select>' +
+      (w ? '<button type="button" class="who-clear" id="whoClear" aria-label="Show everyone">' + I.x + '</button>' : '') + '</div>';
+  }
+  function bindWho(rerender) {
+    var sel = document.getElementById('whoSel');
+    if (sel) sel.onchange = function () {
+      var v = sel.value, name = v ? sel.options[sel.selectedIndex].text.replace(/\s*\(\d+\)$/, '') : '';
+      if (v) store('fa-who', { email: v, name: name }); else unstore('fa-who');
+      rerender();
+    };
+    var c = document.getElementById('whoClear');
+    if (c) c.onclick = function () { unstore('fa-who'); rerender(); };
+  }
+  function crewNames(a) { return a.crew.map(function (c) { return firstName(c.name); }).join(', '); }
+
   function scheduleList(appts, date, ni, selectedId) {
     var user = state.user || {};
     var isToday = date === todayStr();
@@ -1112,12 +1148,12 @@
       var cls = a.id === selectedId ? ' is-selected' : i === ni && !selectedId ? ' is-next' : (isToday && new Date(a.end).getTime() < Date.now() ? ' is-past' : '');
       var tag = a.isSales ? 'tag-light' : 'tag-blue';
       var meRole = (user.role === 'sales' && a.isInstall) ? ' · ' + ordinal(crewPosition(a)) + ' installer' : '';
-      var who = isOffice() && a.crew.length ? '<span class="sub">' + esc(a.crew.map(function (c) { return firstName(c.name); }).join(', ')) + '</span>' : '';
+      var who = isOffice() ? (a.crew.length ? '<span class="who-line">' + I.user + '<b>' + esc(crewNames(a)) + '</b></span>' : '<span class="who-line is-none">' + I.user + 'No one assigned</span>') : '';
       return '<li><span class="time">' + esc(a.allDay ? 'All day' : a.startLabel) + '</span>' +
         '<a class="appt-card' + cls + '" href="' + apptHref(a, date) + '"' + (a.id === selectedId ? ' aria-current="true"' : '') + '>' + lightHtml(a) +
           '<span><span class="tag ' + (i === ni && !selectedId ? 'tag-blue' : tag) + '">' + esc(a.type) + esc(meRole) + '</span>' + (i === ni && isToday ? ' <span class="tag tag-light">Next</span>' : '') + '</span>' +
-          '<span class="name">' + esc(a.title) + '</span>' +
-          '<span class="sub">' + esc(suburb(a.address)) + (refLabel(a) ? ' · ' + esc(refLabel(a)) : '') + '</span>' + who + reportLine(a) +
+          '<span class="name">' + esc(a.title) + '</span>' + who +
+          '<span class="sub">' + esc(suburb(a.address)) + (refLabel(a) ? ' · ' + esc(refLabel(a)) : '') + '</span>' + reportLine(a) +
         '</a></li>';
     }).join('') + '</ol>';
   }
@@ -1156,6 +1192,10 @@
   function hasReport(a) { return (a.isInstall || !!a.jobReportUrl) && !/warehouse/i.test(a.type); }
 
   /** The appointment details, used full-screen on phones and in the right-hand pane on tablet/desktop. */
+  /** Notes: the name after "Sales rep:", "PM:", "Installer:" etc. is shown in bold so it stands out. */
+  function boldPeople(text) {
+    return esc(text).replace(/((?:sales\s*rep|sales|rep|consultant|pm|project\s*manager|installers?|crew|measured\s*by|booked\s*by)\s*[:\-–]\s*)([^\n,;.(]+)/gi, function (m, label, name) { return label + '<b>' + name + '</b>'; });
+  }
   function apptDetail(a, date, isWide) {
     var html = '<section class="hero">' +
       '<div class="row" style="gap:8px;flex-wrap:wrap">' + lightHtml(a) + '<span class="tag tag-dark">' + esc(a.type) + '</span>' + (a.status === 'Tentative' ? '<span class="tag tag-light">Tentative, not confirmed</span>' : '') + '<span style="font-weight:700;font-size:14px">' + esc(a.allDay ? 'All day' : a.startLabel + ' – ' + a.endLabel) + '</span>' +
@@ -1189,7 +1229,7 @@
     if (a.access) details.push(['Access', a.access]);
     if (details.length) info += '<section class="section stack" style="gap:12px"><h2>Customer and site</h2><dl class="dl">' + details.map(function (d) { return '<dt>' + esc(d[0]) + '</dt><dd>' + esc(d[1]) + '</dd>'; }).join('') + '</dl></section>';
     if (a.requirements.length) info += '<section class="section stack" style="gap:12px"><h2>' + (a.isSales ? 'Visit checklist' : 'Job requirements') + '</h2><ul class="checklist">' + a.requirements.map(function (r) { return '<li>' + I.check + '<span>' + esc(r) + '</span></li>'; }).join('') + '</ul></section>';
-    if (a.crew.length) info += '<section class="section stack" style="gap:8px"><span class="small muted" style="font-weight:700">Crew</span><div class="chips">' + a.crew.map(function (c, i) { return '<span class="tag" style="padding:6px 12px;font-size:13px">' + esc(c.name) + (c.me ? ' (you)' : '') + (a.isInstall && a.crew.length > 2 && i >= 2 ? ' · ' + ordinal(i + 1) : '') + '</span>'; }).join('') + '</div></section>';
+    if (a.crew.length) info += '<section class="section stack" style="gap:8px"><span class="small muted" style="font-weight:700">' + (a.isSales ? 'Sales rep' : 'Crew') + '</span><div class="chips">' + a.crew.map(function (c, i) { return '<span class="tag" style="padding:6px 12px;font-size:14px;font-weight:700">' + esc(c.name) + (c.me ? ' (you)' : '') + (a.isInstall && a.crew.length > 2 && i >= 2 ? ' · ' + ordinal(i + 1) : '') + '</span>'; }).join('') + '</div></section>';
     info += chatLink(a);
     var folders = '';
     if (a.projectFolderUrl || a.folderUrl) folders += '<a class="linkrow" href="#/collateral/' + encodeURIComponent(a.id) + '/' + date + '">' + I.grid +
@@ -1197,7 +1237,7 @@
     if (a.projectFolderUrl) folders += linkRow(a.projectFolderUrl, I.folder, 'Project folder', a.jr ? 'Project ' + a.jr : 'Google Drive');
     if (a.folderUrl) folders += linkRow(a.folderUrl, I.folder, 'Opportunity folder', a.opp ? 'OPP-' + a.opp + ' · Collateral and project' : 'Google Drive');
     if (folders) info += '<section class="section stack" style="gap:8px"><h2 style="margin-bottom:4px">Files</h2>' + folders + '</section>';
-    if (a.notes) info += '<section class="panel stack" style="margin-top:28px;gap:6px"><b class="small">Notes</b><p style="margin:0;white-space:pre-line;font-size:14px">' + esc(a.notes) + '</p></section>';
+    if (a.notes) info += '<section class="panel stack" style="margin-top:28px;gap:6px"><b class="small">Notes</b><p style="margin:0;white-space:pre-line;font-size:14px">' + boldPeople(a.notes) + '</p></section>';
 
     var map = a.address ? '<section class="mapbox">' +
       '<iframe class="map-frame" loading="lazy" title="Map of ' + esc(a.address) + '" src="https://maps.google.com/maps?q=' + encodeURIComponent(a.address) + '&z=14&output=embed"></iframe>' +
@@ -1302,19 +1342,20 @@
   function renderDay(date) {
     loading();
     loadDay(date).then(function (day) {
-      var appts = day.appointments;
+      var appts = whoFilter(day.appointments);
       var ni = nextIndex(appts, date);
       var html = topbar() + (day.offline ? '<div class="offline-bar">Offline: showing your last saved schedule</div>' : '') + '<main>' +
-        dayHeading(date, appts) + weekTabs(date) + nextPanel(ni >= 0 ? appts[ni] : null, date);
+        dayHeading(date, appts) + weekTabs(date) + whoBar(day.appointments, 'section') + nextPanel(ni >= 0 ? appts[ni] : null, date);
       if (appts.length) {
         html += '<div class="section spread" style="padding-top:28px;padding-bottom:12px"><h2>Schedule</h2>' +
           '<a href="#/route' + (date === todayStr() ? '' : '/' + date) + '" style="font-weight:700;font-size:14px;min-height:44px;display:flex;align-items:center">Route map</a></div>' +
           scheduleList(appts, date, ni, null);
       } else {
-        html += '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">Nothing is booked for you on this day.</p></div>';
+        html += '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">' + (whoSel() && isOffice() ? 'Nothing booked for ' + esc(whoSel().name) + ' on this day.' : 'Nothing is booked for you on this day.') + '</p></div>';
       }
       html += dayFooter(day, date, appts) + '</main>' + tabbar('day', date);
       app.innerHTML = html;
+      bindWho(function () { renderDay(date); });
       bindRefresh();
       fillWeather();
       fillChatLinks();
@@ -1350,16 +1391,17 @@
   function renderDayWide(date, selectedId) {
     loading();
     loadDay(date).then(function (day) {
-      var appts = day.appointments;
+      var appts = whoFilter(day.appointments);
       var ni = nextIndex(appts, date);
       var sel = selectedId ? appts.filter(function (a) { return a.id === selectedId; })[0] : (appts[ni >= 0 ? ni : 0] || null);
       var list = (day.offline ? '<div class="offline-bar">Offline: showing your last saved schedule</div>' : '') +
-        dayHeading(date, appts) + weekTabs(date) +
-        (appts.length ? scheduleList(appts, date, ni, sel && sel.id) : '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">Nothing is booked on this day.</p></div>') +
+        dayHeading(date, appts) + weekTabs(date) + whoBar(day.appointments, 'section') +
+        (appts.length ? scheduleList(appts, date, ni, sel && sel.id) : '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">' + (whoSel() && isOffice() ? 'Nothing booked for ' + esc(whoSel().name) + ' on this day.' : 'Nothing is booked on this day.') + '</p></div>') +
         dayFooter(day, date, appts);
       var detail = sel ? apptDetail(sel, date, true)
         : '<div class="empty-detail"><p class="muted">' + (selectedId ? 'This appointment may have been moved or cancelled.' : 'Select an appointment to see the details.') + '</p></div>';
       app.innerHTML = shell('day', date, '<div class="split"><section class="pane-list" aria-label="Schedule">' + list + '</section><section class="pane-detail" aria-label="Appointment details">' + detail + '</section></div>');
+      bindWho(function () { if (location.hash.indexOf('#/appt/') === 0) location.hash = dayHref(date); else renderDayWide(date); });
       var pane = app.querySelector('.pane-detail'); if (pane) pane.scrollTop = 0;
       bindRefresh();
       fillWeather();
@@ -1451,9 +1493,11 @@
     return new M();
   }
 
-  var rt = { sel: -1, date: '', markers: [], watch: null };
+  var rt = { sel: -1, date: '', markers: [], watch: null, who: '' };
   function renderRouteLive(date, day) {
-    var stops = day.appointments.filter(function (a) { return a.address; });
+    var stops = whoFilter(day.appointments).filter(function (a) { return a.address; });
+    var whoKey = (whoSel() || {}).email || '';
+    if (rt.who !== whoKey) { rt.who = whoKey; rt.date = ''; }
     var now = Date.now(), isToday = date === todayStr();
     var done = function (a) { return isToday ? new Date(a.end).getTime() < now : date < todayStr(); };
     if (rt.date !== date || rt.sel >= stops.length) { var ni = nextIndex(stops, date); rt.sel = ni >= 0 ? ni : 0; rt.date = date; }
@@ -1461,14 +1505,15 @@
     var last = stops[stops.length - 1];
     var card = '<div class="rt-card"><span class="stack" style="gap:2px"><img src="wordmark-white.svg" alt="" class="rt-logo"><b class="rt-date">' + esc(shortDate(date)) + '</b>' +
       '<span class="small">' + stops.length + (stops.length === 1 ? ' stop' : ' stops') + (isToday ? ' · ' + doneN + ' done' : '') + (last ? ' · last finishes ' + esc(last.endLabel) : '') + '</span></span>' +
-      (isOffice() ? '<span class="tag">All crews</span>' : '') + '</div>';
+      '</div>';
     var body = '<div class="rt-mapwrap"><div id="rtMap" class="rt-map" aria-label="Map of today\'s stops"></div>' + card +
       '<p class="rt-note' + (window.__bmMapsProblem ? ' is-problem' : '') + '" id="rtNote">' + esc(window.__bmMapsProblem || 'Loading map…') + '</p></div>';
-    if (!stops.length) body += '<div class="empty"><h2>No stops</h2><p class="muted" style="margin:0">No appointments with an address on this day.</p></div>';
-    else body += '<section class="rt-sheet" id="rtSheet"></section>';
+    body += '<section class="rt-sheet rt-side">' + whoBar(day.appointments, 'rt-who') +
+      (stops.length ? '<div id="rtSheet" class="rt-sheet-in"></div>' : '<div class="empty" style="padding:24px 0"><h2>No stops</h2><p class="muted" style="margin:0">' + (whoSel() && isOffice() ? 'Nothing booked for ' + esc(whoSel().name) + ' on this day.' : 'No appointments with an address on this day.') + '</p></div>') + '</section>';
     if (wide()) app.innerHTML = shell('route', date, '<div class="rt-wide">' + body + '</div>');
     else app.innerHTML = topbar({ right: shortDate(date) }) + '<main class="rt-main">' + body + '</main>' + tabbar('route', date);
     if (!stops.length && !window.__bmMapsProblem) { var n0 = document.getElementById('rtNote'); if (n0) n0.textContent = 'No stops on this day'; }
+    bindWho(function () { renderRouteLive(date, day); });
 
     function sheet() {
       var el = document.getElementById('rtSheet'); if (!el) return;
@@ -1478,6 +1523,7 @@
         '&destination=' + encodeURIComponent(last.address) + (stops.length > 1 ? '&waypoints=' + stops.slice(0, -1).map(function (s) { return encodeURIComponent(s.address); }).join('%7C') : '');
       el.innerHTML = '<div class="spread"><span class="rt-kicker">Stop ' + (rt.sel + 1) + ' of ' + stops.length + ' · ' + esc(a.type) + '</span><b>' + esc(a.allDay ? 'All day' : a.startLabel + '–' + a.endLabel) + '</b></div>' +
         '<h1 class="rt-name">' + esc(a.customer || a.title) + '</h1><span class="rt-addr">' + esc(a.address) + '</span>' +
+        (isOffice() ? (a.crew.length ? '<span class="who-line">' + I.user + '<b>' + esc(crewNames(a)) + '</b></span>' : '<span class="who-line is-none">' + I.user + 'No one assigned</span>') : '') +
         (detail ? '<span class="small muted">' + esc(detail) + '</span>' : '') +
         '<span class="rt-status"><span class="light ' + (tent ? 'is-red' : 'is-green') + '"></span>' + (tent ? 'Not confirmed (tentative)' : 'Confirmed booking') + '</span>' +
         '<div class="rt-actions"><a class="btn btn-lg ' + (isDone ? 'btn-sand' : 'btn-dark') + '" href="' + mapsDir(a.address) + '" target="_blank" rel="noopener">' + I.nav + (isDone ? 'Done ✓' : 'Navigate') + '</a>' +
@@ -1580,8 +1626,8 @@
     loading('Loading route…');
     loadDay(date).then(function (day) {
       if (mapsKey()) return renderRouteLive(date, day);
-      var stops = day.appointments.filter(function (a) { return a.address; });
-      var head = '<section class="section stack" style="padding-bottom:16px"><h1>Route</h1><p class="muted" style="margin:0">' + stops.length + ' stop' + (stops.length === 1 ? '' : 's') + ' · ' + esc(longDate(date)) + (isOffice() ? ' · all crews' : '') + '</p></section>';
+      var stops = whoFilter(day.appointments).filter(function (a) { return a.address; });
+      var head = '<section class="section stack" style="padding-bottom:16px"><h1>Route</h1><p class="muted" style="margin:0">' + stops.length + ' stop' + (stops.length === 1 ? '' : 's') + ' · ' + esc(longDate(date)) + (isOffice() ? (whoSel() ? ' · ' + esc(whoSel().name) : ' · all crews') : '') + '</p></section>' + whoBar(day.appointments, 'section');
       var mapHtml = '', listHtml = '';
       if (!stops.length) {
         listHtml = '<div class="empty"><h2>No stops</h2><p class="muted">No appointments with an address on this day.</p></div>';
@@ -1607,6 +1653,7 @@
       } else {
         app.innerHTML = topbar({ right: shortDate(date) }) + '<main>' + head + mapHtml + listHtml + '</main>' + tabbar('route', date);
       }
+      bindWho(function () { renderRoute(date); });
     }, function (err) { showError(err, function () { renderRoute(date); }); });
   }
 
@@ -1627,7 +1674,7 @@
       order.forEach(function (e) { people[e].appts.sort(function (x, y) { return x.a.start < y.a.start ? -1 : 1; }); });
       order.sort(function (x, y) { return x === '_none' ? 1 : y === '_none' ? -1 : people[x].name.localeCompare(people[y].name); });
 
-      var head = '<div class="team-head">' + dayNav(date) +
+      var head = '<div class="team-head">' + weekTabs(date, 'team') +
         '<section class="section stack" style="padding-top:16px;padding-bottom:16px"><span class="eyebrow">' + esc(longDate(date)) + '</span><h1>Team</h1>' +
         '<p style="margin:4px 0 0;font-weight:500">' + order.filter(function (e) { return e !== '_none'; }).length + ' people · ' + day.appointments.length + ' appointments</p></section></div>';
 
@@ -1647,6 +1694,7 @@
 
       if (wide()) app.innerHTML = shell('team', date, '<div class="team-page">' + head + cols + '</div>');
       else app.innerHTML = topbar() + '<main>' + head + cols + '</main>' + tabbar('team', date);
+      fillWeekCounts(date);
     }, function (err) { showError(err, function () { renderTeam(date); }); });
   }
 
@@ -4072,7 +4120,8 @@
         (CFG.ENVIRONMENT ? '<p class="notice" style="margin:0">You are using the <b>' + esc(CFG.ENVIRONMENT) + '</b> version. Appointments here are test data.</p>' : '') +
         (realOffice() ? '<div class="vas-pick stack" style="gap:8px"><label for="vasSel"><b>View as</b></label>' +
           '<span class="small muted">See how the app is laid out for each role. It still shows only your own appointments, and it\'s view only: switch back to make changes.</span>' +
-          '<select id="vasSel">' + [['', 'My view (' + roleLabel(u.realRole || u.role) + ')'], ['installer', 'Installer'], ['sales', 'Sales and projects'], ['pm', 'Project manager'], ['warehouse', 'Warehouse']].map(function (o) {
+          ((u.manager || u.realManager) ? '<span class="small muted"><b>Management</b> is your own view: everything Office sees, plus the Management pages (Staff, Vehicles, documents, team hours) that only Simon and Troy can open.</span>' : '') +
+          '<select id="vasSel">' + ((u.manager || u.realManager) ? [['', 'Management · my view (Office plus Staff and Vehicles)'], ['office', 'Office (what Jan sees)']] : [['', 'My view (' + roleLabel(u.realRole || u.role) + ')']]).concat([['installer', 'Installer'], ['sales', 'Sales and projects'], ['pm', 'Project manager'], ['warehouse', 'Warehouse']]).map(function (o) {
             return '<option value="' + o[0] + '"' + ((u.viewing ? u.role : '') === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>' +
           (u.viewing ? '<button type="button" class="btn btn-dark btn-lg" data-vas-back>Back to my view</button>' : '') +
           '</div>' : '') +
