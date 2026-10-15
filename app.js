@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '43'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '44'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -109,6 +109,7 @@
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
     grid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
+    share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/></svg>',
     download: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>',
     video: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12"/><path d="M16 10l5-3v10l-5-3z"/></svg>',
     report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg>'
@@ -1233,11 +1234,11 @@
     if (a.crew.length) info += '<section class="section stack" style="gap:8px"><span class="small muted" style="font-weight:700">' + (a.isSales ? 'Sales rep' : 'Crew') + '</span><div class="chips">' + a.crew.map(function (c, i) { return '<span class="tag" style="padding:6px 12px;font-size:14px;font-weight:700">' + esc(c.name) + (c.me ? ' (you)' : '') + (a.isInstall && a.crew.length > 2 && i >= 2 ? ' · ' + ordinal(i + 1) : '') + '</span>'; }).join('') + '</div></section>';
     info += chatLink(a);
     var folders = '';
-    if (a.projectFolderUrl || a.folderUrl) folders += '<a class="linkrow" href="#/collateral/' + encodeURIComponent(a.id) + '/' + date + '">' + I.grid +
-      '<span class="text"><b>Collateral</b><span>Photos, sketches, quotes and documents for this job</span></span>' + I.right + '</a>';
-    if (a.projectFolderUrl) folders += linkRow(a.projectFolderUrl, I.folder, 'Project folder', a.jr ? 'Project ' + a.jr : 'Google Drive');
-    if (a.folderUrl) folders += linkRow(a.folderUrl, I.folder, 'Opportunity folder', a.opp ? 'OPP-' + a.opp + ' · Collateral and project' : 'Google Drive');
-    if (folders) info += '<section class="section stack" style="gap:8px"><h2 style="margin-bottom:4px">Files</h2>' + folders + '</section>';
+    if (a.projectFolderUrl || a.folderUrl) folders += '<div class="col-strip stack" data-colstrip="' + esc(a.id) + '" data-date="' + date + '"><p class="small muted" style="margin:0">Loading the job files…</p></div>' +
+      '<a class="linkrow" href="#/collateral/' + encodeURIComponent(a.id) + '/' + date + '">' + I.grid + '<span class="text"><b>All collateral</b><span>Photos, sketches, quotes and documents for this job</span></span>' + I.right + '</a>';
+    if (a.projectFolderUrl && hasDrive()) folders += linkRow(a.projectFolderUrl, I.folder, 'Project folder', a.jr ? 'Project ' + a.jr : 'Google Drive');
+    if (a.folderUrl && hasDrive()) folders += linkRow(a.folderUrl, I.folder, 'Opportunity folder', a.opp ? 'OPP-' + a.opp + ' · Collateral and project' : 'Google Drive');
+    if (folders) info += '<section class="section stack" style="gap:8px"><h2 style="margin-bottom:4px">Collateral</h2>' + folders + '</section>';
     if (a.notes) info += '<section class="panel stack" style="margin-top:28px;gap:6px"><b class="small">Notes</b><p style="margin:0;white-space:pre-line;font-size:14px">' + boldPeople(a.notes) + '</p></section>';
 
     var map = a.address ? '<section class="mapbox">' +
@@ -1360,6 +1361,7 @@
       bindRefresh();
       fillWeather();
       fillChatLinks();
+      fillColStrip();
       fillWeekCounts(date);
     }, function (err) { showError(err, function () { renderDay(date); }); });
   }
@@ -1384,6 +1386,7 @@
       window.scrollTo(0, 0);
       fillWeather();
       fillChatLinks();
+      fillColStrip();
     }, function (err) { showError(err, function () { renderAppointment(date, id); }); });
   }
 
@@ -1407,6 +1410,7 @@
       bindRefresh();
       fillWeather();
       fillChatLinks();
+      fillColStrip();
       fillWeekCounts(date);
     }, function (err) { showError(err, function () { renderDayWide(date, selectedId); }); });
   }
@@ -2097,6 +2101,198 @@
 
   /* ---------- collateral (design no. 5) ---------- */
 
+  /* ---------- Collateral viewer: every file opens inside the app (no Drive access needed) ---------- */
+  function hasDrive() { return /@blindmaster\.com\.au$/i.test((state.user && state.user.email) || ''); }
+  var cv = { files: [], i: 0, id: '', date: '', cache: {}, busy: {}, pdfjs: null, el: null, scrollT: null };
+  var CV_ORDER = { photo: 0, pdf: 1, doc: 1, sheet: 1, slides: 1, other: 1, video: 2, audio: 2 };
+  function cvList(files) {
+    return files.filter(function (f) { return f.kind !== 'folder'; }).map(function (f, n) { return { f: f, n: n }; })
+      .sort(function (a, b) { return (CV_ORDER[a.f.kind] - CV_ORDER[b.f.kind]) || (a.n - b.n); }).map(function (x) { return x.f; });
+  }
+  var CV_LABEL = { photo: 'Photo', pdf: 'PDF', doc: 'Document', sheet: 'Spreadsheet', slides: 'Slides', video: 'Video', audio: 'Voice note', other: 'File' };
+  function cvShort(folder) { var p = String(folder || '').split(' › '); return p.length > 1 ? p.slice(1).join(' › ') : p[0]; }
+  function cvThumb(f) {
+    if (f.thumb) return '<img src="' + esc(f.thumb) + '" alt="">';
+    return '<span class="cv-ico">' + (f.kind === 'video' || f.kind === 'audio' ? I.video : I.doc) + '</span>';
+  }
+  function cvOpen(files, index, id, date) {
+    cvClose(true);
+    cv.files = files; cv.i = Math.max(0, Math.min(index, files.length - 1)); cv.id = id; cv.date = date;
+    var el = document.createElement('div');
+    el.className = 'cv'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Job files');
+    el.innerHTML = '<header class="cv-head"><span class="cv-title"><b id="cvName"></b><span id="cvSub"></span></span>' +
+      '<button type="button" class="cv-x" id="cvClose" aria-label="Close">' + I.x + '</button></header>' +
+      '<div class="cv-stagewrap"><div class="cv-stage" id="cvStage">' + files.map(function (f, i) {
+        return '<div class="cv-slide" data-i="' + i + '"><div class="cv-body">' + (f.kind === 'photo' && f.thumb ? '<img class="cv-img is-low" src="' + esc(f.thumb) + '" alt="' + esc(f.name) + '">' : '<p class="cv-wait">Loading…</p>') + '</div></div>';
+      }).join('') + '</div>' +
+      (files.length > 1 ? '<button type="button" class="cv-nav cv-prev" id="cvPrev" aria-label="Previous file">' + I.left + '</button><button type="button" class="cv-nav cv-next" id="cvNext" aria-label="Next file">' + I.right + '</button>' : '') + '</div>' +
+      (files.length > 1 ? '<div class="cv-film" id="cvFilm">' + files.map(function (f, i) { return '<button type="button" data-cvgo="' + i + '" aria-label="' + esc(f.name) + '">' + cvThumb(f) + '</button>'; }).join('') + '</div>' : '') +
+      '<div class="cv-acts"><button type="button" class="cv-btn" id="cvShare">' + I.share + 'Share</button>' +
+      (hasDrive() ? '<a class="cv-btn" id="cvDrive" target="_blank" rel="noopener">Open in Drive' + I.ext + '</a>' : '<a class="cv-btn" id="cvSave" download>' + I.download + 'Save to phone</a>') + '</div>';
+    document.body.appendChild(el); document.body.classList.add('cv-open');
+    cv.el = el;
+    var stage = el.querySelector('#cvStage');
+    stage.scrollLeft = cv.i * stage.clientWidth;
+    stage.addEventListener('scroll', function () {
+      clearTimeout(cv.scrollT);
+      cv.scrollT = setTimeout(function () { var n = Math.round(stage.scrollLeft / Math.max(1, stage.clientWidth)); if (n !== cv.i) { cv.i = n; cvShow(); } }, 80);
+    });
+    el.querySelector('#cvClose').onclick = function () { cvClose(); };
+    var p = el.querySelector('#cvPrev'), n = el.querySelector('#cvNext');
+    if (p) p.onclick = function () { cvGo(cv.i - 1); };
+    if (n) n.onclick = function () { cvGo(cv.i + 1); };
+    Array.prototype.forEach.call(el.querySelectorAll('[data-cvgo]'), function (b) { b.onclick = function () { cvGo(Number(b.getAttribute('data-cvgo'))); }; });
+    el.querySelector('#cvShare').onclick = cvShare;
+    try { history.pushState({ cv: 1 }, ''); } catch (e) {}
+    cvShow();
+  }
+  function cvGo(i) {
+    if (!cv.el || i < 0 || i >= cv.files.length) return;
+    var stage = cv.el.querySelector('#cvStage');
+    stage.scrollTo({ left: i * stage.clientWidth, behavior: 'smooth' });
+    cv.i = i; cvShow();
+  }
+  function cvClose(silent) {
+    if (!cv.el) return;
+    cv.el.remove(); cv.el = null; document.body.classList.remove('cv-open');
+    if (!silent && history.state && history.state.cv) { try { history.back(); } catch (e) {} }
+  }
+  window.addEventListener('popstate', function () { if (cv.el) { cv.el.remove(); cv.el = null; document.body.classList.remove('cv-open'); } });
+  document.addEventListener('keydown', function (e) {
+    if (!cv.el) return;
+    if (e.key === 'Escape') cvClose(); else if (e.key === 'ArrowRight') cvGo(cv.i + 1); else if (e.key === 'ArrowLeft') cvGo(cv.i - 1);
+  });
+  function cvShow() {
+    if (!cv.el) return;
+    var f = cv.files[cv.i];
+    cv.el.querySelector('#cvName').textContent = f.name;
+    cv.el.querySelector('#cvSub').textContent = (CV_LABEL[f.kind] || 'File') + ' · ' + cvShort(f.folder) + ' · ' + (cv.i + 1) + ' of ' + cv.files.length;
+    Array.prototype.forEach.call(cv.el.querySelectorAll('[data-cvgo]'), function (b) { var on = Number(b.getAttribute('data-cvgo')) === cv.i; b.classList.toggle('is-on', on); if (on && b.scrollIntoView) b.scrollIntoView({ block: 'nearest', inline: 'center' }); });
+    var p = cv.el.querySelector('#cvPrev'), n = cv.el.querySelector('#cvNext');
+    if (p) p.disabled = cv.i === 0; if (n) n.disabled = cv.i === cv.files.length - 1;
+    var d = cv.el.querySelector('#cvDrive'); if (d) d.href = f.url;
+    cvSaveLink();
+    [cv.i, cv.i + 1, cv.i - 1].forEach(function (i) { if (i >= 0 && i < cv.files.length) cvLoad(i); });
+    // stop videos that have scrolled away
+    Array.prototype.forEach.call(cv.el.querySelectorAll('.cv-slide video'), function (v) { if (Number(v.closest('.cv-slide').getAttribute('data-i')) !== cv.i) try { v.pause(); } catch (e) {} });
+  }
+  function cvSaveLink() {
+    var s = cv.el && cv.el.querySelector('#cvSave'), f = cv.files[cv.i], c = f && cv.cache[f.id];
+    if (!s) return;
+    if (c && c.url) { s.href = c.url; s.setAttribute('download', c.name); s.classList.remove('is-off'); } else { s.removeAttribute('href'); s.classList.add('is-off'); }
+  }
+  function cvBlob(d) {
+    var bin = atob(d.data), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: d.mime });
+  }
+  function cvFetch(f) {
+    if (cv.cache[f.id]) return Promise.resolve(cv.cache[f.id]);
+    if (cv.busy[f.id]) return cv.busy[f.id];
+    return (cv.busy[f.id] = api({ action: 'collateralFile', id: cv.id, date: cv.date, file: f.id }).then(function (r) {
+      var blob = cvBlob(r.file);
+      var c = cv.cache[f.id] = { blob: blob, url: URL.createObjectURL(blob), show: r.file.show, name: r.file.name, mime: r.file.mime };
+      delete cv.busy[f.id];
+      return c;
+    }, function (e) { delete cv.busy[f.id]; throw e; }));
+  }
+  function cvLoad(i) {
+    var f = cv.files[i], slide = cv.el && cv.el.querySelector('.cv-slide[data-i="' + i + '"]');
+    if (!slide || slide.getAttribute('data-done')) return;
+    slide.setAttribute('data-done', '1');
+    var body = slide.querySelector('.cv-body');
+    if (!(f.kind === 'photo' && f.thumb)) body.innerHTML = '<p class="cv-wait">Loading ' + esc((CV_LABEL[f.kind] || 'file').toLowerCase()) + '…</p>';
+    cvFetch(f).then(function (c) {
+      if (!cv.el) return;
+      if (c.show === 'image') { body.innerHTML = '<img class="cv-img" src="' + c.url + '" alt="' + esc(f.name) + '">'; var img = body.querySelector('img'); img.ondblclick = img.onclick = function (e) { if (e.type === 'click' && !img.dataset.tap) { img.dataset.tap = '1'; setTimeout(function () { delete img.dataset.tap; }, 300); return; } body.classList.toggle('is-zoom'); }; }
+      else if (c.show === 'video') body.innerHTML = '<video class="cv-video" controls playsinline preload="metadata" src="' + c.url + '"></video>';
+      else if (c.show === 'audio') body.innerHTML = '<div class="cv-file">' + I.video + '<b>' + esc(f.name) + '</b><audio controls src="' + c.url + '"></audio></div>';
+      else if (c.show === 'pdf') cvPdf(body, c);
+      else body.innerHTML = '<div class="cv-file">' + I.doc + '<b>' + esc(f.name) + '</b><span>' + esc(CV_LABEL[f.kind] || 'File') + ' · ' + fmtSize(c.blob.size) + '</span>' +
+        '<a class="btn btn-sand" href="' + c.url + '" download="' + esc(c.name) + '">' + I.download + 'Download to open</a></div>';
+      if (i === cv.i) cvSaveLink();
+    }, function (e) {
+      slide.removeAttribute('data-done');
+      body.innerHTML = '<div class="cv-file"><b>Couldn\'t open this file</b><span>' + esc(e.message || 'Check your signal and try again.') + '</span><button type="button" class="btn btn-sand">Try again</button></div>';
+      body.querySelector('button').onclick = function () { cvLoad(i); };
+    });
+  }
+  function cvPdfLib() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (cv.pdfjs) return cv.pdfjs;
+    return (cv.pdfjs = new Promise(function (res, rej) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(window.pdfjsLib); };
+      s.onerror = function () { cv.pdfjs = null; rej(new Error('The PDF viewer couldn\'t load. Check your signal.')); };
+      document.head.appendChild(s);
+    }));
+  }
+  function cvPdf(body, c) {
+    body.innerHTML = '<div class="cv-pdf"><p class="cv-wait">Opening PDF…</p></div>';
+    var box = body.querySelector('.cv-pdf');
+    cvPdfLib().then(function (lib) { return c.blob.arrayBuffer().then(function (buf) { return lib.getDocument({ data: buf }).promise; }); }).then(function (pdf) {
+      box.innerHTML = '<span class="cv-pages">' + pdf.numPages + (pdf.numPages === 1 ? ' page' : ' pages') + ' · scroll down</span>';
+      var w = Math.min(box.clientWidth - 24, 900), ratio = window.devicePixelRatio || 1, n = Math.min(pdf.numPages, 60);
+      var chain = Promise.resolve();
+      for (var p = 1; p <= n; p++) (function (p) {
+        chain = chain.then(function () { return pdf.getPage(p); }).then(function (page) {
+          var vp0 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: (w / vp0.width) * ratio });
+          var cnv = document.createElement('canvas'); cnv.width = vp.width; cnv.height = vp.height; cnv.style.width = w + 'px'; cnv.className = 'cv-page';
+          box.appendChild(cnv);
+          return page.render({ canvasContext: cnv.getContext('2d'), viewport: vp }).promise;
+        });
+      })(p);
+      if (pdf.numPages > n) chain.then(function () { var m = document.createElement('p'); m.className = 'cv-wait'; m.textContent = 'Showing the first ' + n + ' pages. Save or open it to see the rest.'; box.appendChild(m); });
+      return chain;
+    }).catch(function (e) {
+      box.innerHTML = '<div class="cv-file">' + I.doc + '<b>' + esc(c.name) + '</b><span>' + esc(e.message || 'This PDF couldn\'t be shown.') + '</span><a class="btn btn-sand" href="' + c.url + '" target="_blank" rel="noopener">Open the PDF</a></div>';
+    });
+  }
+  function cvShare() {
+    var f = cv.files[cv.i], c = cv.cache[f.id];
+    if (c && navigator.canShare) {
+      try {
+        var file = new File([c.blob], c.name, { type: c.mime });
+        if (navigator.canShare({ files: [file] })) return navigator.share({ files: [file], title: f.name }).catch(function () {});
+      } catch (e) {}
+    }
+    if (hasDrive() && navigator.share) return navigator.share({ title: f.name, url: f.url }).catch(function () {});
+    if (c) { var a = document.createElement('a'); a.href = c.url; a.download = c.name; document.body.appendChild(a); a.click(); a.remove(); return; }
+    alert('Wait for the file to finish loading, then try again.');
+  }
+
+  /* The photo strip inside an appointment (loads after the page shows). */
+  var colCache = {};
+  function colLoad(id, date) {
+    var k = id + '|' + date;
+    if (colCache[k]) return Promise.resolve(colCache[k]);
+    return api({ action: 'collateral', id: id, date: date }).then(function (d) { colCache[k] = d.collateral; return d.collateral; });
+  }
+  function fillColStrip() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-colstrip]'), function (el) {
+      if (el.getAttribute('data-filled')) return;
+      el.setAttribute('data-filled', '1');
+      var id = el.getAttribute('data-colstrip'), date = el.getAttribute('data-date');
+      colLoad(id, date).then(function (c) {
+        var list = cvList(c.files);
+        if (!document.body.contains(el)) return;
+        if (!list.length) { el.innerHTML = '<p class="small muted" style="margin:0">No files in the job folders yet.</p>'; return; }
+        var photos = list.filter(function (f) { return f.kind === 'photo'; });
+        var docs = list.filter(function (f) { return CV_ORDER[f.kind] === 1; }), vids = list.filter(function (f) { return CV_ORDER[f.kind] === 2; });
+        el.innerHTML = (photos.length ? '<div class="cs-row">' + photos.slice(0, 12).map(function (f, i) {
+            return '<button type="button" class="cs-ph" data-cs="' + list.indexOf(f) + '" aria-label="' + esc(f.name) + '">' + cvThumb(f) + '<span>' + (i + 1) + '</span></button>';
+          }).join('') + (photos.length > 12 ? '<a class="cs-more" href="#/collateral/' + encodeURIComponent(id) + '/' + date + '">+' + (photos.length - 12) + '</a>' : '') + '</div>' : '') +
+          docs.slice(0, 4).concat(vids.slice(0, 2)).map(function (f) {
+            return '<button type="button" class="linkrow cs-doc" data-cs="' + list.indexOf(f) + '">' + (CV_ORDER[f.kind] === 2 ? I.video : I.doc) +
+              '<span class="text"><b>' + esc(f.name) + '</b><span>' + esc((CV_LABEL[f.kind] || 'File') + ' · ' + cvShort(f.folder)) + '</span></span>' + I.right + '</button>';
+          }).join('') +
+          '<span class="small muted">' + [photos.length ? photos.length + (photos.length === 1 ? ' photo' : ' photos') : '', docs.length ? docs.length + (docs.length === 1 ? ' document' : ' documents') : '', vids.length ? vids.length + (vids.length === 1 ? ' video' : ' videos') : ''].filter(String).join(' · ') + ' · tap to open, swipe for the next</span>';
+        Array.prototype.forEach.call(el.querySelectorAll('[data-cs]'), function (b) { b.onclick = function () { cvOpen(list, Number(b.getAttribute('data-cs')), id, date); }; });
+      }, function (e) { el.innerHTML = '<p class="small muted" style="margin:0">Couldn\'t load the job files' + (navigator.onLine ? '' : ' (no signal)') + '.</p>'; el.removeAttribute('data-filled'); });
+    });
+  }
+
   function renderCollateral(id, date) {
     loading('Loading collateral…');
     var back = '#/appt/' + encodeURIComponent(id) + '/' + date;
@@ -2107,9 +2303,11 @@
       var docs = c.files.filter(function (f) { return ['photo', 'video', 'audio'].indexOf(f.kind) < 0; });
       var kindLabel = { pdf: 'PDF', sheet: 'Spreadsheet', doc: 'Document', slides: 'Slides', other: 'File' };
       function short(folder) { var parts = String(folder).split(' › '); return parts.length > 1 ? parts.slice(1).join(' › ') : parts[0]; }
+      var cvAll = cvList(c.files);
+      colCache[id + '|' + date] = c;
       function fileRow(f) {
-        return '<a class="linkrow" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + (f.kind === 'video' ? I.video : I.doc) +
-          '<span class="text"><b>' + esc(f.name) + '</b><span>' + esc((kindLabel[f.kind] || (f.kind === 'video' ? 'Video' : 'Audio')) + ' · ' + short(f.folder) + ' · ' + shortDate(f.updated)) + '</span></span>' + I.ext + '</a>';
+        return '<button type="button" class="linkrow" data-cv="' + cvAll.indexOf(f) + '">' + (f.kind === 'video' ? I.video : I.doc) +
+          '<span class="text"><b>' + esc(f.name) + '</b><span>' + esc((kindLabel[f.kind] || (f.kind === 'video' ? 'Video' : 'Audio')) + ' · ' + short(f.folder) + ' · ' + shortDate(f.updated)) + '</span></span>' + I.right + '</button>';
       }
       var body = '<section class="hero"><span class="small" style="font-weight:700">' + esc([a.type, a.jr ? 'JR#' + a.jr : '', a.opp ? 'OPP-' + a.opp : ''].filter(String).join(' · ')) + '</span>' +
         '<h1>Collateral</h1><p style="margin:0;font-weight:500">' + esc(a.title) + '</p></section>';
@@ -2136,19 +2334,20 @@
           (docs.length ? docs.map(fileRow).join('') : '<p class="muted small" style="margin:0">No documents in the folders yet.</p>') + '</section>';
         body += '<section class="section stack" style="gap:10px"><h2>Photos' + (photos.length ? ' · ' + photos.length : '') + '</h2>' +
           (photos.length ? '<div class="col-grid">' + photos.map(function (f) {
-            return '<a class="col-photo" href="' + esc(f.url) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '">' +
+            return '<button type="button" class="col-photo" data-cv="' + cvAll.indexOf(f) + '" title="' + esc(f.name) + '">' +
               (f.thumb ? '<img src="' + esc(f.thumb) + '" alt="' + esc(f.name) + '" loading="lazy">' : '<span>' + esc(f.name) + '</span>') +
-              '<small>' + esc(short(f.folder)) + '</small></a>';
+              '<small>' + esc(short(f.folder)) + '</small></button>';
           }).join('') + '</div>' : '<p class="muted small" style="margin:0">No photos yet.</p>') + '</section>';
         if (videos.length) body += '<section class="section stack" style="gap:8px"><h2>Videos and voice notes · ' + videos.length + '</h2>' + videos.map(fileRow).join('') + '</section>';
-        if (c.truncated) body += '<p class="small muted" style="margin:12px 20px 0">Showing the first ' + c.files.length + ' files. Open the folder in Drive to see everything.</p>';
+        if (c.truncated) body += '<p class="small muted" style="margin:12px 20px 0">Showing the first ' + c.files.length + ' files.' + (hasDrive() ? ' Open the folder in Drive to see everything.' : '') + '</p>';
         body += '<section class="section stack" style="gap:8px"><h2>NetSuite</h2><p class="small muted" style="margin:0">Order confirmations, signed quotes and files attached in NetSuite will show here once NetSuite is connected.</p></section>';
-        body += '<section class="section stack" style="gap:8px">' + c.sources.map(function (s) { return linkRow(s.url, I.folder, 'Open ' + s.label.toLowerCase() + ' in Drive', s.name); }).join('') + '</section>';
+        if (hasDrive()) body += '<section class="section stack" style="gap:8px">' + c.sources.map(function (s) { return linkRow(s.url, I.folder, 'Open ' + s.label.toLowerCase() + ' in Drive', s.name); }).join('') + '</section>';
       }
       body += '</div><div style="height:32px"></div>';
       if (wide()) app.innerHTML = shell('day', date, '<div class="pane-solo"><a class="back-link" href="' + back + '">' + I.left + 'Back to appointment</a>' + body + '</div>');
       else app.innerHTML = topbar({ back: back, backLabel: 'Job', right: a.jr ? 'JR#' + a.jr : '' }) + '<main>' + body + '</main>';
       window.scrollTo(0, 0);
+      Array.prototype.forEach.call(app.querySelectorAll('[data-cv]'), function (b) { b.onclick = function () { cvOpen(cvAll, Number(b.getAttribute('data-cv')), id, date); }; });
       bindCollateralUpload(id, date);
     }, function (err) { showError(err, function () { renderCollateral(id, date); }); });
   }
