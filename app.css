@@ -963,3 +963,26 @@ a.dv-row:hover { background: #F2F0EC; }
 .dv-askuse span { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--sandstone); font-size: 12px; color: var(--ink-muted); }
 .dv-askuse b { font-size: 16px; color: var(--ink); }
 @media (max-width: 600px) { .dv-askuse { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Sidebar: Management heading for Simon and Troy's pages (Update 42) */
+.rail-sec { display: block; margin: 14px 0 2px; padding: 10px 4px 4px; border-top: 1px solid rgba(250,250,250,.18); color: var(--pastel-blue); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-align: center; }
+body.mode-desktop .rail-sec { padding: 12px 12px 4px; font-size: 11px; text-align: left; }
+
+/* Every form field the same height and shape, including dates and drop-downs on iPad/iPhone (Update 42).
+   Safari draws date and select boxes its own way (shorter, rounded, centred text, wider than the column);
+   these rules make them match the plain text boxes. */
+.field input:not([type=checkbox]):not([type=radio]):not([type=file]), .field select {
+  -webkit-appearance: none; appearance: none; box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0;
+  height: 48px; min-height: 48px; margin: 0; padding: 0 12px; border-radius: 0; line-height: 48px; text-align: left;
+  font: inherit; font-size: 16px; color: var(--ink);
+}
+.dv-page .field input:not([type=checkbox]):not([type=radio]):not([type=file]), .dv-page .field select { height: 48px; min-height: 48px; line-height: 48px; font-size: 16px; }
+.field input[type=date], .field input[type=time] { display: block; line-height: normal; padding-top: 0; padding-bottom: 0; }
+.field input[type=date]::-webkit-date-and-time-value, .field input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.field input[type=date]::-webkit-calendar-picker-indicator { opacity: .6; }
+.field select {
+  padding-right: 40px; line-height: normal; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23404141' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 14px center !important; background-size: 14px !important;
+}
+.field select::-ms-expand { display: none; }

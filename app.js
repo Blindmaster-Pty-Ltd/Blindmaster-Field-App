@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '39'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '40'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -911,10 +911,11 @@
       { key: 'route', href: '#/route' + d, icon: I.route, label: 'Route' });
     if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
-    if (isManagerUser()) items.push({ key: 'staff', href: '#/staff', icon: I.idcard, label: 'Staff' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
     items.push({ key: 'ask', href: '#/ask', icon: I.spark, label: 'Ask Jan' });
     items.push({ key: 'me', href: '#/me', icon: I.user, label: 'Me' }); // to do, receipts, leave, clock, account
+    // Simon and Troy only: kept together under a Management heading, below Me (Troy's mark-up, Oct 2026)
+    if (isManagerUser()) items.push({ key: 'staff', href: '#/staff', icon: I.idcard, label: 'Staff', mgmt: true });
 
     return items;
   }
@@ -939,8 +940,8 @@
     return '<div class="shell">' +
       '<aside class="rail" aria-label="Main">' +
         '<a class="rail-brand" href="#/day" aria-label="Blindmaster, home"><img src="wordmark-white.svg" alt="Blindmaster"><span class="rail-mark" aria-hidden="true"></span></a>' +
-        '<nav class="rail-nav">' + items.map(function (t) {
-          return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '>' + t.icon + '<span>' + t.label + '</span></a>';
+        '<nav class="rail-nav">' + items.map(function (t, i) {
+          return (t.mgmt && !(items[i - 1] || {}).mgmt ? '<span class="rail-sec">Management</span>' : '') + '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '>' + t.icon + '<span>' + t.label + '</span></a>';
         }).join('') + '</nav>' +
         '<a class="rail-user" href="#/account"><span class="avatar">' + esc(initials(u.name)) + '</span><span class="rail-user-text"><b>' + esc(u.name || '') + '</b><span>' + esc(roleLabel(u.role)) + '</span></span></a>' +
         (CFG.ENVIRONMENT ? '<span class="rail-env">' + esc(CFG.ENVIRONMENT) + ' · v' + APP_VERSION + '</span>' : '') +
@@ -3496,7 +3497,7 @@
       return '<span class="dv-doc"><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + I.doc + esc(d.label) + '</a><button type="button" class="dv-x" data-rmdoc="' + esc(d.id) + '" aria-label="Remove ' + esc(d.label) + '">' + I.x + '</button></span>';
     }).join('') + (v.isNew ? '' : kinds.map(function (k) {
       var l = { rego: 'Rego certificate', ctp: 'CTP certificate', insurance: 'Insurance certificate', other: 'Other document' }[k];
-      return '<label class="dv-up" for="dvUp-' + k + '">' + I.camera + 'Add ' + esc(l.toLowerCase()) + '</label><input type="file" id="dvUp-' + k + '" data-upkind="' + k + '" accept="image/*,application/pdf" hidden>';
+      return '<label class="dv-up" for="dvUp-' + k + '">' + I.camera + 'Add ' + esc(/^[A-Z]{2,}/.test(l) ? l : l.charAt(0).toLowerCase() + l.slice(1)) + '</label><input type="file" id="dvUp-' + k + '" data-upkind="' + k + '" accept="image/*,application/pdf" hidden>';
     }).join('')) + '</div>';
   }
   function dvVehForm(v) {
