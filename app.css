@@ -252,7 +252,7 @@ body.mode-desktop .overview, body.mode-tablet .overview { padding: 28px 32px 40p
 .avatar.sm { width: 32px; height: 32px; font-size: 12px; }
 
 .attention { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); }
-.attention li { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.attention li { display: grid; grid-template-columns: 170px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .attention li:last-child { border-bottom: 0; }
 .attention .tag { justify-self: start; }
 .att-main { display: flex; flex-direction: column; min-width: 0; }
@@ -1062,6 +1062,29 @@ body.cv-open { overflow: hidden; }
 .cv-btn.is-off { opacity: .45; pointer-events: none; }
 .cv-btn svg { width: 18px; height: 18px; }
 @media (min-width: 900px) { .cv-acts { max-width: 520px; margin: 0 auto; width: 100%; } .cv-nav { width: 56px; height: 64px; margin-top: -32px; } }
+
+/* Overview: KPI Report measures (Update 48) */
+.ov-group { font-size: 15px; margin: 24px 0 10px; color: var(--ink-muted); }
+.overview > .ov-group:first-of-type { margin-top: 0; }
+.ov-sub { margin: 4px 0 0; font-size: 14px; font-weight: 700; color: var(--ink-muted); }
+.ov-table.ov-narrow { min-width: 640px; }
+.kc { position: relative; border: 1px solid var(--line); padding: 16px 16px 8px; background: #fff; }
+.kc-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.kc svg { display: block; max-width: 100%; overflow: visible; }
+.kc-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.kc-ax { font-size: 11px; fill: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.kc-bar { fill: var(--monument-grey); }
+.kc-line { fill: none; stroke: var(--monument-grey); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.kc-dot { fill: var(--monument-grey); stroke: #fff; stroke-width: 2; }
+.kc-hit { fill: transparent; cursor: pointer; }
+.kc-hit.kc-on { fill: rgba(157, 188, 208, .28); }
+.kc-x { position: relative; height: 22px; margin-top: 6px; }
+.kc-x span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
+.kc-tip { position: absolute; top: 8px; transform: translateX(-50%); background: var(--monument-grey); color: var(--natural-white); padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; z-index: 2; min-width: 150px; }
+.kc-tip[hidden] { display: none; }
+@media (max-width: 599px) { .kc { padding: 12px 10px 6px; } .kc-x span { font-size: 10px; } }
+@media print { .kc-tip { display: none !important; } .kc { break-inside: avoid; } }
+
 /* ---------- van load: pick list, day list, job view ---------- */
 /* Append to app.css. Uses the existing brand tokens; adds one new one,
    --alert, because the Blindmaster palette has no warning colour and the

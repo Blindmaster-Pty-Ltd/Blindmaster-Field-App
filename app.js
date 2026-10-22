@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '44'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '46'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -106,6 +106,7 @@
     window: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18"/><path d="M4 7h16M7 7v8M17 7v8M7 15h10"/></svg>',
     awning: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5"/><path d="M3 9h18l-2 4H5z"/><path d="M6 13v7M18 13v7"/></svg>',
     eye: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    box: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
     grid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
@@ -1742,7 +1743,7 @@
   function loadMetrics(from, to, force) {
     var key = 'm:' + from + ':' + to;
     if (!force && state.cache[key]) return Promise.resolve(state.cache[key]);
-    return api({ action: 'metrics', from: from, to: to }).then(function (data) {
+    return api(Object.assign({ action: 'metrics', from: from, to: to }, force ? { force: '1' } : {})).then(function (data) {
       state.user = data.user;
       store('fa-user', data.user);
       state.cache[key] = data.metrics;
@@ -1759,6 +1760,69 @@
       '<span class="tile-sub">' + (flag ? '<span class="tag tag-dark">Check</span> ' : '') + esc(sub) + '</span></div>';
   }
 
+  function fmtMoney(n) { return n == null ? '–' : '$' + Number(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtPct(n) { return n == null ? '–' : fmtNum(n, 1) + '%'; }
+
+  /* 12-week trend: jobs per week (bars) and completion rate (line), as two charts on one shared week axis */
+  function kpiTrend(weeks) { return weeks && weeks.length ? '<div class="kc" id="kpiTrend">' + kpiTrendInner(weeks, 720) + '</div>' : ''; }
+  function kpiTrendInner(weeks, W) {
+    W = Math.max(280, Math.round(W));
+    var padL = 36, padR = 12, step = (W - padL - padR) / weeks.length, bw = Math.min(28, step * 0.55);
+    var maxJobs = Math.max(4, Math.max.apply(null, weeks.map(function (w) { return w.jobs; })));
+    var niceMax = Math.ceil(maxJobs / 4) * 4;
+    function x(i) { return padL + step * i + step / 2; }
+    function lbl(w) { var d = new Date(w.from + 'T12:00:00'); return d.getDate() + ' ' + d.toLocaleDateString('en-AU', { month: 'short' }); }
+    function grid(H, top, ticks, fmt) {
+      return ticks.map(function (v) { var y = top + (H - top) * (1 - v.f); return '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" class="kc-grid"/><text x="' + (padL - 6) + '" y="' + (y + 4) + '" class="kc-ax" text-anchor="end">' + fmt(v.v) + '</text>'; }).join('');
+    }
+    var H1 = 150, top = 10;
+    var bars = weeks.map(function (w, i) {
+      var h = (H1 - top) * (w.jobs / niceMax), y = H1 - h, r = Math.min(4, h);
+      var path = h > 0 ? 'M' + (x(i) - bw / 2) + ' ' + H1 + 'V' + (y + r) + 'Q' + (x(i) - bw / 2) + ' ' + y + ' ' + (x(i) - bw / 2 + r) + ' ' + y + 'H' + (x(i) + bw / 2 - r) + 'Q' + (x(i) + bw / 2) + ' ' + y + ' ' + (x(i) + bw / 2) + ' ' + (y + r) + 'V' + H1 + 'Z' : '';
+      return path ? '<path d="' + path + '" class="kc-bar"/>' : '';
+    }).join('');
+    var H2 = 110, pts = [];
+    weeks.forEach(function (w, i) { if (w.completionRate != null) pts.push([x(i), top + (H2 - top) * (1 - w.completionRate / 100), i]); });
+    var line = pts.length > 1 ? '<polyline points="' + pts.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '" class="kc-line"/>' : '';
+    var dots = pts.map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4" class="kc-dot"/>'; }).join('');
+    var hits = function (H) { return weeks.map(function (w, i) { return '<rect x="' + (padL + step * i) + '" y="0" width="' + step + '" height="' + H + '" class="kc-hit" data-wk="' + i + '"/>'; }).join(''); };
+    var xlabels = weeks.map(function (w, i) { return ((weeks.length - 1 - i) % (W < 500 ? 3 : 2) === 0) ? '<span style="left:' + (x(i) / W * 100) + '%">' + esc(lbl(w)) + '</span>' : ''; }).join('');
+    var tickJobs = [0, 0.5, 1].map(function (f) { return { f: f, v: niceMax * f }; });
+    var tickPct = [0, 0.5, 1].map(function (f) { return { f: f, v: 100 * f }; });
+    var table = '<table class="sr-only"><caption>Jobs reported and completion rate per week</caption><thead><tr><th>Week of</th><th>Jobs</th><th>Completed</th><th>Completion rate</th></tr></thead><tbody>' +
+      weeks.map(function (w) { return '<tr><td>' + esc(lbl(w)) + '</td><td>' + w.jobs + '</td><td>' + w.completed + '</td><td>' + fmtPct(w.completionRate) + '</td></tr>'; }).join('') + '</tbody></table>';
+    return '<div class="kc-title">Jobs reported per week</div>' +
+      '<svg viewBox="0 0 ' + W + ' ' + (H1 + 2) + '" width="' + W + '" height="' + (H1 + 2) + '" aria-hidden="true">' + grid(H1, top, tickJobs, function (v) { return fmtNum(v); }) + bars + hits(H1) + '</svg>' +
+      '<div class="kc-title" style="margin-top:14px">Completion rate</div>' +
+      '<svg viewBox="0 0 ' + W + ' ' + (H2 + 2) + '" width="' + W + '" height="' + (H2 + 2) + '" aria-hidden="true">' + grid(H2, top, tickPct, function (v) { return v + '%'; }) + line + dots + hits(H2) + '</svg>' +
+      '<div class="kc-x" aria-hidden="true">' + xlabels + '</div>' +
+      '<div class="kc-tip" role="status" hidden></div>' + table;
+  }
+
+  function bindTrend(weeks) {
+    var box = document.getElementById('kpiTrend');
+    if (!box) return;
+    var tip;
+    function draw() { var cs = getComputedStyle(box); box.innerHTML = kpiTrendInner(weeks, box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)); tip = box.querySelector('.kc-tip'); }
+    draw();
+    var rw = box.clientWidth;
+    window.addEventListener('resize', function onR() { if (!document.body.contains(box)) { window.removeEventListener('resize', onR); return; } if (box.clientWidth !== rw) { rw = box.clientWidth; draw(); } });
+    function show(e) {
+      var t = e.target.closest && e.target.closest('.kc-hit');
+      if (!t) { tip.hidden = true; box.querySelectorAll('.kc-on').forEach(function (n) { n.classList.remove('kc-on'); }); return; }
+      var i = Number(t.getAttribute('data-wk')), w = weeks[i];
+      box.querySelectorAll('.kc-hit').forEach(function (n) { n.classList.toggle('kc-on', Number(n.getAttribute('data-wk')) === i); });
+      tip.innerHTML = '<b>Week of ' + esc(shortDate(w.from)) + '</b><span>' + w.jobs + ' job' + (w.jobs === 1 ? '' : 's') + ' reported · ' + w.completed + ' completed</span><span>Completion rate ' + fmtPct(w.completionRate) + '</span>';
+      tip.hidden = false;
+      var bx = box.getBoundingClientRect(), r = t.getBoundingClientRect();
+      var left = r.left - bx.left + r.width / 2;
+      tip.style.left = Math.max(80, Math.min(bx.width - 80, left)) + 'px';
+    }
+    box.addEventListener('mousemove', show);
+    box.addEventListener('click', show);
+    box.addEventListener('mouseleave', function () { tip.hidden = true; box.querySelectorAll('.kc-on').forEach(function (n) { n.classList.remove('kc-on'); }); });
+  }
+
   function renderOverview(period, anchor) {
     if (['today', 'week', 'month'].indexOf(period) < 0) period = 'today';
     var r = periodRange(period, anchor);
@@ -1766,13 +1830,14 @@
     loadMetrics(r.from, r.to).then(function (m) {
       if (!isOffice()) { location.hash = '#/day'; return; }
       var t = m.totals || {};
+      var kp = m.kpi && !m.kpi.error ? m.kpi : null;
+      var k = (kp && kp.totals) || {};
       var reports = (t.onTime || 0) + (t.late || 0);
       var pct = reports ? Math.round((t.onTime / reports) * 100) : null;
-      var maxHours = Math.max.apply(null, [1].concat(m.people.map(function (p) { return p.hours; })));
 
-      var seg = ['today', 'week', 'month'].map(function (k) {
-        var label = { today: 'Day', week: 'Week', month: 'Month' }[k];
-        return '<a href="#/overview/' + k + '/' + anchor + '"' + (k === period ? ' aria-current="page"' : '') + '>' + label + '</a>';
+      var seg = ['today', 'week', 'month'].map(function (key) {
+        var label = { today: 'Day', week: 'Week', month: 'Month' }[key];
+        return '<a href="#/overview/' + key + '/' + anchor + '"' + (key === period ? ' aria-current="page"' : '') + '>' + label + '</a>';
       }).join('');
 
       var html = '<div class="overview">' +
@@ -1786,23 +1851,47 @@
           '</div>' +
         '</div>';
 
-      if (!m.hasReportLog) html += '<p class="notice" style="margin:0 0 16px">The report log isn\'t connected yet, so jobs done, hours, travel and report timing show as zero. Run <b>seedSampleReportLog</b> in the sandbox script.</p>';
+      if (m.kpi && m.kpi.error) html += '<p class="notice" style="margin:0 0 16px">The Job Report and Daily Report figures couldn\'t be loaded: ' + esc(m.kpi.error) + '. Tap Refresh to try again.</p>';
+      else if (kp && !kp.dirFolderFound) html += '<p class="notice" style="margin:0 0 16px">The Daily Report data folder hasn\'t been found yet, so hours worked, km and receipts show as zero. It appears once the updated Daily Report script is live and the first Daily Report is sent.</p>';
+      if (!m.hasReportLog && !kp) html += '<p class="notice" style="margin:0 0 16px">The report log isn\'t connected yet, so jobs done, hours, travel and report timing show as zero. Run <b>seedSampleReportLog</b> in the sandbox script.</p>';
 
-      html += '<section class="tiles" aria-label="Key numbers">' +
+      function group(title, tiles) { return '<h2 class="ov-group">' + esc(title) + '</h2><section class="tiles" aria-label="' + esc(title) + '">' + tiles + '</section>'; }
+
+      html += group('Jobs and reports',
         tile('Jobs done', fmtNum(t.done), 'of ' + fmtNum(t.jobsScheduled) + ' scheduled jobs') +
         tile('Jobs incomplete', fmtNum(t.incomplete), 'return visits needed', t.incomplete > 0) +
+        tile('Completion rate', kp ? fmtPct(k.completionRate) : '–', kp ? fmtNum(k.completed) + ' of ' + fmtNum(k.jobs) + ' jobs reported' : 'from Job Reports') +
         tile('Reports outstanding', fmtNum(t.jobsOutstanding), 'jobs with no job report yet', t.jobsOutstanding > 0) +
-        tile('Hours on site', fmtNum(t.hours, 1) + ' h', 'from Daily Installation Reports') +
-        tile('Travel time', fmtMins(t.travelMin), 'driving between jobs') +
-        tile('Kilometres', fmtNum(t.km) + ' km', 'travelled') +
         tile('Reports on time', pct == null ? '–' : pct + '%', fmtNum(t.onTime) + ' of ' + fmtNum(reports) + ' reports') +
         tile('Late reports', fmtNum(t.late), 'submitted after the deadline', t.late > 0) +
-      '</section>';
+        tile('Same-day Job Reports', kp ? fmtPct(k.sameDayRate) : '–', 'submitted on the day of the job') +
+        tile('Customer sign-off', kp ? fmtPct(k.signedRate) : '–', kp ? fmtNum(k.signed) + ' of ' + fmtNum(k.present) + ' jobs with the client on site' : 'where the client was on site'));
 
+      if (kp) {
+        html += group('Follow-ups and safety',
+          tile('Electrical to connect', fmtNum(k.elecOutstanding), 'jobs waiting on an electrician', k.elecOutstanding > 0) +
+          tile('Control gear held', fmtNum(k.cgHeld), 'held at the warehouse', k.cgHeld > 0) +
+          tile('Safety incidents', fmtNum(k.incidents), 'reported on Job Reports', k.incidents > 0) +
+          tile('Safety checks ticked', fmtPct(k.safetyRate), fmtNum(k.safetyAll) + ' of ' + fmtNum(k.jobs) + ' reports with all checks') +
+          tile('Client not on site', fmtNum(k.clientAbsent), 'jobs with nobody to sign') +
+          tile('Times entered by hand', fmtNum(k.timesByHand), 'start and finish typed in, not clocked', k.timesByHand > 0));
+      }
+
+      html += group('Hours, travel and receipts',
+        (kp ? tile('Hours on site', fmtNum(k.siteHours, 1) + ' h', 'crew time from Job Reports') : tile('Hours on site', fmtNum(t.hours, 1) + ' h', 'from Daily Installation Reports')) +
+        (kp ? tile('Hours worked', fmtNum(k.workHours, 1) + ' h', fmtNum(k.dailyReports) + ' Daily Report' + (k.dailyReports === 1 ? '' : 's')) : '') +
+        tile('Travel time', fmtMins(t.travelMin), 'driving between jobs') +
+        (kp ? tile('Kilometres', fmtNum(k.routeKm) + ' km', 'planned driving, from Daily Reports') : tile('Kilometres', fmtNum(t.km) + ' km', 'travelled')) +
+        (kp ? tile('Receipts', fmtMoney(k.receipts), 'from Daily Reports') + tile('To reimburse', fmtMoney(k.reimburse), 'paid personally', k.reimburse > 0) : ''));
+
+      if (kp && kp.weeks) html += '<section class="ov-section"><h2>Last 12 weeks</h2>' + kpiTrend(kp.weeks) + '</section>';
+
+      // by person: schedule and report timing (from the calendar and report log)
       html += '<section class="ov-section"><h2>By person</h2>' + (m.people.length ?
-        '<div class="table-wrap"><table class="ov-table"><thead><tr>' +
+        '<h3 class="ov-sub">Schedule and report timing</h3>' +
+        '<div class="table-wrap"><table class="ov-table ov-narrow"><thead><tr>' +
           '<th scope="col">Name</th><th scope="col" class="num">Scheduled</th><th scope="col" class="num">Done</th><th scope="col" class="num">Incomplete</th><th scope="col" class="num">No report</th>' +
-          '<th scope="col" class="bar-col">Hours on site</th><th scope="col" class="num">Travel</th><th scope="col" class="num">Km</th><th scope="col" class="num">On time</th><th scope="col" class="num">Late</th>' +
+          '<th scope="col" class="num">Travel</th><th scope="col" class="num">On time</th><th scope="col" class="num">Late</th>' +
         '</tr></thead><tbody>' +
         m.people.map(function (p) {
           var rep = p.onTime + p.late;
@@ -1810,30 +1899,58 @@
             '<td class="num">' + p.scheduled + '</td><td class="num">' + p.done + '</td>' +
             '<td class="num">' + (p.incomplete ? '<b>' + p.incomplete + '</b>' : 0) + '</td>' +
             '<td class="num">' + (p.outstanding ? '<b>' + p.outstanding + '</b>' : 0) + '</td>' +
-            '<td class="bar-col"><span class="hbar" title="' + fmtNum(p.hours, 1) + ' hours"><span style="width:' + Math.round((p.hours / maxHours) * 100) + '%"></span></span><span class="hbar-val">' + fmtNum(p.hours, 1) + ' h</span></td>' +
-            '<td class="num">' + fmtMins(p.travelMin) + '</td><td class="num">' + fmtNum(p.km) + '</td>' +
+            '<td class="num">' + fmtMins(p.travelMin) + '</td>' +
             '<td class="num">' + (rep ? Math.round(p.onTime / rep * 100) + '%' : '–') + '</td>' +
             '<td class="num">' + (p.late ? '<b>' + p.late + '</b>' : 0) + '</td></tr>';
         }).join('') +
         '</tbody><tfoot><tr><th scope="row">Total</th><td class="num">' + fmtNum(t.scheduled) + '</td><td class="num">' + fmtNum(t.done) + '</td><td class="num">' + fmtNum(t.incomplete) + '</td><td class="num">' + fmtNum(t.outstanding) + '</td>' +
-          '<td class="bar-col"><span class="hbar-val">' + fmtNum(t.hours, 1) + ' h</span></td><td class="num">' + fmtMins(t.travelMin) + '</td><td class="num">' + fmtNum(t.km) + '</td><td class="num">' + (pct == null ? '–' : pct + '%') + '</td><td class="num">' + fmtNum(t.late) + '</td></tr></tfoot>' +
-        '</table></div>' : '<p class="muted">No activity in this period.</p>') + '</section>';
+          '<td class="num">' + fmtMins(t.travelMin) + '</td><td class="num">' + (pct == null ? '–' : pct + '%') + '</td><td class="num">' + fmtNum(t.late) + '</td></tr></tfoot>' +
+        '</table></div>' : (kp && kp.people.length ? '' : '<p class="muted">No activity in this period.</p>'));
+
+      // by person: from the Job Reports and Daily Reports (the KPI Report's definitions)
+      if (kp && kp.people.length) {
+        var maxSite = Math.max.apply(null, [1].concat(kp.people.map(function (p) { return p.siteHours; })));
+        var sum = kp.people.reduce(function (s, p) { ['jobs', 'reportsSubmitted', 'days', 'workHours', 'km', 'receipts'].forEach(function (f) { s[f] = (s[f] || 0) + (p[f] || 0); }); return s; }, {});
+        html += '<h3 class="ov-sub">From Job Reports and Daily Reports</h3>' +
+          '<div class="table-wrap"><table class="ov-table"><thead><tr>' +
+            '<th scope="col">Name</th><th scope="col" class="num">Jobs</th><th scope="col" class="num">Completion</th><th scope="col" class="bar-col">Hours on site</th>' +
+            '<th scope="col" class="num">Job Reports</th><th scope="col" class="num">Same day</th><th scope="col" class="num">Days</th><th scope="col" class="num">Hours worked</th><th scope="col" class="num">Km</th><th scope="col" class="num">Receipts</th>' +
+          '</tr></thead><tbody>' +
+          kp.people.map(function (p) {
+            return '<tr><th scope="row"><span class="row" style="gap:10px"><span class="avatar sm">' + esc(initials(p.name)) + '</span><span>' + esc(p.name) + '</span></span></th>' +
+              '<td class="num">' + p.jobs + '</td><td class="num">' + fmtPct(p.completionRate) + '</td>' +
+              '<td class="bar-col"><span class="hbar" title="' + fmtNum(p.siteHours, 1) + ' hours"><span style="width:' + Math.round((p.siteHours / maxSite) * 100) + '%"></span></span><span class="hbar-val">' + fmtNum(p.siteHours, 1) + ' h</span></td>' +
+              '<td class="num">' + p.reportsSubmitted + '</td><td class="num">' + fmtPct(p.sameDayRate) + '</td>' +
+              '<td class="num">' + p.days + '</td><td class="num">' + fmtNum(p.workHours, 1) + ' h</td><td class="num">' + fmtNum(p.km) + '</td><td class="num">' + fmtMoney(p.receipts) + '</td></tr>';
+          }).join('') +
+          '</tbody><tfoot><tr><th scope="row">Total</th><td class="num">' + fmtNum(k.jobs) + '</td><td class="num">' + fmtPct(k.completionRate) + '</td>' +
+            '<td class="bar-col"><span class="hbar-val">' + fmtNum(k.siteHours, 1) + ' h</span></td><td class="num">' + fmtNum(sum.reportsSubmitted) + '</td><td class="num">' + fmtPct(k.sameDayRate) + '</td>' +
+            '<td class="num">' + fmtNum(sum.days) + '</td><td class="num">' + fmtNum(k.workHours, 1) + ' h</td><td class="num">' + fmtNum(k.routeKm) + '</td><td class="num">' + fmtMoney(k.receipts) + '</td></tr></tfoot>' +
+          '</table></div><p class="small muted" style="margin:0">Hours on site use each installer\'s own times where they were entered. Jobs counts every crew member on a report; Job Reports counts the person who signed it off.</p>';
+      }
+      html += '</section>';
 
       if (m.jrBaseUrl) { state.jrBase = m.jrBaseUrl; store('fa-jrbase', m.jrBaseUrl); }
-      var kindLabel = { late: 'Late report', incomplete: 'Incomplete', outstanding: 'No report' };
-      html += '<section class="ov-section"><h2>Needs attention' + (m.attention.length ? ' <span class="muted" style="font-weight:500">(' + m.attention.length + ')</span>' : '') + '</h2>' +
-        (m.attention.length ? '<ul class="attention">' + m.attention.slice(0, 50).map(function (a) {
+      var att = m.attention.concat(kp ? kp.attention : []).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+      var kindLabel = { late: 'Late report', incomplete: 'Incomplete', outstanding: 'No report', elec: 'Electrical to connect', cg: 'Control gear held', incident: 'Safety incident', unsigned: 'Not signed' };
+      var kindTag = { outstanding: 'tag-dark', incident: 'tag-dark', incomplete: 'tag-blue', elec: 'tag-blue', cg: 'tag-blue' };
+      html += '<section class="ov-section"><h2>Needs attention' + (att.length ? ' <span class="muted" style="font-weight:500">(' + att.length + ')</span>' : '') + '</h2>' +
+        (kp ? '<p class="small muted" style="margin:0">Electrical and control gear show the latest Job Report for each job since ' + esc(shortDate(kp.attentionSince)) + ', so a later visit that finishes the job clears them.</p>' : '') +
+        (att.length ? '<ul class="attention">' + att.slice(0, 80).map(function (a) {
           var open = a.jr && a.kind === 'outstanding' && a.report !== 'DIR';
-          var inner = '<span class="tag ' + (a.kind === 'outstanding' ? 'tag-dark' : a.kind === 'incomplete' ? 'tag-blue' : '') + '">' + esc(kindLabel[a.kind]) + '</span>' +
-            '<span class="att-main"><b>' + esc(a.name) + (a.jr ? ' · JR#' + esc(a.jr) : '') + '</b><span class="small muted">' + esc(a.detail) + '</span></span>' +
+          var who = a.crew ? a.crew : '';
+          var inner = '<span class="tag ' + (kindTag[a.kind] || '') + '">' + esc(kindLabel[a.kind] || a.kind) + '</span>' +
+            '<span class="att-main"><b>' + esc(a.name) + (a.jr ? ' · JR#' + esc(a.jr) : '') + '</b><span class="small muted">' + esc(a.detail) + (who ? ' · ' + esc(who) : '') + '</span></span>' +
             '<span class="small muted att-date">' + esc(shortDate(a.date)) + '</span>' + (open ? '<span class="att-open">Open job report' + I.right + '</span>' : '');
           return '<li>' + (open ? '<a class="att-link" href="#/jr/' + encodeURIComponent(a.jr) + '/' + esc(a.date) + '">' + inner + '</a>' : inner) + '</li>';
         }).join('') + '</ul>' : '<p class="muted" style="margin:0">Nothing needs attention. Every job has a report and every report was on time.</p>') + '</section>';
 
       html += '<p class="small muted" style="margin:24px 0 0">Snapshot taken ' + new Date(m.generatedAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) +
+        (kp ? ' · ' + fmtNum(kp.counts.jobReports) + ' Job Reports and ' + fmtNum(kp.counts.dailyReports) + ' Daily Reports on file' : '') +
         ' · <button class="link-btn no-print" id="refreshOv">Refresh</button></p></div>';
 
       app.innerHTML = wide() ? shell('overview', null, html) : topbar() + '<main>' + html + '</main>' + tabbar('overview');
+      if (kp && kp.weeks) bindTrend(kp.weeks);
       document.getElementById('printSnap').onclick = function () { window.print(); };
       document.getElementById('refreshOv').onclick = function () { loadMetrics(r.from, r.to, true).then(function () { renderOverview(period, anchor); }, function (e) { showError(e, render); }); };
     }, function (err) { showError(err, function () { renderOverview(period, anchor); }); });
