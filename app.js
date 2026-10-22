@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '46'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '47'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -1232,7 +1232,7 @@
       html += '<a class="linkrow" href="#/vanload/' + date + '/' + encodeURIComponent(a.jr) + '/' + encodeURIComponent(a.id) + '">' + I.box +
         '<span class="text"><b>Van load</b><span>' +
         esc(a.vanLoad && a.vanLoad.confirmed ? 'Confirmed by ' + a.vanLoad.confirmedBy
-          : a.vanLoad ? a.vanLoad.pickedCount + ' of ' + a.vanLoad.lineCount + ' on board'
+          : a.vanLoad && a.vanLoad.pickedCount ? a.vanLoad.pickedCount + (a.vanLoad.lineCount ? ' of ' + a.vanLoad.lineCount : '') + ' ticked so far'
           : 'What goes on the van') +
         '</span></span>' + I.right + '</a>';
     }
