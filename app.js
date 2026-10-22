@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '47'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '48'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -916,6 +916,8 @@
     items.push(
       { key: 'day', href: '#/day' + d, icon: I.cal, label: isOffice() ? 'Schedule' : 'Today' },
       { key: 'route', href: '#/route' + d, icon: I.route, label: 'Route' });
+    if (canVanLoad()) items.push({ key: 'vanload', href: '#/vanload' + d, icon: I.box, label: 'Van load' });
+    if (canPick()) items.push({ key: 'picklist', href: '#/picklist', icon: I.list, label: 'Pick list' });
     if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
@@ -929,7 +931,7 @@
 
   function tabbar(active, date) {
     var items = navItems(date);
-    items = items.filter(function (t) { return t.key !== 'staff'; }); // phones: the staff directory is under Me
+    items = items.filter(function (t) { return t.key !== 'staff' && t.key !== 'vanload' && t.key !== 'picklist'; }); // phones: staff is under Me; van load and pick list are on Today
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'team'; }); // office phones: Team board is under Me
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'planner'; }); // and the Planner
@@ -1368,7 +1370,10 @@
       } else {
         html += '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">' + (whoSel() && isOffice() ? 'Nothing booked for ' + esc(whoSel().name) + ' on this day.' : 'Nothing is booked for you on this day.') + '</p></div>';
       }
-      if (canPick()) html += '<div class="section" style="padding-top:20px"><a class="linkrow" href="#/picklist">' + I.box +
+      var vlJobs = appts.filter(function (a) { return a.jr && /install|service/i.test(a.type || ''); }).length;
+      if (canVanLoad() && vlJobs) html += '<div class="section" style="padding-top:20px"><a class="linkrow" href="#/vanload' + (date === todayStr() ? '' : '/' + date) + '">' + I.box +
+        '<span class="text"><b>Van load</b><span>' + vlJobs + (vlJobs === 1 ? ' job' : ' jobs') + ', last stop first</span></span>' + I.right + '</a></div>';
+      if (canPick()) html += '<div class="section" style="padding-top:' + (canVanLoad() && vlJobs ? '8' : '20') + 'px"><a class="linkrow" href="#/picklist">' + I.list +
         '<span class="text"><b>Pick list</b><span>Build tomorrow\'s trolley</span></span>' + I.right + '</a></div>';
       html += dayFooter(day, date, appts) + '</main>' + tabbar('day', date);
       app.innerHTML = html;
@@ -4798,7 +4803,8 @@
   /* ---------- helpers ---------- */
 
   function vlPaint(body, bar, date) {
-    if (wide()) app.innerHTML = shell('day', date, '<div class="pane-solo">' + body + '</div>');
+    var navKey = /^#\/picklist/.test(location.hash) ? 'picklist' : 'vanload'; // highlight the right sidebar item
+    if (wide()) app.innerHTML = shell(navKey, date, '<div class="pane-solo">' + body + '</div>');
     else app.innerHTML = topbar(bar) + '<main>' + body + '</main>';
     window.scrollTo(0, 0);
   }
@@ -4836,6 +4842,13 @@
   function vlTomorrow() { return vlAddDays(todayStr(), 1); }
 
   /** The pick list is a warehouse job, but it falls to the office when Craig is away. */
+  /** The crew's day van load: installers and the office (sales reps don't load vans). */
+  function canVanLoad() {
+    var u = state.user || {};
+    var roles = (u.roles || [u.role || '']).join(' ').toLowerCase();
+    return /installer|office|admin|pm|warehouse/.test(roles);
+  }
+
   function canPick() {
     var u = state.user || {};
     var roles = (u.roles || [u.role || '']).join(' ').toLowerCase();
