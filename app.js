@@ -854,6 +854,7 @@
     if (!location.hash.replace(/^#\/?/, '') && vaResume()) return;
     var r = route();
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
+    if (r.name !== 'vanload' && r.name !== 'picklist') { vl.data = null; vl.edits = {}; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
     if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets' || r.name === 'ask') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
@@ -888,6 +889,9 @@
     if (r.name === 'hours') return renderHours(r.arg);
     if (r.name === 'collateral' && r.arg) return renderCollateral(r.arg, r.arg2 || todayStr());
     if (r.name === 'receipts') return renderReceipts(r.arg);
+    if (r.name === 'picklist') return renderPickList(r.arg || '');
+    if (r.name === 'vanload' && r.arg2) return renderJobVanLoad(r.arg, r.arg2, r.arg3);
+    if (r.name === 'vanload') return renderDayVanLoad(r.arg || todayStr());
     var date = r.name === 'day' && r.arg ? r.arg : todayStr();
     return wide() ? renderDayWide(date, null) : renderDay(date);
   }
@@ -1223,6 +1227,14 @@
     if (a.isSales) html += '<div class="section" style="padding-top:12px"><a class="btn btn-dark btn-lg" href="' + visitHref(a.id, date) + '">' + I.window.replace(/width="40" height="40"/, 'width="22" height="22"') + 'Open site consult · measure and capture</a></div>';
     html += '<div class="section" style="padding-top:10px"><button type="button" class="link-btn" data-addtodo data-jr="' + esc(a.jr || '') + '" data-opp="' + esc(a.opp || '') + '" data-title="' + esc(a.customer || a.title) + '" data-date="' + date + '">+ Add a to-do for this job</button>' +
       (a.readOnly ? ' <span class="small muted">· From the ' + esc(a.source) + ' calendar</span>' : '') + '</div>';
+    if (a.jr && a.isInstall) {
+      html += '<a class="linkrow" href="#/vanload/' + date + '/' + encodeURIComponent(a.jr) + '/' + encodeURIComponent(a.id) + '">' + I.box +
+        '<span class="text"><b>Van load</b><span>' +
+        esc(a.vanLoad && a.vanLoad.confirmed ? 'Confirmed by ' + a.vanLoad.confirmedBy
+          : a.vanLoad ? a.vanLoad.pickedCount + ' of ' + a.vanLoad.lineCount + ' on board'
+          : 'What goes on the van') +
+        '</span></span>' + I.right + '</a>';
+    }
     html += '<div class="wx-appt" data-id="' + esc(a.id) + '" data-date="' + date + '"></div>';
 
     var info = '';
@@ -1355,6 +1367,8 @@
       } else {
         html += '<div class="empty stack"><h2>No appointments</h2><p class="muted" style="margin:0">' + (whoSel() && isOffice() ? 'Nothing booked for ' + esc(whoSel().name) + ' on this day.' : 'Nothing is booked for you on this day.') + '</p></div>';
       }
+      if (canPick()) html += '<div class="section" style="padding-top:20px"><a class="linkrow" href="#/picklist">' + I.box +
+        '<span class="text"><b>Pick list</b><span>Build tomorrow\'s trolley</span></span>' + I.right + '</a></div>';
       html += dayFooter(day, date, appts) + '</main>' + tabbar('day', date);
       app.innerHTML = html;
       bindWho(function () { renderDay(date); });
@@ -4306,6 +4320,417 @@
       body += '<section class="section"><a class="btn btn-sand btn-lg" href="' + esc(H.sheetUrl) + '" target="_blank" rel="noopener">' + I.ext + 'Open the timesheet to fix a time</a><p class="small muted" style="margin:8px 0 0">Opens the Bundy Clock Time Log. Fix the time in the Timestamp column and it shows here on refresh.</p></section><div style="height:32px"></div>';
       app.innerHTML = staffPage('me', body, ['#/me', 'Me']);
     }, function (e) { showError(e, function () { renderHours(from); }); });
+  }
+
+/* ==========================================================================
+   BLINDMASTER FIELD APP — VAN LOAD (fresh, replaces anything earlier)
+
+   Three screens, one set of state:
+
+     #/picklist[/date]        warehouse, the day before — build the trolley
+     #/vanload[/date]         crew, the morning — every job, last stop first
+     #/vanload/date/JR        one job — also the Van load tab on an appointment
+
+   Nothing here keeps its own copy of what's ticked. Every screen reads and
+   writes the same per-job rows, so Craig's work the day before and the crew's
+   ticks the next morning can never drift apart.
+
+   WHERE TO PASTE
+   A  this whole block            → app.js, above /* ---------- account ---------- *\/
+   B  three router lines          → app.js, in render()
+   C  one line in render()        → app.js, beside the existing stopChat() line
+   D  one block in apptDetail()   → app.js, puts the Van load tab on a job
+   E  the CSS at the bottom       → app.css
+
+   ========================================================================== */
+
+  /* ---------- state ---------- */
+
+  var vl = {
+    date: '', view: '', data: null,
+    edits: {},        // key -> { picked, shortCount, shortNote, stage, stageBay }
+    bays: [],
+    open: '',         // key of the line with its editor open
+    openKind: '',     // 'short' | 'bay'
+    busy: false
+  };
+
+  function vlReset(date, view) {
+    if (vl.date !== date || vl.view !== view) {
+      vl.date = date; vl.view = view; vl.data = null; vl.edits = {}; vl.open = ''; vl.openKind = '';
+    }
+  }
+
+  /** The line as it stands: what the server said, plus anything not yet saved. */
+  function vlLine(i) {
+    var e = vl.edits[i.key] || {};
+    return {
+      key: i.key, kind: i.kind, item: i.item, quantity: i.quantity,
+      description: i.description || '', notes: i.notes || [],
+      supplier: i.supplier || '', refs: i.refs || [],
+      bay: i.bay || '',
+      picked: 'picked' in e ? e.picked : i.picked,
+      shortCount: 'shortCount' in e ? e.shortCount : i.shortCount,
+      shortNote: 'shortNote' in e ? e.shortNote : i.shortNote,
+      stage: 'stage' in e ? e.stage : (i.stage || ''),
+      stageBay: 'stageBay' in e ? e.stageBay : (i.stageBay || ''),
+      stageBy: i.stageBy || ''
+    };
+  }
+
+  /** Where the crew will find it, in the words they need at 6:30am. */
+  function vlWhereChip(l) {
+    if (l.stage === 'trolley') return '<span class="tag">On trolley</span>';
+    if (l.stage === 'bay') {
+      return '<span class="tag tag-blue">Collect from ' + esc(l.stageBay || l.bay || 'the racking') + '</span>';
+    }
+    if (l.kind === 'product') return '<span class="tag tag-alert">Not picked</span>';
+    return '';
+  }
+
+  /* ---------- 1. warehouse pick list ---------- */
+
+  function renderPickList(date) {
+    date = date || vlTomorrow();
+    vlReset(date, 'warehouse');
+    if (!vl.data) {
+      loading('Loading the pick list…');
+      return api({ action: 'pickList', date: date }).then(function (d) {
+        vl.data = d.pickList; vl.bays = d.pickList.bays || vl.bays; renderPickList(date);
+      }, function (err) { showError(err, function () { renderPickList(date); }); });
+    }
+
+    var d = vl.data;
+    var body = '<section class="hero"><span class="small" style="font-weight:700">COLLATING FOR ' +
+      esc(vlDayLabel(date).toUpperCase()) + '</span><h1>Pick list</h1>' +
+      '<p style="margin:0;font-weight:500">' + d.jobs.length + (d.jobs.length === 1 ? ' job · ' : ' jobs · ') +
+      d.lineCount + ' lines · ' + d.stagedCount + ' picked</p></section>';
+
+    body += '<div class="vl-daynav section">' +
+      '<a class="btn btn-sand" href="#/picklist/' + vlAddDays(date, -1) + '">‹ ' + esc(vlDayLabel(vlAddDays(date, -1))) + '</a>' +
+      '<a class="btn btn-sand" href="#/picklist/' + vlAddDays(date, 1) + '">' + esc(vlDayLabel(vlAddDays(date, 1))) + ' ›</a></div>';
+
+    if (!d.jobs.length) {
+      body += '<div class="empty stack"><h2>Nothing booked</h2><p class="muted" style="margin:0">No installation or service jobs on ' + esc(vlDayLabel(date)) + '.</p></div>';
+    }
+
+    d.jobs.forEach(function (job) {
+      body += vlJobHeader(job, job.stagedCount + ' of ' + job.items.length);
+      if (job.error) { body += '<p class="notice error section">' + esc(job.error) + '</p>'; return; }
+      job.items.forEach(function (raw) {
+        body += vlPickRow(vlLine(raw), job);
+      });
+      if (job.supplierGap && job.supplierGap.length) body += vlGapNote(job);
+    });
+
+    var unpicked = d.lineCount - d.stagedCount;
+    if (d.jobs.length) {
+      body += '<section class="section stack" style="gap:8px">';
+      if (unpicked) body += '<p class="small" style="margin:0;color:var(--alert)">' + unpicked +
+        (unpicked === 1 ? ' line is' : ' lines are') + ' not picked yet. Anything left unmarked shows to the crew as not picked.</p>';
+      else body += '<p class="small muted" style="margin:0">Every line is marked. The crew will see where each one is.</p>';
+      body += '</section>';
+    }
+    body += '<div style="height:32px"></div>';
+
+    vlPaint(body, { back: '#/day', backLabel: 'Today', right: 'Pick list' }, date);
+    vlBindPick(date);
+  }
+
+  function vlPickRow(l, job) {
+    var open = vl.open === l.key && vl.openKind === 'bay';
+    var done = !!l.stage;
+    var h = '<div class="vl-row' + (done ? ' is-done' : '') + (open ? ' is-open' : '') + '">' +
+      '<div class="vl-main">' +
+        '<p class="vl-item">' + esc(l.item) + (l.quantity ? ' <span class="muted">×' + esc(String(l.quantity)) + '</span>' : '') + '</p>' +
+        (l.description ? '<p class="small muted" style="margin:2px 0 0">' + esc(l.description) + '</p>' : '') +
+        '<div class="vl-chips">' +
+          (l.stage === 'trolley' ? '<span class="tag tag-dark">On trolley</span>' : '') +
+          (l.stage === 'bay' ? '<span class="tag tag-blue">Left in ' + esc(l.stageBay || 'a bay') + '</span>' : '') +
+          (!l.stage && l.bay ? '<span class="tag">Last seen ' + esc(l.bay) + '</span>' : '') +
+        '</div>';
+
+    if (open) {
+      h += '<div class="vl-edit stack" style="gap:10px">' +
+        '<div class="field"><label for="vlBay">Which bay are you leaving it in?</label>' +
+        '<select id="vlBay"><option value="">Choose a bay</option>' +
+        vl.bays.map(function (b) {
+          return '<option value="' + esc(b.id) + '"' + (b.name === (l.stageBay || l.bay) ? ' selected' : '') + '>' + esc(b.name) + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="vl-btns"><button type="button" class="btn btn-dark" data-vlbaysave="' + esc(l.key) + '">Save</button>' +
+        '<button type="button" class="btn btn-sand" data-vlcancel>Cancel</button></div></div>';
+    } else {
+      h += '<div class="vl-btns">' +
+        '<button type="button" class="btn ' + (l.stage === 'trolley' ? 'btn-dark' : 'btn-sand') + '" data-vltrolley="' + esc(l.key) + '">On trolley</button>' +
+        '<button type="button" class="btn ' + (l.stage === 'bay' ? 'btn-dark' : 'btn-sand') + '" data-vlbay="' + esc(l.key) + '">Leave in bay</button>' +
+        (l.stage ? '<button type="button" class="linkbtn" data-vlclear="' + esc(l.key) + '">Undo</button>' : '') +
+        '</div>';
+    }
+    return h + '</div></div>';
+  }
+
+  function vlBindPick(date) {
+    function stage(key, st, bayId, bayName) {
+      var job = vlJobForKey(key);
+      if (!job) return;
+      vl.edits[key] = Object.assign({}, vl.edits[key], { stage: st, stageBay: bayName || '' });
+      vl.open = ''; vl.openKind = '';
+      renderPickList(date);
+      apiPost({ action: 'vanLoadStage', jr: job.jr, date: date, key: key, stage: st, bay: bayId || '', bayName: bayName || '' })
+        .then(function (r) { if (r.warning) vlToast(r.warning); })
+        .catch(function (e) { delete vl.edits[key]; renderPickList(date); vlToast(e.message); });
+    }
+
+    vlEach('[data-vltrolley]', function (b) { b.onclick = function () { stage(b.getAttribute('data-vltrolley'), 'trolley'); }; });
+    vlEach('[data-vlclear]', function (b) { b.onclick = function () { stage(b.getAttribute('data-vlclear'), ''); }; });
+    vlEach('[data-vlbay]', function (b) {
+      b.onclick = function () { vl.open = b.getAttribute('data-vlbay'); vl.openKind = 'bay'; renderPickList(date); };
+    });
+    var cancel = app.querySelector('[data-vlcancel]');
+    if (cancel) cancel.onclick = function () { vl.open = ''; vl.openKind = ''; renderPickList(date); };
+    var save = app.querySelector('[data-vlbaysave]');
+    if (save) save.onclick = function () {
+      var sel = document.getElementById('vlBay');
+      if (!sel.value) return vlToast('Choose a bay, or cancel.');
+      stage(save.getAttribute('data-vlbaysave'), 'bay', sel.value, sel.options[sel.selectedIndex].text);
+    };
+  }
+
+  /* ---------- 2. crew day list ---------- */
+
+  function renderDayVanLoad(date) {
+    date = date || todayStr();
+    vlReset(date, 'crew');
+    if (!vl.data) {
+      loading('Loading the van load…');
+      return api({ action: 'dayVanLoad', date: date }).then(function (d) {
+        vl.data = d.vanLoad; renderDayVanLoad(date);
+      }, function (err) { showError(err, function () { renderDayVanLoad(date); }); });
+    }
+
+    var d = vl.data;
+    var body = '<section class="hero"><span class="small" style="font-weight:700">' +
+      esc(vlDayLabel(date).toUpperCase()) + '</span><h1>Van load</h1>' +
+      '<p style="margin:0;font-weight:500">' + d.jobs.length + (d.jobs.length === 1 ? ' job · ' : ' jobs · ') +
+      d.confirmedCount + ' of ' + d.jobs.length + ' confirmed</p>' +
+      (d.jobs.length > 1 ? '<p class="small" style="margin:6px 0 0;font-weight:500">Load the last stop first, so the first job comes off the back.</p>' : '') +
+      '</section>';
+
+    var gaps = d.jobs.filter(function (j) { return j.supplierGap && j.supplierGap.length; });
+    gaps.forEach(function (job) { body += vlGapNote(job, true); });
+
+    if (!d.jobs.length) {
+      body += '<div class="empty stack"><h2>No jobs today</h2><p class="muted" style="margin:0">Nothing to load.</p></div>';
+    }
+
+    d.jobs.forEach(function (job) {
+      var onBoard = job.items.filter(function (i) { return vlLine(i).picked; }).length;
+      body += vlJobHeader(job, onBoard + ' of ' + job.items.length, job.loadLabel);
+      if (job.error) { body += '<p class="notice error section">' + esc(job.error) + '</p>'; return; }
+      job.items.forEach(function (raw) { body += vlTickRow(vlLine(raw), job, date); });
+      body += vlJobFooter(job, onBoard);
+    });
+
+    body += '<div style="height:32px"></div>';
+    vlPaint(body, { back: '#/day', backLabel: 'Today', right: 'Van load' }, date);
+    vlBindTicks(date, function () { renderDayVanLoad(date); });
+  }
+
+  /* ---------- 3. one job (also the appointment tab) ---------- */
+
+  function renderJobVanLoad(date, jr, apptId) {
+    date = date || todayStr();
+    vlReset(date, 'crew');
+    if (!vl.data) {
+      loading('Loading the van load…');
+      return api({ action: 'dayVanLoad', date: date }).then(function (d) {
+        vl.data = d.vanLoad; renderJobVanLoad(date, jr, apptId);
+      }, function (err) { showError(err, function () { renderJobVanLoad(date, jr, apptId); }); });
+    }
+
+    var job = vl.data.jobs.filter(function (j) { return String(j.jr) === String(jr); })[0];
+    if (!job) {
+      return vlPaint('<div class="empty stack"><h2>No van load for this job</h2><p class="muted" style="margin:0">JR#' +
+        esc(jr) + ' isn\'t on the van today.</p></div>',
+        { back: '#/vanload/' + date, backLabel: 'Van load', right: 'JR#' + jr }, date);
+    }
+
+    var onBoard = job.items.filter(function (i) { return vlLine(i).picked; }).length;
+    var body = '<section class="hero"><span class="small" style="font-weight:700">' +
+      esc(vlDayLabel(date).toUpperCase() + ' · ' + (job.startLabel || '')) + '</span>' +
+      '<h1>' + esc(job.customer) + '</h1>' +
+      '<p style="margin:0;font-weight:500">' + esc([job.address, job.crew.join(', ')].filter(String).join(' · ')) + '</p></section>';
+
+    body += '<section class="section vl-summary"><p style="margin:0;font-weight:700">' + onBoard + ' of ' + job.items.length + ' on board</p>' +
+      '<p class="small muted" style="margin:3px 0 0">' +
+      (job.confirmed ? 'Confirmed by ' + esc(job.confirmedBy) + '.' : 'Confirm on the day list once everything is loaded.') +
+      '</p></section>';
+
+    if (job.supplierGap && job.supplierGap.length) body += vlGapNote(job, true);
+    job.items.forEach(function (raw) { body += vlTickRow(vlLine(raw), job, date); });
+    body += '<div style="height:32px"></div>';
+
+    var back = apptId ? '#/appt/' + encodeURIComponent(apptId) + '/' + date : '#/vanload/' + date;
+    vlPaint(body, { back: back, backLabel: apptId ? 'Job' : 'Van load', right: 'JR#' + job.jr }, date);
+    vlBindTicks(date, function () { renderJobVanLoad(date, jr, apptId); });
+  }
+
+  /* ---------- shared row rendering ---------- */
+
+  function vlTickRow(l, job, date) {
+    var open = vl.open === l.key && vl.openKind === 'short';
+    var short = l.shortCount != null;
+    var h = '<div class="vl-row' + (l.picked ? ' is-done' : '') + (short ? ' is-short' : '') + '">' +
+      '<button type="button" class="st-box" data-vltick="' + esc(l.key) + '" aria-pressed="' + (l.picked ? 'true' : 'false') +
+      '" aria-label="' + esc(l.item) + '"><span>' + (l.picked ? '✓' : '') + '</span></button>' +
+      '<div class="vl-main">' +
+        '<p class="vl-item">' + esc(l.item) + (l.quantity ? ' <span class="muted">×' + esc(String(l.quantity)) + '</span>' : '') + '</p>' +
+        (l.description ? '<p class="small muted" style="margin:2px 0 0">' + esc(l.description) + '</p>' : '') +
+        '<div class="vl-chips">' + vlWhereChip(l) +
+          (short ? '<span class="tag tag-alert">Only ' + esc(String(l.shortCount)) + ' found</span>' : '') +
+        '</div>';
+
+    if (open) {
+      h += '<div class="vl-edit stack" style="gap:10px">' +
+        '<div class="field"><label for="vlShortN">How many did you actually find?</label>' +
+        '<input id="vlShortN" type="number" min="0" inputmode="numeric" value="' + esc(String(short ? l.shortCount : 0)) + '"></div>' +
+        '<div class="field"><label for="vlShortNote">Anything the office should know?</label>' +
+        '<input id="vlShortNote" type="text" placeholder="optional" value="' + esc(l.shortNote || '') + '"></div>' +
+        '<div class="vl-btns"><button type="button" class="btn btn-dark" data-vlshortsave="' + esc(l.key) + '">Save</button>' +
+        '<button type="button" class="btn btn-sand" data-vlcancel>Cancel</button></div></div>';
+    } else {
+      h += '<div class="vl-btns"><button type="button" class="linkbtn" data-vlshort="' + esc(l.key) + '">' +
+        (short ? 'Change' : "Can't find") + '</button></div>';
+    }
+    return h + '</div></div>';
+  }
+
+  function vlBindTicks(date, redraw) {
+    function save(key, patch) {
+      var job = vlJobForKey(key);
+      if (!job) return;
+      vl.edits[key] = Object.assign({}, vl.edits[key], patch);
+      vl.open = ''; vl.openKind = '';
+      redraw();
+      apiPost({ action: 'vanLoadPick', jr: job.jr, date: date, picks: [Object.assign({ key: key }, patch)] })
+        .catch(function (e) { delete vl.edits[key]; redraw(); vlToast(e.message); });
+    }
+
+    vlEach('[data-vltick]', function (b) {
+      b.onclick = function () {
+        var key = b.getAttribute('data-vltick');
+        var cur = vlFindLine(key);
+        save(key, { picked: !(cur && cur.picked), shortCount: null });
+      };
+    });
+    vlEach('[data-vlshort]', function (b) {
+      b.onclick = function () { vl.open = b.getAttribute('data-vlshort'); vl.openKind = 'short'; redraw(); };
+    });
+    var cancel = app.querySelector('[data-vlcancel]');
+    if (cancel) cancel.onclick = function () { vl.open = ''; vl.openKind = ''; redraw(); };
+    var ss = app.querySelector('[data-vlshortsave]');
+    if (ss) ss.onclick = function () {
+      save(ss.getAttribute('data-vlshortsave'), {
+        shortCount: Number(document.getElementById('vlShortN').value || 0),
+        shortNote: document.getElementById('vlShortNote').value.trim(),
+        picked: false
+      });
+    };
+
+    vlEach('[data-vlconfirm]', function (b) {
+      b.onclick = function () {
+        if (vl.busy) return;
+        vl.busy = true; b.disabled = true; b.textContent = 'Confirming…';
+        apiPost({ action: 'vanLoadConfirm', jr: b.getAttribute('data-vlconfirm'), date: date })
+          .then(function () { vl.busy = false; vl.data = null; redraw(); })
+          .catch(function (e) { vl.busy = false; b.disabled = false; b.textContent = 'Confirm this job'; vlToast(e.message); });
+      };
+    });
+  }
+
+  /* ---------- pieces ---------- */
+
+  function vlJobHeader(job, count, loadLabel) {
+    return '<div class="vl-job">' +
+      '<div><p style="margin:0;font-weight:700">' + esc((job.startLabel ? job.startLabel + ' · ' : '') + job.customer) + '</p>' +
+      '<p class="small" style="margin:2px 0 0">' + esc([job.address, 'JR#' + job.jr, loadLabel].filter(String).join(' · ')) + '</p></div>' +
+      '<span class="vl-count">' + esc(count) + '</span></div>';
+  }
+
+  function vlJobFooter(job, onBoard) {
+    if (job.confirmed) {
+      return '<section class="section"><p class="small" style="margin:0;font-weight:700">Confirmed by ' + esc(job.confirmedBy) + '</p></section>';
+    }
+    var left = job.items.length - onBoard;
+    return '<section class="section stack" style="gap:8px">' +
+      '<button type="button" class="btn btn-dark" data-vlconfirm="' + esc(job.jr) + '">Confirm this job</button>' +
+      (left ? '<p class="small muted" style="margin:0">' + left + (left === 1 ? ' line is' : ' lines are') + ' still unticked.</p>' : '') +
+      '</section>';
+  }
+
+  function vlGapNote(job, loud) {
+    var g = job.supplierGap;
+    var who = g.map(function (x) { return x.supplier; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; }).join(', ');
+    return '<div class="' + (loud ? 'vl-alert' : 'notice section') + '">' +
+      '<p style="margin:0;font-weight:700">' + esc(job.customer) + ' · ' + g.length +
+      (g.length === 1 ? ' line not received' : ' lines not received') + '</p>' +
+      '<p class="small" style="margin:3px 0 0">Ordered from ' + esc(who || 'a supplier') +
+      ', nothing in the warehouse. Check with the office before you leave.</p></div>';
+  }
+
+  /* ---------- helpers ---------- */
+
+  function vlPaint(body, bar, date) {
+    if (wide()) app.innerHTML = shell('day', date, '<div class="pane-solo">' + body + '</div>');
+    else app.innerHTML = topbar(bar) + '<main>' + body + '</main>';
+    window.scrollTo(0, 0);
+  }
+
+  function vlEach(sel, fn) { Array.prototype.forEach.call(app.querySelectorAll(sel), fn); }
+
+  function vlJobForKey(key) {
+    if (!vl.data) return null;
+    return vl.data.jobs.filter(function (j) {
+      return j.items.some(function (i) { return i.key === key; });
+    })[0] || null;
+  }
+
+  function vlFindLine(key) {
+    var job = vlJobForKey(key);
+    if (!job) return null;
+    var raw = job.items.filter(function (i) { return i.key === key; })[0];
+    return raw ? vlLine(raw) : null;
+  }
+
+  function vlToast(msg) {
+    var el = document.createElement('p');
+    el.className = 'vl-toast';
+    el.textContent = msg;
+    app.appendChild(el);
+    setTimeout(function () { el.remove(); }, 6000);
+  }
+
+  function vlAddDays(date, n) {
+    var d = new Date(date + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return ymd(d);
+  }
+
+  function vlTomorrow() { return vlAddDays(todayStr(), 1); }
+
+  /** The pick list is a warehouse job, but it falls to the office when Craig is away. */
+  function canPick() {
+    var u = state.user || {};
+    var roles = (u.roles || [u.role || '']).join(' ').toLowerCase();
+    return /warehouse|office|admin/.test(roles);
+  }
+
+  function vlDayLabel(date) {
+    if (date === todayStr()) return 'Today';
+    if (date === vlTomorrow()) return 'Tomorrow';
+    if (date === vlAddDays(todayStr(), -1)) return 'Yesterday';
+    var d = new Date(date + 'T12:00:00');
+    return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
   }
 
   /* ---------- account ---------- */
