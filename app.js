@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '48'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '50'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -107,6 +107,7 @@
     awning: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5"/><path d="M3 9h18l-2 4H5z"/><path d="M6 13v7M18 13v7"/></svg>',
     eye: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     box: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
+    alert: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg>',
     receipt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
     doc: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
     grid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
@@ -857,7 +858,7 @@
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'vanload' && r.name !== 'picklist') { vl.data = null; vl.edits = {}; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets' || r.name === 'ask') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'scheduler' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets' || r.name === 'ask') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -869,7 +870,7 @@
     if (r.name === 'appt') return wide() ? renderDayWide(r.arg2 || todayStr(), r.arg) : renderAppointment(r.arg2 || todayStr(), r.arg);
     if (r.name === 'route') return renderRoute(r.arg || todayStr());
     if (r.name === 'team') return renderTeam(r.arg || todayStr());
-    if (r.name === 'planner') return renderPlanner(r.arg || todayStr());
+    if (r.name === 'planner' || r.name === 'scheduler') return renderPlanner(r.arg || todayStr()); // old #/planner links still work
     if (r.name === 'overview') return renderOverview(r.arg || 'today', r.arg2 || todayStr());
     if (!location.hash.replace(/^#\/?/, '') && isOffice()) return renderOverview('today', todayStr());
     if (r.name === 'account') return renderAccount();
@@ -918,7 +919,7 @@
       { key: 'route', href: '#/route' + d, icon: I.route, label: 'Route' });
     if (canVanLoad()) items.push({ key: 'vanload', href: '#/vanload' + d, icon: I.box, label: 'Van load' });
     if (canPick()) items.push({ key: 'picklist', href: '#/picklist', icon: I.list, label: 'Pick list' });
-    if (canSchedule()) items.push({ key: 'planner', href: '#/planner', icon: I.planner, label: 'Planner' });
+    if (canSchedule()) items.push({ key: 'planner', href: '#/scheduler', icon: I.planner, label: 'Scheduler' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
     items.push({ key: 'ask', href: '#/ask', icon: I.spark, label: 'Ask Jan' });
@@ -934,7 +935,7 @@
     items = items.filter(function (t) { return t.key !== 'staff' && t.key !== 'vanload' && t.key !== 'picklist'; }); // phones: staff is under Me; van load and pick list are on Today
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'team'; }); // office phones: Team board is under Me
-    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'planner'; }); // and the Planner
+    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'planner'; }); // and the Scheduler
     return '<nav class="tabbar" aria-label="Main"><div class="inner" style="grid-template-columns:repeat(' + items.length + ',minmax(0,1fr))">' +
       items.map(function (t) {
         return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '><span class="pill">' + t.icon + '</span>' + t.label + '</a>';
@@ -1998,58 +1999,117 @@
     var a = (w.away || []).filter(function (x) { return x.first <= d && x.last >= d && (!person || x.email === person); });
     return a.length ? '<span class="pl-away">Away: ' + esc(a.map(function (x) { return firstName(x.name) + (x.part ? ' from ' + x.from : ''); }).join(', ')) + '</span>' : '';
   }
+  /* ---------- office scheduler (canvas board 12): installer rows × days ---------- */
+
+  planner.jobTab = 'ready'; planner.jobQ = '';
+  var NS_READY = ['Ready for Installation', 'Installation Booked'];
+
+  function plRows(w, appts, days) {
+    // Everyone who installs or sells, plus anyone else with appointments this week
+    var busy = {};
+    appts.forEach(function (a) { a.crew.forEach(function (c) { busy[c.email] = true; }); });
+    var rows = (w.staff || []).filter(function (s) {
+      var r = (s.roles && s.roles.length ? s.roles : [s.role]).join(' ');
+      return /installer|sales|pm/i.test(r) || busy[s.email];
+    });
+    var order = function (s) { var r = (s.roles && s.roles.length ? s.roles : [s.role]).join(' '); return /installer/i.test(s.role) ? 0 : /installer/i.test(r) ? 1 : 2; };
+    rows.sort(function (a, b) { return order(a) - order(b) || a.name.localeCompare(b.name); });
+    if (appts.some(function (a) { return !a.crew.length && days.indexOf(a.date) >= 0; })) rows.push({ email: '', name: 'No crew yet', unassigned: true });
+    return rows;
+  }
+  function plCardKind(a) {
+    if (a.status === 'Tentative') return 'is-tent';
+    if (/measure|service|sales|consult|site meeting|showroom/i.test(a.type || '')) return 'is-blue';
+    return 'is-dark';
+  }
+  function plShortName(a) {
+    var t = String(a.customer || a.title || '').split('@')[0].trim();
+    var parts = t.split(/\s+/);
+    return parts.length > 2 ? parts.slice(0, 2).join(' ') : t;
+  }
+  function plCard(a, rowEmail) {
+    var others = a.crew.filter(function (c) { return c.email !== rowEmail; }).map(function (c) { return '+' + firstName(c.name); });
+    var h = durOf(a) / 60, hours = (Math.round(h * 10) / 10) + '\u00a0h';
+    var line2 = a.status === 'Tentative'
+      ? ['Tentative', suburb(a.address)].filter(String).join(' · ')
+      : [suburb(a.address), refLabel(a)].filter(String).concat(others).join(' · ');
+    if (a.status === 'Tentative' && refLabel(a)) line2 += ' · ' + refLabel(a);
+    if (/measure|service/i.test(a.type || '') && a.status !== 'Tentative') line2 = [a.type, suburb(a.address), refLabel(a)].filter(String).join(' · ');
+    return '<button type="button" class="sc-card ' + plCardKind(a) + (a.status === 'Tentative' ? ' is-red' : ' is-green') + '" data-edit="' + esc(a.id) + '" title="' + esc(a.title) + '">' +
+      '<span class="sc-bar" role="img" aria-label="' + (a.status === 'Tentative' ? 'Not confirmed' : 'Confirmed') + '"></span>' +
+      '<b>' + esc(a.allDay ? 'All day' : a.startLabel) + ' · ' + esc(plShortName(a)) + (a.allDay ? '' : ' · ' + hours) + '</b>' +
+      '<span>' + esc(line2) + '</span>' + (a.readOnly ? '<span class="sc-ro">From ' + esc(a.source) + '</span>' : '') + '</button>';
+  }
+  function plAwayFor(w, d, email) {
+    return (w.away || []).filter(function (x) { return x.first <= d && x.last >= d && x.email === email; })[0] || null;
+  }
+
   function drawPlanner(w) {
     var from = w.from, days = [];
     for (var i = 0; i < 7; i++) days.push(addDays(from, i));
-    var person = planner.person;
-    var appts = w.appointments.filter(function (a) { return !person || a.crew.some(function (c) { return c.email === person; }); });
-    var showSun = appts.some(function (a) { return a.date === days[6]; });
-    if (!showSun) days = days.slice(0, 6);
-    var label = shortDate(days[0]) + ' – ' + shortDate(days[days.length - 1]);
-    var head = '<div class="pl-head">' +
-      '<div class="stack" style="gap:2px"><h1 style="font-size:24px">Planner</h1><span class="small muted">' + esc(label) + ' · Sandbox calendar</span></div>' +
-      '<div class="pl-tools">' +
-        '<div class="pl-weeknav"><button type="button" id="plPrev" aria-label="Previous week">' + I.left + '</button><button type="button" id="plThis">This week</button><button type="button" id="plNext" aria-label="Next week">' + I.right + '</button></div>' +
-        '<label class="sr-only" for="plPerson">Show</label><select id="plPerson" class="pl-select"><option value="">Everyone</option>' +
-          w.staff.map(function (s) { return '<option value="' + esc(s.email) + '"' + (s.email === person ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select>' +
-        '<button type="button" class="btn btn-dark" id="plNew">+ New appointment</button>' +
-      '</div></div>' +
-      '<p class="pl-legend small"><span class="light is-green"></span> Confirmed booking <span class="light is-red" style="margin-left:12px"></span> Not confirmed (tentative)</p>';
+    var appts = w.appointments;
+    var weekend = days.slice(5).filter(function (d) { return appts.some(function (a) { return a.date === d; }); });
+    days = days.slice(0, 5).concat(weekend);
+    var rows = plRows(w, appts, days);
+    var monthDay = new Date(from + 'T12:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
 
-    var cols = days.map(function (d) {
-      var list = appts.filter(function (a) { return a.date === d; });
-      var tot = (w.days || {})[d] || { siteMin: 0, people: {} };
-      var totals;
-      if (person) {
-        var p = tot.people[person] || { siteMin: 0, travelMin: 0 };
-        var dayMin = p.siteMin + (p.travelMin || 0);
-        totals = '<span class="pl-tot' + (dayMin > 480 ? ' is-over' : '') + '">' + fmtHM(p.siteMin) + ' site + ' + fmtHM(p.travelMin) + ' travel = <b>' + fmtHM(dayMin) + '</b>' + (dayMin > 480 ? ' · over 8 h' : '') + '</span>';
-      } else {
-        totals = '<span class="pl-tot">' + list.length + (list.length === 1 ? ' appointment' : ' appointments') + (tot.siteMin ? ' · ' + fmtHM(tot.siteMin) + ' on site' : '') + '</span>';
-      }
-      return '<section class="pl-day' + (d === todayStr() ? ' is-today' : '') + '">' +
-        '<header class="pl-dayhead"><div class="spread"><b>' + esc(shortDate(d)) + '</b><span class="pl-wx" data-date="' + d + '"></span></div>' + totals + plAway(w, d, person) + '</header>' +
-        '<div class="pl-cards">' + (list.length ? list.map(function (a) {
-          return '<button type="button" class="pl-card' + (a.status === 'Tentative' ? ' is-tentative' : '') + '" data-edit="' + esc(a.id) + '">' + lightHtml(a) +
-            '<span class="pl-time">' + esc(a.allDay ? 'All day' : a.startLabel + '–' + a.endLabel) + '</span>' +
-            '<span class="tag ' + (a.isSales ? '' : 'tag-blue') + '">' + esc(a.type) + '</span>' +
-            '<span class="pl-title">' + esc(a.title) + '</span>' + (a.readOnly ? '<span class="pl-sub">From ' + esc(a.source) + '</span>' : '') +
-            '<span class="pl-sub">' + esc([suburb(a.address), refLabel(a)].filter(String).join(' · ')) + '</span>' +
-            (a.crew.length ? '<span class="pl-crew">' + a.crew.map(function (c) { return '<span class="pl-ini" title="' + esc(c.name) + '">' + esc(initials(c.name)) + '</span>'; }).join('') + '</span>' : '<span class="pl-sub" style="color:#8a3b2e">No crew assigned</span>') +
-          '</button>';
-        }).join('') : '<p class="small muted" style="margin:0;padding:4px 2px">Nothing booked</p>') +
-        '<button type="button" class="pl-add" data-add="' + d + '">+ Add</button></div></section>';
-    }).join('');
+    var head = '<header class="sc-top">' +
+      '<div class="stack" style="gap:4px"><span class="sc-eyebrow">Scheduler · ' + (CFG.ENVIRONMENT ? 'sandbox calendar, reading NetSuite' : 'synced with NetSuite and Google Calendar') + '</span>' +
+        '<h1>Week of ' + esc(monthDay) + '</h1></div>' +
+      '<div class="sc-tools">' +
+        '<div class="sc-legend" aria-label="Key"><span><i class="k-dark"></i>Installation</span><span><i class="k-blue"></i>Check measure | Service</span>' +
+          '<span><i class="k-bar is-green"></i>Confirmed</span><span><i class="k-tent"></i><i class="k-bar is-red"></i>Tentative</span></div>' +
+        '<button type="button" class="sc-nav" id="plPrev" aria-label="Previous week">‹</button><button type="button" class="sc-nav" id="plNext" aria-label="Next week">›</button>' +
+        '<button type="button" class="sc-this" id="plThis">This week</button>' +
+        '<button type="button" class="sc-new" id="plNew">+ Appointment</button>' +
+      '</div></header>';
+    var msg = planner.msg ? '<p class="notice sc-msg" role="status">' + esc(planner.msg) + ' <button type="button" class="link-btn" id="plMsgX">Dismiss</button></p>' : '';
 
-    var body = '<div class="pl">' + head + '<div class="pl-grid" style="--days:' + days.length + '">' + cols + '</div></div>';
+    var grid = '<div class="sc-grid" style="--days:' + days.length + '">' +
+      '<div class="sc-hd sc-corner">Installer</div>' +
+      days.map(function (d) {
+        var dt = new Date(d + 'T12:00:00');
+        return '<div class="sc-hd' + (d === todayStr() ? ' is-today' : '') + '"><span class="spread"><b>' + esc(dt.toLocaleDateString('en-AU', { weekday: 'short' }) + ' ' + dt.getDate()) + '</b>' +
+          '<span class="sc-wx" data-date="' + d + '"></span></span><span class="sc-wxline" data-wxline="' + d + '"></span></div>';
+      }).join('') +
+      rows.map(function (p) {
+        var weekMin = 0;
+        var cells = days.map(function (d) {
+          var list = appts.filter(function (a) { return a.date === d && (p.unassigned ? !a.crew.length : a.crew.some(function (c) { return c.email === p.email; })); });
+          var tot = (((w.days || {})[d] || {}).people || {})[p.email] || null;
+          var site = tot ? tot.siteMin : list.reduce(function (s, a) { return s + (a.allDay ? 0 : durOf(a)); }, 0);
+          var travel = tot && tot.travelMin != null ? tot.travelMin : 0;
+          var day = site + travel; weekMin += day;
+          var away = p.unassigned ? null : plAwayFor(w, d, p.email);
+          var body = list.map(function (a) { return plCard(a, p.email); }).join('');
+          if (!list.length) body = '<button type="button" class="sc-free" data-add="' + d + '" data-person="' + esc(p.email) + '">' + (away && !away.part ? 'Leave' : 'Free') + '</button>';
+          else if (away) body = '<span class="sc-away">Away' + (away.part ? ' from ' + esc(away.from) : '') + '</span>' + body;
+          var foot = list.length && !p.unassigned ? '<div class="sc-foot"><span>Site ' + fmtHM(site) + (travel ? ' · Travel ~' + fmtHM(travel) : '') + '</span>' +
+            (day > 480 ? '<span class="sc-over">Over 8 h</span>' : '') + '<b>' + fmtHM(day) + '</b></div>' : '';
+          return '<div class="sc-cell' + (d === todayStr() ? ' is-today' : '') + '" data-day="' + d + '" data-person="' + esc(p.email) + '">' + body +
+            (list.length ? '<button type="button" class="sc-plus" data-add="' + d + '" data-person="' + esc(p.email) + '" aria-label="Add for ' + esc(p.name) + ' on ' + esc(shortDate(d)) + '">+</button>' : '') + foot + '</div>';
+        }).join('');
+        return '<div class="sc-who"><b>' + esc(p.unassigned ? p.name : firstName(p.name)) + '</b>' + (p.unassigned ? '' : '<span>Week ' + fmtHM(weekMin) + '</span>') + '</div>' + cells;
+      }).join('') + '</div>';
+
+    var jobsCol = '<section class="sc-jobs" aria-label="Jobs to schedule" id="plJobs"></section>';
+    var body = '<div class="sc' + (state.mode === 'desktop' ? ' is-side' : '') + '">' + (state.mode === 'desktop' ? jobsCol : '') +
+      '<div class="sc-main">' + head + msg +
+        (state.mode === 'desktop' ? '' : '<details class="sc-jobs-m"' + (planner.jobsOpen ? ' open' : '') + '><summary>Jobs to schedule</summary>' + jobsCol + '</details>') +
+        '<div class="sc-scroll">' + grid + '</div>' +
+        '<p class="sc-foot-note">Weather: daily forecast for the Northern Beaches. Day total = site hours from the appointments plus approximate driving from the warehouse, between each stop in order and back. Days over 8 h are flagged.</p>' +
+      '</div></div>';
     app.innerHTML = wide() ? shell('planner', null, body) : topbar() + '<main>' + body + '</main>' + tabbar('planner');
-    document.getElementById('plPrev').onclick = function () { location.hash = '#/planner/' + addDays(planner.from, -7); };
-    document.getElementById('plNext').onclick = function () { location.hash = '#/planner/' + addDays(planner.from, 7); };
-    document.getElementById('plThis').onclick = function () { location.hash = '#/planner'; };
-    document.getElementById('plPerson').onchange = function () { planner.person = this.value; drawPlanner(planner.data); };
-    document.getElementById('plNew').onclick = function () { openBooking(null, d0()); };
-    function d0() { var t = todayStr(); return t >= days[0] && t <= days[days.length - 1] ? t : days[0]; }
-    Array.prototype.forEach.call(app.querySelectorAll('[data-add]'), function (b) { b.onclick = function () { openBooking(null, b.getAttribute('data-add')); }; });
+
+    document.getElementById('plPrev').onclick = function () { location.hash = '#/scheduler/' + addDays(planner.from, -7); };
+    document.getElementById('plNext').onclick = function () { location.hash = '#/scheduler/' + addDays(planner.from, 7); };
+    document.getElementById('plThis').onclick = function () { location.hash = '#/scheduler'; };
+    document.getElementById('plNew').onclick = function () { var t = todayStr(); openBooking(null, t >= days[0] && t <= days[days.length - 1] ? t : days[0]); };
+    if (document.getElementById('plMsgX')) document.getElementById('plMsgX').onclick = function () { planner.msg = ''; this.parentNode.remove(); };
+    var dm = app.querySelector('.sc-jobs-m'); if (dm) dm.ontoggle = function () { planner.jobsOpen = dm.open; };
+    Array.prototype.forEach.call(app.querySelectorAll('[data-add]'), function (b) {
+      b.onclick = function () { openBooking(null, b.getAttribute('data-add'), null, b.getAttribute('data-person')); };
+    });
     Array.prototype.forEach.call(app.querySelectorAll('[data-edit]'), function (b) {
       b.onclick = function () {
         var a = w.appointments.filter(function (x) { return x.id === b.getAttribute('data-edit'); })[0];
@@ -2057,7 +2117,23 @@
         openBooking(a);
       };
     });
+    // drop a job from the list onto a person's day
+    Array.prototype.forEach.call(app.querySelectorAll('.sc-cell'), function (cell) {
+      cell.ondragover = function (e) { if (planner.dragging) { e.preventDefault(); cell.classList.add('is-drop'); } };
+      cell.ondragleave = function () { cell.classList.remove('is-drop'); };
+      cell.ondrop = function (e) {
+        e.preventDefault(); cell.classList.remove('is-drop');
+        var job = jobByRef(e.dataTransfer.getData('text/plain') || planner.dragging); planner.dragging = null;
+        if (job) openBooking(null, cell.getAttribute('data-day'), job, cell.getAttribute('data-person'));
+      };
+    });
     fillPlannerWeather(days);
+    drawJobs();
+    if (!planner.jobs && !planner.jobsLoading) {
+      planner.jobsLoading = true;
+      loadJobs(false).then(function () { planner.jobsLoading = false; drawJobs(); },
+        function (e) { planner.jobsLoading = false; planner.jobs = { error: e.message, jobs: [], groups: [] }; drawJobs(); });
+    }
   }
 
   function fillPlannerWeather(days) {
@@ -2065,135 +2141,276 @@
     if (daysAhead(last) < 0 || daysAhead(first) > 13) return;
     var s = daysAhead(first) < 0 ? todayStr() : first, e = daysAhead(last) > 13 ? addDays(todayStr(), 13) : last;
     wxFetch('https://api.open-meteo.com/v1/forecast?latitude=' + (CFG.WEATHER_LAT || -33.75) + '&longitude=' + (CFG.WEATHER_LON || 151.28) +
-      '&daily=weather_code,temperature_2m_max,wind_gusts_10m_max&timezone=Australia%2FSydney&start_date=' + s + '&end_date=' + e).then(function (d) {
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_gusts_10m_max&timezone=Australia%2FSydney&start_date=' + s + '&end_date=' + e).then(function (d) {
       planner.wx = {};
-      (d.daily.time || []).forEach(function (t, i) { planner.wx[t] = { code: d.daily.weather_code[i], max: d.daily.temperature_2m_max[i], gust: d.daily.wind_gusts_10m_max[i] }; });
-      Array.prototype.forEach.call(document.querySelectorAll('.pl-wx'), function (el) {
+      (d.daily.time || []).forEach(function (t, i) {
+        planner.wx[t] = { code: d.daily.weather_code[i], max: d.daily.temperature_2m_max[i], min: d.daily.temperature_2m_min[i], rain: d.daily.precipitation_probability_max[i], gust: d.daily.wind_gusts_10m_max[i] };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.sc-wx'), function (el) {
         var x = planner.wx[el.getAttribute('data-date')]; if (!x) return;
-        var info = wxInfo(x.code), warn = info.storm || x.gust >= WX_LIMIT;
-        el.innerHTML = wxIcon(info.icon, info.label, 18) + '<span>' + Math.round(x.max) + '°</span>' + (warn ? '<span class="pl-warn" title="' + esc(info.storm ? 'Thunderstorms' : 'Gusts ' + Math.round(x.gust) + ' km/h') + '">' + (info.storm ? 'Storm' : 'Wind ' + Math.round(x.gust)) + '</span>' : '');
+        el.innerHTML = wxIcon(wxInfo(x.code).icon, wxInfo(x.code).label, 18) + '<b>' + Math.round(x.max) + '°</b><span>' + Math.round(x.min) + '°</span>';
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-wxline]'), function (el) {
+        var x = planner.wx[el.getAttribute('data-wxline')]; if (!x) return;
+        var info = wxInfo(x.code), windy = x.gust >= WX_LIMIT, wet = (x.rain || 0) >= 60;
+        el.innerHTML = '<span>' + esc(windy ? 'Windy · Gusts ' + Math.round(x.gust) + ' km/h' : info.label + ' · ' + Math.round(x.rain || 0) + '% rain') + '</span>' +
+          (info.storm ? '<span class="sc-warn">Storms</span>' : windy ? '<span class="sc-warn">Windy: check awning installs</span>' : wet ? '<span class="sc-warn">Rain likely</span>' : '');
       });
     }).catch(function () {});
   }
 
-  /* booking panel */
+  /* ---------- jobs to schedule (board 12) ---------- */
 
-  function openBooking(a, date) {
+  function loadJobs(force) {
+    return api(Object.assign({ action: 'jobsToSchedule' }, force ? { force: '1' } : {})).then(function (d) { planner.jobs = d.jobs; return d.jobs; });
+  }
+  function jobByRef(ref) { return ((planner.jobs || {}).jobs || []).filter(function (j) { return j.ref === String(ref); })[0] || null; }
+  function jobHours(j) { return j.hours ? (Math.round(j.hours * 10) / 10) + ' h' : 'no estimate'; }
+  var JOB_TABS = [['ready', 'Ready'], ['coming', 'Coming up'], ['checkMeasure', 'Check measures'], ['returns', 'Return visits']];
+
+  function jobCard(j, dashed) {
+    var who = j.crew.map(function (c) { return firstName(c.name); }).join(', ');
+    return '<article class="sc-job' + (dashed ? ' is-dashed' : '') + '" draggable="true" data-job="' + esc(j.ref) + '" tabindex="0" aria-label="JR#' + esc(j.ref) + ' ' + esc(j.title) + ': press Enter to book">' +
+      '<span class="sc-job-top"><span>JR#' + esc(j.ref) + '</span><span>est. ' + esc(jobHours(j)) + (j.people && !dashed ? ' · ' + j.people + (j.people === 1 ? ' person' : ' people') : '') + '</span></span>' +
+      '<b>' + esc(j.title) + '</b>' +
+      '<span class="sc-job-sub">' + esc([j.suburb || suburb(j.address), j.klass].filter(String).join(' · ')) + '</span>' +
+      (dashed || j.group === 'returns' ? '<span class="sc-chip">' + esc(j.status) + (j.installDate ? ' · due ' + esc(shortDate(j.installDate).replace(/^\w+,?\s*/, '')) : '') + '</span>' : '') +
+      (who ? '<span class="sc-job-sub">' + esc(who) + '</span>' : '') +
+      (j.onPlanner ? '<span class="sc-job-on">On the scheduler ' + esc(shortDate(j.onPlanner.date)) + ' · ' + esc(j.onPlanner.status) + '</span>' : '') +
+    '</article>';
+  }
+
+  function drawJobs() {
+    var el = document.getElementById('plJobs'); if (!el) return;
+    var J = planner.jobs;
+    var head = '<div class="sc-jobs-head"><h2>Jobs to schedule</h2>' + (J && !J.error ? '<button type="button" class="link-btn" id="pjRefresh">Refresh</button>' : '') + '</div>';
+    if (!J) { el.innerHTML = head + '<p class="small muted">Loading from NetSuite…</p>'; return; }
+    if (J.error && !(J.jobs || []).length) { el.innerHTML = head + '<p class="notice">' + esc(J.error) + '</p>'; bindJobs(); return; }
+    var counts = J.counts || {};
+    var q = planner.jobQ.toLowerCase();
+    function match(j) { return !q || [j.ref, j.title, j.customer, j.suburb, j.address, j.status].join(' ').toLowerCase().indexOf(q) >= 0; }
+    function group(k) { return J.jobs.filter(function (j) { return j.group === k && match(j); }); }
+    var listHtml;
+    if (planner.jobTab === 'ready') {
+      var r = group('ready'), c = group('coming');
+      listHtml = '<span class="sc-jobs-label">Ready for Installation · drag onto the planner</span>' + (r.length ? r.map(function (j) { return jobCard(j, false); }).join('') : '<p class="small muted">None ready.</p>') +
+        '<span class="sc-jobs-label" style="margin-top:10px">Coming up · can be booked tentatively</span>' + (c.length ? c.map(function (j) { return jobCard(j, true); }).join('') : '<p class="small muted">None.</p>');
+    } else {
+      var g = group(planner.jobTab);
+      var label = { coming: 'Coming up · can be booked tentatively', checkMeasure: 'Check Measure Required · drag onto the planner', returns: 'Problem Jobs · book the return visit' }[planner.jobTab];
+      listHtml = '<span class="sc-jobs-label">' + esc(label) + '</span>' + (g.length ? g.map(function (j) { return jobCard(j, planner.jobTab === 'coming'); }).join('') : '<p class="small muted">' + (q ? 'No jobs match.' : 'None.') + '</p>');
+    }
+    el.innerHTML = head +
+      '<div class="sc-tabs" role="tablist">' + JOB_TABS.map(function (t) {
+        return '<button type="button" role="tab" aria-selected="' + (planner.jobTab === t[0]) + '" data-tab="' + t[0] + '">' + esc(t[1]) + ' · ' + (counts[t[0]] || 0) + '</button>'; }).join('') + '</div>' +
+      '<label class="sc-search">Search<input id="pjQ" type="search" placeholder="Customer, suburb or JR#" value="' + esc(planner.jobQ) + '"></label>' +
+      '<div class="sc-jobs-list">' + listHtml + '</div>' +
+      '<p class="small muted" style="margin:6px 0 0">' + (J.writeBack ? '' : 'Reading NetSuite only: bookings don\'t change it yet. ') + (J.fetchedAt ? 'Updated ' + new Date(J.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) + '.' : '') + '</p>';
+    bindJobs();
+  }
+  function bindJobs() {
+    var el = document.getElementById('plJobs'); if (!el) return;
+    var r = document.getElementById('pjRefresh');
+    if (r) r.onclick = function () { planner.jobs = null; drawJobs(); loadJobs(true).then(drawJobs, function (e) { planner.jobs = { error: e.message, jobs: [] }; drawJobs(); }); };
+    Array.prototype.forEach.call(el.querySelectorAll('[data-tab]'), function (b) { b.onclick = function () { planner.jobTab = b.getAttribute('data-tab'); drawJobs(); }; });
+    var q = document.getElementById('pjQ');
+    if (q) q.oninput = function () { planner.jobQ = q.value; var pos = q.selectionStart; drawJobs(); var n = document.getElementById('pjQ'); n.focus(); n.setSelectionRange(pos, pos); };
+    Array.prototype.forEach.call(el.querySelectorAll('[data-job]'), function (c) {
+      var job = jobByRef(c.getAttribute('data-job'));
+      c.ondragstart = function (e) { planner.dragging = job.ref; e.dataTransfer.setData('text/plain', job.ref); e.dataTransfer.effectAllowed = 'copy'; c.classList.add('is-drag'); };
+      c.ondragend = function () { planner.dragging = null; c.classList.remove('is-drag'); };
+      c.onclick = function () { openBooking(null, jobDate(job), job); };
+      c.onkeydown = function (e) { if (e.key === 'Enter') openBooking(null, jobDate(job), job); };
+    });
+  }
+  function jobDate(j) {
+    var first = planner.from, last = addDays(planner.from, 6), t = todayStr();
+    if (j.installDate && j.installDate >= first && j.installDate <= last) return j.installDate;
+    return t >= first && t <= last ? t : first;
+  }
+
+  /* ---------- booking panel (board 12b) ---------- */
+
+  function openBooking(a, date, job, person) {
     var w = planner.data, isNew = !a;
-    var defType = 'Installation';
-    var v = a ? {
-      id: a.id, type: APPT_TYPES.indexOf(a.type) >= 0 ? a.type : (a.isSales ? 'Sales' : 'Installation'), status: a.status || 'Confirmed',
-      date: a.date, start: a.startLabel, durationMin: durOf(a), customer: a.customer, phone: a.phone, address: a.address,
-      jr: a.jr, opp: a.opp, crew: a.crew.map(function (c) { return c.email; }), access: a.access, notes: a.notes,
-      requirements: (a.requirements || []).join('\n'), folderUrl: a.folderUrl, projectFolderUrl: a.projectFolderUrl, title: a.title
-    } : { type: defType, status: 'Tentative', date: date, start: '08:00', durationMin: 120, crew: [], title: '' };
+    var v;
+    if (job) {
+      var cm = job.group === 'checkMeasure';
+      v = { type: cm ? 'Check measure' : 'Installation', date: date || jobDate(job), start: '07:30',
+        durationMin: job.hours ? Math.max(30, Math.round(job.hours * 2) * 30) : 120,
+        customer: job.customer || job.title, address: job.address, jr: job.ref, opp: '', phone: '', access: '',
+        crew: job.crew.map(function (c) { return c.email; }).filter(Boolean), notes: job.installNote || '', requirements: '',
+        folderUrl: '', projectFolderUrl: job.folderUrl || '', title: job.title + ' @ ' + (job.suburb || suburb(job.address)) + ' ' + job.ref };
+    } else if (a) {
+      v = { id: a.id, type: APPT_TYPES.indexOf(a.type) >= 0 ? a.type : (a.isSales ? 'Sales' : 'Installation'), status: a.status || 'Confirmed',
+        date: a.date, start: a.startLabel, durationMin: durOf(a), customer: a.customer, phone: a.phone, address: a.address,
+        jr: a.jr, opp: a.opp, crew: a.crew.map(function (c) { return c.email; }), access: a.access, notes: a.notes,
+        requirements: (a.requirements || []).join('\n'), folderUrl: a.folderUrl, projectFolderUrl: a.projectFolderUrl, title: a.title };
+    } else {
+      v = { type: 'Installation', date: date, start: '08:00', durationMin: 120, crew: [], title: '' };
+    }
+    if (person && v.crew.indexOf(person) < 0) v.crew.unshift(person); // dropped on a person: they lead
+    else if (person) { v.crew.splice(v.crew.indexOf(person), 1); v.crew.unshift(person); }
     planner.editing = v;
-    var durOpts = []; for (var m = 30; m <= 600; m += 30) durOpts.push(m);
-    var html = '<div class="bk-backdrop" id="bkBack"></div><aside class="bk" role="dialog" aria-modal="true" aria-labelledby="bkTitle">' +
-      '<header class="bk-head"><h2 id="bkTitle">' + (isNew ? 'New appointment' : 'Edit appointment') + '</h2><button type="button" class="bk-x" id="bkClose" aria-label="Close">' + I.x + '</button></header>' +
-      '<form class="bk-body" id="bkForm" autocomplete="off">' +
-        '<div class="field"><span class="bk-label">Type</span><div class="seg bk-types" role="radiogroup">' + APPT_TYPES.map(function (t) {
-          return '<button type="button" role="radio" data-type="' + esc(t) + '" aria-checked="' + (v.type === t) + '">' + esc(t) + '</button>'; }).join('') + '</div></div>' +
-        '<div class="field"><span class="bk-label">Booking</span><div class="seg" role="radiogroup">' +
-          '<button type="button" role="radio" data-status="Tentative" aria-checked="' + (v.status === 'Tentative') + '"><span class="light is-red"></span> Tentative</button>' +
-          '<button type="button" role="radio" data-status="Confirmed" aria-checked="' + (v.status === 'Confirmed') + '"><span class="light is-green"></span> Confirmed</button></div>' +
-          '<span class="small muted bk-hint" id="bkStatusHint"></span></div>' +
-        '<div class="bk-row3">' +
-          '<div class="field"><label for="bkDate">Date</label><input id="bkDate" type="date" required value="' + esc(v.date) + '"></div>' +
-          '<div class="field"><label for="bkStart">Start</label><input id="bkStart" type="time" step="900" required value="' + esc(v.start) + '"></div>' +
-          '<div class="field"><label for="bkDur">Length</label><select id="bkDur">' + durOpts.map(function (m) { return '<option value="' + m + '"' + (m === v.durationMin ? ' selected' : '') + '>' + fmtHM(m) + '</option>'; }).join('') +
-            (durOpts.indexOf(v.durationMin) < 0 ? '<option value="' + v.durationMin + '" selected>' + fmtHM(v.durationMin) + '</option>' : '') + '</select></div>' +
+
+    var staffBy = {}; (w.staff || []).forEach(function (s) { staffBy[s.email] = s; });
+    var ready = job ? NS_READY.indexOf(job.status) >= 0 : true;
+    var heading = job ? (v.type === 'Check measure' ? 'Book check measure' : 'Book installation') + ' · JR#' + job.ref : (isNew ? 'New appointment' : 'Edit appointment' + (v.jr ? ' · JR#' + v.jr : ''));
+    var bigTitle = job ? job.title : (isNew ? (v.type) : (v.customer || v.title));
+    var sub = job ? [job.address, job.klass].filter(String).join(' · ') : (!isNew ? [v.address, v.type].filter(String).join(' · ') : '');
+    var hoursOpts = []; for (var m = 30; m <= 600; m += 30) hoursOpts.push(m);
+    var missing = job ? job.crew.filter(function (c) { return !c.email; }).map(function (c) { return c.name; }) : [];
+
+    var html = '<div class="bk-backdrop" id="bkBack"></div><aside class="bk bk12" role="dialog" aria-modal="true" aria-labelledby="bkTitle">' +
+      '<header class="bk12-head"><div class="spread"><span class="bk12-kicker">' + esc(heading) + '</span><button type="button" class="bk12-x" id="bkClose" aria-label="Close">×</button></div>' +
+        '<h2 id="bkTitle">' + esc(bigTitle) + '</h2>' + (sub ? '<span class="bk12-sub">' + esc(sub) + '</span>' : '') +
+        (job ? '<span class="bk12-ns">NetSuite status: ' + esc(job.status) + '</span>' : '') +
+        (job && job.onPlanner ? '<span class="bk12-sub" style="font-size:13px">Already on the scheduler ' + esc(shortDate(job.onPlanner.date)) + ' (' + esc(job.onPlanner.status) + ').</span>' : '') +
+      '</header>' +
+      '<form class="bk12-body" id="bkForm" autocomplete="off">' +
+        (job ? '' : '<div class="bk12-types" role="radiogroup" aria-label="Type">' + APPT_TYPES.map(function (t) {
+          return '<button type="button" role="radio" data-type="' + esc(t) + '" aria-checked="' + (v.type === t) + '">' + esc(t) + '</button>'; }).join('') + '</div>') +
+        '<div class="bk12-3">' +
+          '<label>Date<input id="bkDate" type="date" required value="' + esc(v.date) + '"></label>' +
+          '<label>Start<input id="bkStart" type="time" step="900" required value="' + esc(v.start) + '"></label>' +
+          '<label>Site hours<select id="bkDur">' + hoursOpts.map(function (m) { return '<option value="' + m + '"' + (m === v.durationMin ? ' selected' : '') + '>' + fmtHM(m) + '</option>'; }).join('') +
+            (hoursOpts.indexOf(v.durationMin) < 0 ? '<option value="' + v.durationMin + '" selected>' + fmtHM(v.durationMin) + '</option>' : '') + '</select></label>' +
         '</div>' +
+        (job ? '<span class="bk12-hint">Site hours start from the estimate on the NetSuite project' + (job.hours ? '' : ' (none entered, so 2 h)') + '.</span>' : '') +
+        '<div class="bk12-sec"><span class="bk12-label">Crew</span><div class="bk12-crew" id="bkCrew"></div>' +
+          '<select id="bkAddCrew" class="bk12-add" aria-label="Add an installer"></select>' +
+          (missing.length ? '<span class="bk12-warn">From NetSuite but not in the app\'s staff list: ' + esc(missing.join(', ')) + '. Add them from the list if they\'re on it.</span>' : '') +
+          '<span class="bk12-warn" id="bkClash"></span></div>' +
         '<div id="bkWx"></div>' +
-        '<div class="bk-row2">' +
-          '<div class="field"><label for="bkJr">JR number</label><input id="bkJr" inputmode="numeric" placeholder="e.g. 28874" value="' + esc(v.jr || '') + '"></div>' +
-          '<div class="field"><label for="bkOpp">OPP number</label><input id="bkOpp" inputmode="numeric" placeholder="e.g. 1042" value="' + esc(v.opp || '') + '"></div>' +
-        '</div>' +
-        '<div id="bkJrLink" class="bk-jr"></div>' +
-        '<div class="field"><label for="bkCustomer">Customer</label><input id="bkCustomer" placeholder="Name" value="' + esc(v.customer || '') + '"></div>' +
-        '<div class="bk-row2">' +
-          '<div class="field"><label for="bkPhone">Phone</label><input id="bkPhone" type="tel" value="' + esc(v.phone || '') + '"></div>' +
-          '<div class="field"><label for="bkAccess">Access</label><input id="bkAccess" placeholder="Side gate, code…" value="' + esc(v.access || '') + '"></div>' +
-        '</div>' +
-        '<div class="field"><label for="bkAddress">Site address</label><input id="bkAddress" placeholder="Street, suburb NSW postcode" value="' + esc(v.address || '') + '"></div>' +
-        '<div class="field"><span class="bk-label">Crew</span><div class="bk-crew">' + w.staff.map(function (s) {
-          return '<label class="bk-person"><input type="checkbox" value="' + esc(s.email) + '"' + (v.crew.indexOf(s.email) >= 0 ? ' checked' : '') + '><span>' + esc(s.name) + '<small>' + esc(roleLabelList(s)) + '</small></span></label>'; }).join('') +
-          (w.staff.length ? '' : '<p class="small muted" style="margin:0">Add the team to STAFF_JSON in the script settings to pick them here.</p>') +
-          '</div><span class="small bk-warn" id="bkClash"></span></div>' +
-        '<div class="field"><label for="bkReq">Job requirements <small class="muted">(one per line)</small></label><textarea id="bkReq" rows="3">' + esc(v.requirements || '') + '</textarea></div>' +
-        '<div class="field"><label for="bkNotes">Notes</label><textarea id="bkNotes" rows="2">' + esc(v.notes || '') + '</textarea></div>' +
-        '<details class="bk-more"' + (v.folderUrl || v.projectFolderUrl ? ' open' : '') + '><summary>Drive folders and title</summary>' +
+        '<section class="bk12-totals" id="bkTotals" aria-label="Day totals"></section>' +
+        '<details class="bk12-more"' + (job ? '' : ' open') + '><summary>Job details</summary>' +
+          '<div class="bk-row2"><div class="field"><label for="bkJr">JR number</label><input id="bkJr" inputmode="numeric" value="' + esc(v.jr || '') + '"></div>' +
+            '<div class="field"><label for="bkOpp">OPP number</label><input id="bkOpp" inputmode="numeric" value="' + esc(v.opp || '') + '"></div></div>' +
+          '<div class="field"><label for="bkCustomer">Customer</label><input id="bkCustomer" value="' + esc(v.customer || '') + '"></div>' +
+          '<div class="bk-row2"><div class="field"><label for="bkPhone">Phone</label><input id="bkPhone" type="tel" value="' + esc(v.phone || '') + '"></div>' +
+            '<div class="field"><label for="bkAccess">Access</label><input id="bkAccess" placeholder="Side gate, code…" value="' + esc(v.access || '') + '"></div></div>' +
+          '<div class="field"><label for="bkAddress">Site address</label><input id="bkAddress" value="' + esc(v.address || '') + '"></div>' +
+          '<div class="field"><label for="bkReq">Job requirements <small class="muted">(one per line)</small></label><textarea id="bkReq" rows="3">' + esc(v.requirements || '') + '</textarea></div>' +
+          '<div class="field"><label for="bkNotes">Notes</label><textarea id="bkNotes" rows="2">' + esc(v.notes || '') + '</textarea></div>' +
           '<div class="field"><label for="bkFolder">Opportunity folder link</label><input id="bkFolder" type="url" value="' + esc(v.folderUrl || '') + '"></div>' +
           '<div class="field"><label for="bkProj">Project folder link</label><input id="bkProj" type="url" value="' + esc(v.projectFolderUrl || '') + '"></div>' +
-          '<div class="field"><label for="bkTitleIn">Calendar title <small class="muted">(blank: customer · type)</small></label><input id="bkTitleIn" value="' + esc(isNew ? '' : v.title || '') + '"></div>' +
+          '<div class="field"><label for="bkTitleIn">Calendar title</label><input id="bkTitleIn" value="' + esc(v.title || '') + '"></div>' +
+          '<div class="bk-todo"><label class="st-check"><input type="checkbox" id="bkTodoOn"> Add a to-do to my list for this appointment</label>' +
+            '<div id="bkTodoBox" class="stack" style="gap:8px" hidden><div class="field"><label for="bkTodoText">To-do</label><input id="bkTodoText"></div>' +
+            '<div class="field"><label for="bkTodoDue">Due</label><input id="bkTodoDue" type="date" value="' + esc(v.date || '') + '"></div></div></div>' +
         '</details>' +
-        '<div class="bk-todo"><label class="st-check"><input type="checkbox" id="bkTodoOn"> Add a to-do to my list for this appointment</label>' +
-          '<div id="bkTodoBox" class="stack" style="gap:8px" hidden><div class="field"><label for="bkTodoText">To-do</label><input id="bkTodoText" placeholder="e.g. Confirm the motor has arrived"></div>' +
-          '<div class="field"><label for="bkTodoDue">Due</label><input id="bkTodoDue" type="date" value="' + esc(v.date || '') + '"></div></div></div>' +
+        '<label class="bk12-check"><input type="checkbox" id="bkNotify"' + (CFG.ENVIRONMENT ? '' : ' checked') + '> Send the crew a notification</label>' +
+        '<section class="bk12-what"><b>What happens</b>' +
+          '<span><b>Confirm booking:</b> creates the calendar appointment with job details and folder links, adds the crew, and sets the project to <i>Installation Booked</i>.</span>' +
+          '<span><b>Save as tentative:</b> holds the slot for planning. The crew see it marked Tentative. Projects that aren\'t yet <i>Ready for Installation</i> are saved as tentative.</span>' +
+          '<span><b>Confirm early:</b> when goods are arriving last-minute, an authorised person can still confirm. They must say how the goods will reach site and add a note, which is emailed to the crew and project manager.</span>' +
+          (job && !ready ? '<span class="bk12-warn">This project is ' + esc(job.status) + ', so Confirm booking asks for an early confirmation.</span>' : '') +
+        '</section>' +
         '<p class="notice error" id="bkErr" hidden></p>' +
       '</form>' +
-      '<footer class="bk-foot">' + (isNew ? '' : '<button type="button" class="btn btn-outline" id="bkDelete">Delete</button>') +
-        '<button type="button" class="btn btn-sand" id="bkCancel">Cancel</button><button type="button" class="btn btn-dark" id="bkSave">' + (isNew ? 'Book' : 'Save changes') + '</button></footer>' +
+      '<footer class="bk12-foot">' + (isNew ? '' : '<button type="button" class="link-btn" id="bkDelete">Delete</button>') +
+        '<button type="button" class="bk12-btn" id="bkTent">Save as tentative</button><button type="button" class="bk12-btn is-dark" id="bkConfirm">Confirm booking</button></footer>' +
     '</aside>';
     var host = document.createElement('div'); host.id = 'bkHost'; host.innerHTML = html; document.body.appendChild(host);
     document.body.classList.add('bk-open');
     var $ = function (id) { return document.getElementById(id); };
     function close() { host.remove(); document.body.classList.remove('bk-open'); }
-    $('bkClose').onclick = $('bkCancel').onclick = $('bkBack').onclick = close;
+    $('bkClose').onclick = $('bkBack').onclick = close;
     host.onkeydown = function (e) { if (e.key === 'Escape') close(); };
-    function pick(sel, attr, val) { Array.prototype.forEach.call(host.querySelectorAll(sel), function (b) { b.setAttribute('aria-checked', String(b.getAttribute(attr) === val)); }); }
-    Array.prototype.forEach.call(host.querySelectorAll('[data-type]'), function (b) { b.onclick = function () { v.type = b.getAttribute('data-type'); pick('[data-type]', 'data-type', v.type); refresh(); }; });
-    Array.prototype.forEach.call(host.querySelectorAll('[data-status]'), function (b) { b.onclick = function () { v.status = b.getAttribute('data-status'); pick('[data-status]', 'data-status', v.status); refresh(); }; });
-    ['bkDate', 'bkStart', 'bkDur', 'bkJr'].forEach(function (id) { $(id).oninput = $(id).onchange = refresh; });
-    Array.prototype.forEach.call(host.querySelectorAll('.bk-crew input'), function (c) { c.onchange = refresh; });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-type]'), function (b) {
+      b.onclick = function () { v.type = b.getAttribute('data-type'); Array.prototype.forEach.call(host.querySelectorAll('[data-type]'), function (x) { x.setAttribute('aria-checked', String(x === b)); }); $('bkTitle').textContent = isNew ? v.type : $('bkTitle').textContent; refresh(); };
+    });
 
+    function drawCrew() {
+      $('bkCrew').innerHTML = v.crew.map(function (e, i) {
+        var s = staffBy[e]; return '<span class="bk12-chip">' + esc(s ? firstName(s.name) : e) + (i === 0 && v.crew.length > 1 ? ' · lead' : '') +
+          '<button type="button" data-rm="' + esc(e) + '" aria-label="Remove ' + esc(s ? s.name : e) + '">×</button></span>'; }).join('') || '<span class="small muted">No crew yet.</span>';
+      var left = (w.staff || []).filter(function (s) { return v.crew.indexOf(s.email) < 0; });
+      $('bkAddCrew').innerHTML = '<option value="">+ ' + (v.crew.length === 0 ? 'Add installer' : v.crew.length === 1 ? '2nd installer' : v.crew.length === 2 ? '3rd installer' : 'Add another') + '</option>' +
+        left.map(function (s) { return '<option value="' + esc(s.email) + '">' + esc(s.name) + ' · ' + esc(roleLabelList(s)) + '</option>'; }).join('');
+      Array.prototype.forEach.call(host.querySelectorAll('[data-rm]'), function (b) { b.onclick = function () { v.crew.splice(v.crew.indexOf(b.getAttribute('data-rm')), 1); drawCrew(); refresh(); }; });
+    }
+    $('bkAddCrew').onchange = function () { if (this.value) { v.crew.push(this.value); drawCrew(); refresh(); } };
+    drawCrew();
+    ['bkDate', 'bkStart', 'bkDur', 'bkAddress'].forEach(function (id) { $(id).addEventListener('change', refresh); });
+    $('bkTodoOn').onchange = function () { $('bkTodoBox').hidden = !this.checked; };
+
+    var previewSeq = 0;
     function refresh() {
-      // status hint
-      $('bkStatusHint').textContent = v.status === 'Tentative' ? 'Shows red in the installers\' app until it is confirmed.' : 'Shows green: the job is going ahead.';
-      // JR link, filled in from the JR number
-      var jr = $('bkJr').value.replace(/[^\d]/g, ''), tpl = w.jrBaseUrl || jrBase();
-      $('bkJrLink').innerHTML = jr && tpl ? I.report + '<span>Job report link ready: <a href="' + esc(tpl + '?ref=' + encodeURIComponent(jr) + '&date=' + $('bkDate').value) + '" target="_blank" rel="noopener">JR#' + esc(jr) + '</a>. The crew open it from the appointment.</span>'
-        : (jr ? '' : '<span class="small muted">Add the JR number and the job report link fills in automatically. The JR number also links the project chat.</span>');
-      // weather for the day
-      var x = planner.wx && planner.wx[$('bkDate').value], outdoor = /Installation|Service call/.test(v.type);
-      $('bkWx').innerHTML = x && (wxInfo(x.code).storm || x.gust >= WX_LIMIT) && outdoor ? wxWarning(wxInfo(x.code).storm ? 'Storms forecast this day' : 'Gusts up to ' + Math.round(x.gust) + ' km/h forecast', 'Check before booking awnings or outdoor blinds.', wxInfo(x.code).storm ? 'storm' : null) : '';
-      // crew clashes
       var d = $('bkDate').value, st = $('bkStart').value, dur = Number($('bkDur').value);
-      var s0 = st ? Number(st.slice(0, 2)) * 60 + Number(st.slice(3, 5)) : 0, e0 = s0 + dur;
-      var crew = Array.prototype.filter.call(host.querySelectorAll('.bk-crew input'), function (c) { return c.checked; }).map(function (c) { return c.value; });
-      var clashes = [];
+      // weather warning (outdoor work)
+      var x = planner.wx && planner.wx[d], outdoor = /Installation|Service call/.test(v.type);
+      if (x && outdoor && (wxInfo(x.code).storm || x.gust >= WX_LIMIT || (x.rain || 0) >= 60)) {
+        var bits = []; if ((x.rain || 0) >= 60) bits.push('Rain likely (' + Math.round(x.rain) + '%)'); if (x.gust >= 25) bits.push('gusts to ' + Math.round(x.gust) + ' km/h'); if (wxInfo(x.code).storm) bits.unshift('Storms');
+        $('bkWx').innerHTML = '<section class="bk12-wx" role="alert">' + wxIcon(wxInfo(x.code).icon, '', 22) + '<span><b>Weather warning for ' + esc(shortDate(d)) + '</b>' +
+          esc(bits.join(' and ') + (v.address || $('bkAddress').value ? ' in ' + suburb($('bkAddress').value) : '') + '. Outdoor work: consider another day.') + '</span></section>';
+      } else $('bkWx').innerHTML = '';
+      // clashes
+      var s0 = st ? Number(st.slice(0, 2)) * 60 + Number(st.slice(3, 5)) : 0, e0 = s0 + dur, clashes = [];
       w.appointments.forEach(function (o) {
         if (o.id === v.id || o.date !== d || o.allDay) return;
         var s1 = Number(o.startLabel.slice(0, 2)) * 60 + Number(o.startLabel.slice(3, 5)), e1 = s1 + durOf(o);
-        if (s1 < e0 && s0 < e1) o.crew.forEach(function (c) { if (crew.indexOf(c.email) >= 0) clashes.push(firstName(c.name) + ' is booked ' + o.startLabel + '–' + o.endLabel + ' (' + o.title + ')'); });
+        if (s1 < e0 && s0 < e1) o.crew.forEach(function (c) { if (v.crew.indexOf(c.email) >= 0) clashes.push(firstName(c.name) + ' is booked ' + o.startLabel + '–' + o.endLabel + ' (' + plShortName(o) + ')'); });
       });
       $('bkClash').textContent = clashes.length ? 'Clash: ' + clashes.join('; ') : '';
+      // day totals with this job (travel from the server, Google Maps)
+      if (!v.crew.length || !d) { $('bkTotals').innerHTML = ''; return; }
+      var seq = ++previewSeq;
+      $('bkTotals').innerHTML = '<b>' + esc(shortDate(d)) + ' with this job</b><span class="small muted">Working out travel…</span>';
+      api({ action: 'dayPreview', date: d, crew: v.crew.join(','), address: $('bkAddress').value, start: st, durationMin: dur, excludeId: v.id || '' }).then(function (r) {
+        if (seq !== previewSeq) return;
+        var rows = r.preview || [];
+        $('bkTotals').innerHTML = '<b>' + esc(shortDate(d)) + ' with this job</b><div class="bk12-tt"><span class="h">Person</span><span class="h r">Site</span><span class="h r">Travel</span><span class="h r">Day</span>' +
+          rows.map(function (p) { var day = p.siteMin + (p.travelMin || 0); return '<span>' + esc(firstName(p.name)) + '</span><span class="r">' + fmtHM(p.siteMin) + '</span><span class="r">~' + fmtHM(p.travelMin || 0) + '</span>' +
+            '<span class="r">' + (day > 480 ? '<i class="sc-over">Over 8 h</i> ' : '') + '<b>' + fmtHM(day) + '</b></span>'; }).join('') + '</div>' +
+          '<span class="small muted">Travel is estimated with Google Maps: warehouse → each stop in time order → warehouse.</span>';
+      }, function () { if (seq === previewSeq) $('bkTotals').innerHTML = ''; });
     }
     refresh();
     addressSuggest($('bkAddress'));
-    setTimeout(function () { $('bkCustomer').focus(); }, 50);
 
-    $('bkTodoOn').onchange = function () { $('bkTodoBox').hidden = !this.checked; if (this.checked) $('bkTodoText').focus(); };
-    $('bkSave').onclick = function () {
+    function collect(status) {
       var appt = {
-        id: v.id || '', type: v.type, status: v.status, date: $('bkDate').value, start: $('bkStart').value, durationMin: Number($('bkDur').value),
+        id: v.id || '', type: v.type, status: status, date: $('bkDate').value, start: $('bkStart').value, durationMin: Number($('bkDur').value),
         jr: $('bkJr').value, opp: $('bkOpp').value, customer: $('bkCustomer').value.trim(), phone: $('bkPhone').value.trim(), access: $('bkAccess').value.trim(),
         address: $('bkAddress').value.trim(), notes: $('bkNotes').value.trim(), requirements: $('bkReq').value, folderUrl: $('bkFolder').value.trim(),
-        projectFolderUrl: $('bkProj').value.trim(), title: $('bkTitleIn').value.trim(),
-        crew: Array.prototype.filter.call(host.querySelectorAll('.bk-crew input'), function (c) { return c.checked; }).map(function (c) { return c.value; })
+        projectFolderUrl: $('bkProj').value.trim(), title: $('bkTitleIn').value.trim(), crew: v.crew.slice(), notify: $('bkNotify').checked
       };
       if ($('bkTodoOn').checked) appt.todo = { text: $('bkTodoText').value.trim(), due: $('bkTodoDue').value || appt.date };
-      var err = !appt.date || !appt.start ? 'Choose a date and start time.' : !appt.customer && !appt.title ? 'Add the customer name.' : (appt.todo && !appt.todo.text) ? 'Type the to-do, or untick it.' : '';
+      return appt;
+    }
+    function busy(on, which) {
+      $('bkTent').disabled = $('bkConfirm').disabled = on;
+      if (which) which.textContent = on ? 'Saving…' : which === $('bkTent') ? 'Save as tentative' : 'Confirm booking';
+    }
+    function save(status, btn) {
+      var appt = collect(status);
+      var err = !appt.date || !appt.start ? 'Choose a date and start time.' : !appt.customer && !appt.title ? 'Add the customer name (under Job details).' : (appt.todo && !appt.todo.text) ? 'Type the to-do, or untick it.' : '';
       if (err) { $('bkErr').textContent = err; $('bkErr').hidden = false; return; }
-      $('bkSave').disabled = true; $('bkSave').textContent = 'Saving…';
-      apiPost({ action: 'saveAppt', appt: appt }).then(function () {
-        close(); afterBookingChange([v.date, appt.date]);
-      }, function (e) { $('bkSave').disabled = false; $('bkSave').textContent = isNew ? 'Book' : 'Save changes'; $('bkErr').textContent = e.message; $('bkErr').hidden = false; });
-    };
+      $('bkErr').hidden = true; busy(true, btn);
+      (function send() {
+        apiPost({ action: 'saveAppt', appt: appt }).then(function (r) {
+          if (r.needsOverride) {
+            busy(false, btn);
+            if (!r.canOverride) { $('bkErr').textContent = 'This project is "' + r.nsStatus + '" in NetSuite, not Ready for Installation. Only Jan, Troy or Simon can confirm it early. Save it as tentative to hold the slot.'; $('bkErr').hidden = false; return; }
+            askOverride(r, appt, w, job, function (choice) {
+              if (!choice) return;
+              if (choice.tentative) { appt.status = 'Tentative'; delete appt.override; } else appt.override = choice;
+              busy(true, btn); send();
+            });
+            return;
+          }
+          planner.msg = [r.warning, r.netsuite, r.emailed && r.emailed.length ? 'Email sent to ' + r.emailed.join(', ') + '.' : '', r.notified ? 'Crew notified.' : '', r.emailWarning].filter(Boolean).join(' ');
+          close(); afterBookingChange([v.date, appt.date]);
+          if (appt.jr) loadJobs(true).then(drawJobs, function () {});
+        }, function (e) { busy(false, btn); $('bkErr').textContent = e.message; $('bkErr').hidden = false; });
+      })();
+    }
+    $('bkTent').onclick = function () { save('Tentative', $('bkTent')); };
+    $('bkConfirm').onclick = function () { save('Confirmed', $('bkConfirm')); };
     if ($('bkDelete')) $('bkDelete').onclick = function () {
       if (!confirm('Delete this appointment? It will disappear from the crew\'s app.')) return;
-      $('bkDelete').disabled = true;
-      apiPost({ action: 'deleteAppt', id: v.id }).then(function () { close(); afterBookingChange([v.date]); }, function (e) { $('bkDelete').disabled = false; $('bkErr').textContent = e.message; $('bkErr').hidden = false; });
+      apiPost({ action: 'deleteAppt', id: v.id }).then(function () { close(); afterBookingChange([v.date]); }, function (e) { $('bkErr').textContent = e.message; $('bkErr').hidden = false; });
     };
   }
   function roleLabelList(s) {
@@ -2203,6 +2420,41 @@
   function afterBookingChange(dates) {
     dates.forEach(function (d) { if (d) { delete state.cache[d]; unstore('fa-day-' + d); } });
     loadWeek(planner.from, true).then(drawPlanner, function (e) { showError(e, function () { renderPlanner(planner.from); }); });
+  }
+
+  /* ---------- confirm before ready (board 12c) ---------- */
+
+  var OV_METHODS = [['collect', 'Installer collects from the supplier on the way'], ['site', 'Supplier delivers direct to site'], ['warehouse', 'Arrives at the warehouse before the job'], ['other', 'Other (explain in the note)']];
+  function askOverride(r, appt, w, job, done) {
+    var names = (appt.crew || []).map(function (e) { var s = (w.staff || []).filter(function (x) { return x.email === e; })[0]; return s ? firstName(s.name) : e; });
+    var host = document.createElement('div'); host.className = 'ov-back';
+    var method = 'collect';
+    host.innerHTML = '<div class="ov" role="alertdialog" aria-modal="true" aria-labelledby="ovTitle" aria-describedby="ovDesc">' +
+      '<header class="ov-head"><span class="ov-kicker">' + I.alert + 'Goods aren\'t ready yet</span><h2 id="ovTitle">Confirm this installation anyway?</h2></header>' +
+      '<div class="ov-body">' +
+        '<div class="ov-sum" id="ovDesc"><b>JR#' + esc(String(appt.jr).replace(/[^\d]/g, '')) + ' · ' + esc(job ? job.title + (job.suburb ? ', ' + job.suburb : '') : appt.customer) + '</b>' +
+          '<span>' + esc(shortDate(appt.date)) + ', ' + esc(appt.start) + (names.length ? ' · ' + esc(names.join(', ')) : '') + '</span>' +
+          '<span>NetSuite status: <b>' + esc(r.nsStatus) + '</b>' + (job && job.installDate ? ' (due ' + esc(shortDate(job.installDate).replace(/^\w+,?\s*/, '')) + ')' : '') + '</span></div>' +
+        '<fieldset class="ov-methods"><legend>How will the goods get to site? (required)</legend>' + OV_METHODS.map(function (m) {
+          return '<button type="button" role="radio" class="ov-m" data-m="' + m[0] + '" aria-checked="' + (m[0] === method) + '">' + esc(m[1]) + '</button>'; }).join('') + '</fieldset>' +
+        '<label class="ov-note" for="ovNote">Note for the installers and project manager (required)<textarea id="ovNote" rows="4" placeholder="e.g. Lewis to collect 3 blinds from the supplier at 07:15 on the way to site. Order ref …"></textarea></label>' +
+        '<label class="ov-auth"><input type="checkbox" id="ovAuth"><span>I\'m authorising this booking before the project is <i>Ready for Installation</i>. <span class="muted">Recorded as ' + esc((state.user || {}).name || '') + ', with the date and time.</span></span></label>' +
+        '<div class="ov-info"><b>When you confirm</b><span>The booking turns green, marked "Confirmed early". The project changes to <i>Installation Booked</i>. ' +
+          esc(names.join(', ') || 'The crew') + ' and the project manager get an email with your note.</span></div>' +
+      '</div>' +
+      '<footer class="ov-foot"><button type="button" class="bk12-btn" id="ovTent">Keep as tentative</button><button type="button" class="bk12-btn is-dark" id="ovGo" disabled>Confirm and email crew</button></footer></div>';
+    document.body.appendChild(host);
+    var go = host.querySelector('#ovGo'), note = host.querySelector('#ovNote'), auth = host.querySelector('#ovAuth');
+    Array.prototype.forEach.call(host.querySelectorAll('[data-m]'), function (b) {
+      b.onclick = function () { method = b.getAttribute('data-m'); Array.prototype.forEach.call(host.querySelectorAll('[data-m]'), function (x) { x.setAttribute('aria-checked', String(x === b)); }); };
+    });
+    function check() { go.disabled = !(note.value.trim().length > 5 && auth.checked); }
+    note.oninput = auth.onchange = check;
+    function finish(val) { host.remove(); done(val); }
+    host.querySelector('#ovTent').onclick = function () { finish({ tentative: true }); };
+    go.onclick = function () { finish({ method: method, note: note.value.trim() }); };
+    host.onkeydown = function (e) { if (e.key === 'Escape') finish(null); };
+    setTimeout(function () { note.focus(); }, 50);
   }
 
   /* ---------- job report inside the app ---------- */
@@ -2464,7 +2716,7 @@
       }
       body += '<div id="colFiles"' + (tab === 'files' ? '' : ' hidden') + '>';
       if (!c.sources.length) {
-        body += '<div class="empty stack"><h2>No Drive folders on this appointment</h2><p class="muted" style="margin:0">Add the project or opportunity folder link to the appointment (Planner › edit › Drive folders).</p></div>';
+        body += '<div class="empty stack"><h2>No Drive folders on this appointment</h2><p class="muted" style="margin:0">Add the project or opportunity folder link to the appointment (Scheduler › edit › Drive folders).</p></div>';
       } else {
         body += '<section class="section stack" style="gap:8px"><h2>Documents' + (docs.length ? ' · ' + docs.length : '') + '</h2>' +
           (docs.length ? docs.map(fileRow).join('') : '<p class="muted small" style="margin:0">No documents in the folders yet.</p>') + '</section>';
@@ -3208,7 +3460,7 @@
       if (h && h.can.directory && !wide()) body += row('#/staff', I.idcard, 'Staff directory', 'People, access and company vehicles');
       if (!wide() && isOffice()) {
         body += row('#/team', I.team, 'Team board', 'Who\'s where today');
-        if (canSchedule()) body += row('#/planner', I.planner, 'Planner', 'Book and move appointments');
+        if (canSchedule()) body += row('#/scheduler', I.planner, 'Scheduler', 'Book and move appointments');
       }
       body += row('#/account', I.user, 'Account', 'View as, sign out, app version');
       body += '</nav>' + (err ? '<div class="section">' + stErr(err) + '</div>' : '') + '<div style="height:24px"></div>';
@@ -3318,7 +3570,7 @@
   function dvBlankPerson() { return { email: '', name: '', roles: [], mainRole: '', manager: false, active: true, mobile: '', address: '', emergency: '', notes: '', vehicle: null, isNew: true }; }
   function dvPersonForm(p) {
     var roles = dv.data.roles;
-    var descs = { office: 'Everyone\'s schedule, Overview, Team', sales: 'Site consults, measure, quotes', pm: 'Book jobs in the Planner', installer: 'Jobs, route, Job Reports', warehouse: 'Clock in / out, van loading', marketing: 'Collateral and photos' };
+    var descs = { office: 'Everyone\'s schedule, Overview, Team', sales: 'Site consults, measure, quotes', pm: 'Book jobs in the Scheduler', installer: 'Jobs, route, Job Reports', warehouse: 'Clock in / out, van loading', marketing: 'Collateral and photos' };
     var tick = function (id, on, label, desc) {
       return '<label class="dv-tick' + (on ? ' on' : '') + '"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '><span><b>' + esc(label) + '</b><span>' + esc(desc) + '</span></span></label>';
     };
@@ -4348,7 +4600,7 @@
         (l.canDecide || !mine ? '<dt>Also away</dt><dd>' + esc(l.alsoAway.length ? l.alsoAway.join(', ') : 'Nobody else on leave those days') + '</dd>' : '') +
         (l.decisionNote ? '<dt>Note</dt><dd>' + esc(l.decisionNote) + '</dd>' : '') + '</dl></section>';
       if (l.jobs.length) body += '<section class="section"><div class="lv-jobs"><b>' + l.jobs.length + (l.jobs.length === 1 ? ' booked job' : ' booked jobs') + (l.status === 'Declined' || l.status === 'Cancelled' ? ' in these dates' : ' need' + (l.jobs.length === 1 ? 's' : '') + ' another installer') + '</b>' +
-        l.jobs.map(function (j) { return '<div class="lv-job row" style="justify-content:space-between"><span class="stack" style="gap:2px"><b>' + esc(j.title) + '</b><span>' + esc(j.when + ' · ' + j.with) + '</span></span>' + (canSchedule() ? '<a class="btn btn-light" href="#/planner/' + esc(j.date) + '">Planner</a>' : '') + '</div>'; }).join('') + '</div></section>';
+        l.jobs.map(function (j) { return '<div class="lv-job row" style="justify-content:space-between"><span class="stack" style="gap:2px"><b>' + esc(j.title) + '</b><span>' + esc(j.when + ' · ' + j.with) + '</span></span>' + (canSchedule() ? '<a class="btn btn-light" href="#/scheduler/' + esc(j.date) + '">Scheduler</a>' : '') + '</div>'; }).join('') + '</div></section>';
       if (l.canDecide) body += '<section class="section stack" style="gap:12px"><div class="field"><label for="lvNote">Note to ' + esc(firstName(l.name)) + ' (needed if you decline)</label><input id="lvNote" placeholder="Optional"></div>' +
         '<p class="notice error" id="lvErr" role="alert" hidden></p><div class="st-grid2"><button type="button" class="btn btn-outline btn-lg" data-decide="decline">Decline</button><button type="button" class="btn btn-dark btn-lg" data-decide="approve">Approve</button></div></section>';
       if (l.canCancel) body += '<section class="section"><button type="button" class="btn btn-outline btn-lg" id="lvCancel">Cancel this request</button></section>';
