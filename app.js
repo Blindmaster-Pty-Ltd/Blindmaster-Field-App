@@ -10,7 +10,7 @@
   'use strict';
 
   var CFG = window.FIELD_APP_CONFIG || {};
-  var APP_VERSION = '50'; // shown on the Account page and the sidebar, so it's easy to check which version is live
+  var APP_VERSION = '51'; // shown on the Account page and the sidebar, so it's easy to check which version is live
   var TZ = 'Australia/Sydney';
   var app = document.getElementById('app');
   var state = { user: null, cache: {}, mode: null };
@@ -858,7 +858,7 @@
     if (r.name !== 'chat') { stopChat(); if (r.name !== 'chats') chat.back = location.hash || '#/day'; else chat.back = '#/chats'; }
     if (r.name !== 'vanload' && r.name !== 'picklist') { vl.data = null; vl.edits = {}; }
     if (r.name !== 'jr' && r.name !== 'jrappt') state.jrBack = location.hash || '#/day';
-    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'scheduler' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets' || r.name === 'ask') && !state.user) {
+    if ((r.name === 'chats' || r.name === 'chat' || r.name === 'planner' || r.name === 'scheduler' || r.name === 'account' || r.name === 'me' || r.name === 'staff' || r.name === 'vehicles' || r.name === 'myvehicle' || r.name === 'ticket' || r.name === 'mytickets' || r.name === 'ask' || r.name === 'quote') && !state.user) {
       // opened straight from a link (e.g. a chat email): find out who this is first
       loading('Loading…');
       return api({ action: 'me' }).then(function (d) { state.user = d.user; store('fa-user', d.user); render(); }, function (err) { showError(err, render); });
@@ -884,6 +884,7 @@
     if (r.name === 'mytickets') return renderMyTickets();
     if (r.name === 'tickets') return renderTicketRegister();
     if (r.name === 'ask') return renderAsk();
+    if (r.name === 'quote') return renderQuote(r.arg, r.arg2 || todayStr());
     if (r.name === 'vehicles') return renderVehicles(r.arg);
     if (r.name === 'myvehicle') return renderMyVehicle();
     if (r.name === 'leave') return r.arg === 'new' ? renderLeaveNew() : r.arg ? renderLeaveItem(r.arg) : renderLeave();
@@ -920,6 +921,7 @@
     if (canVanLoad()) items.push({ key: 'vanload', href: '#/vanload' + d, icon: I.box, label: 'Van load' });
     if (canPick()) items.push({ key: 'picklist', href: '#/picklist', icon: I.list, label: 'Pick list' });
     if (canSchedule()) items.push({ key: 'planner', href: '#/scheduler', icon: I.planner, label: 'Scheduler' });
+    if (canQuote()) items.push({ key: 'quote', href: '#/quote', icon: I.awning, label: 'Quote' });
     if (isOffice()) items.push({ key: 'team', href: '#/team' + d, icon: I.team, label: 'Team' });
     if (chatEnabled()) items.push({ key: 'chats', href: '#/chats', icon: I.msg, label: 'Chats' });
     items.push({ key: 'ask', href: '#/ask', icon: I.spark, label: 'Ask Jan' });
@@ -936,6 +938,7 @@
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'route'; }); // office phones: route is on each day instead
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'team'; }); // office phones: Team board is under Me
     if (items.length > 5) items = items.filter(function (t) { return t.key !== 'planner'; }); // and the Scheduler
+    if (items.length > 5) items = items.filter(function (t) { return t.key !== 'quote'; }); // and Quote (under Me)
     return '<nav class="tabbar" aria-label="Main"><div class="inner" style="grid-template-columns:repeat(' + items.length + ',minmax(0,1fr))">' +
       items.map(function (t) {
         return '<a href="' + t.href + '"' + (active === t.key ? ' aria-current="page"' : '') + '><span class="pill">' + t.icon + '</span>' + t.label + '</a>';
@@ -3004,7 +3007,8 @@
     body += uqBar(id, date) + '</section>';
 
     if (a.folderUrl || a.projectFolderUrl) body += '<section class="section"><a class="linkrow" href="#/collateral/' + encodeURIComponent(id) + '/' + date + '">' + I.grid + '<span class="text"><b>Collateral</b><span>Everything in the opportunity folder</span></span>' + I.right + '</a></section>';
-    body += '<section class="panel stack" style="margin-top:24px;gap:8px"><div class="spread"><b>Proposal</b><span class="tag tag-light">Coming next</span></div><span class="small">Start a proposal from the costing templates (Umbris, markilux…) using what you\'ve measured.</span></section>';
+    if (canQuote()) body += '<section class="section"><a class="linkrow" href="#/quote/' + encodeURIComponent(id) + '/' + date + '">' + I.awning + '<span class="text"><b>markilux quote</b><span>Build the quote (or ask Jan to), then save it to Collateral › Costings</span></span>' + I.right + '</a></section>';
+    body += '<section class="panel stack" style="margin-top:24px;gap:8px"><div class="spread"><b>Other proposals</b><span class="tag tag-light">Coming next</span></div><span class="small">Proposals from the other costing templates (Umbris…) using what you\'ve measured.</span></section>';
     body += '<div style="height:32px"></div>';
     app.innerHTML = salesPage(body, ['#/appt/' + encodeURIComponent(id) + '/' + date, 'Appointment']);
     Array.prototype.forEach.call(app.querySelectorAll('[data-item]'), function (el) {
@@ -3462,6 +3466,7 @@
         body += row('#/team', I.team, 'Team board', 'Who\'s where today');
         if (canSchedule()) body += row('#/scheduler', I.planner, 'Scheduler', 'Book and move appointments');
       }
+      if (!wide() && canQuote()) body += row('#/quote', I.awning, 'markilux quote', 'Build a quote, save it to the opportunity folder');
       body += row('#/account', I.user, 'Account', 'View as, sign out, app version');
       body += '</nav>' + (err ? '<div class="section">' + stErr(err) + '</div>' : '') + '<div style="height:24px"></div>';
       app.innerHTML = staffPage('me', body);
@@ -3469,6 +3474,210 @@
     draw(state.stHome || null);
     api({ action: 'staffHome' }).then(function (d) { state.user = d.user || state.user; u = state.user; state.stHome = d.home; if (route().name === 'me') draw(d.home); },
       function (e) { if (e.auth) return showError(e); if (route().name === 'me') draw(state.stHome || null, e.message); });
+  }
+
+  /* ---------- markilux quote (sales and office) ----------
+   * The quote page (markilux_quote.html) is handed out by the script only to signed-in sales and office staff,
+   * then shown in a frame. It prices everything itself and keeps the quote on this device as you work.
+   * Save puts it in the site's opportunity folder: Collateral › Costings. Ask Jan quote mode goes through the bridge below. */
+  var qt = { html: null, owner: false, appt: null, apptKey: '', msg: '', err: '', panel: '', folders: [], files: [], busy: false };
+  function canQuote() {
+    var u = state.user || {};
+    if (u.manager && !u.viewing) return true;
+    return /sales|office|admin/.test((u.roles || [u.role || '']).concat([u.role || '']).join(' ').toLowerCase());
+  }
+  // Ask Jan quote mode: the quote page calls window.BlindmasterAskJan(payload); it resolves to {answer, actions, quota}
+  window.BlindmasterAskJan = function (payload) { return apiPost(Object.assign({}, payload || {}, { action: 'askQuote' })); };
+
+  function qtFrame() { return document.getElementById('qtFrame'); }
+  function qtApp() { try { var w = qtFrame().contentWindow; return w && w.__app; } catch (e) { return null; } }
+  function qtState() { var a = qtApp(); return a ? a.state : null; }
+  function qtAddress(s) { s = s || qtState() || {}; var j = s.job || {}; return j.projectAddress || j.address || ''; }
+  function qtHasLines(s) { return !!(s && s.lines && s.lines.some(function (l) { return l && l.prod; })); }
+
+  function qtSrcdoc() {
+    var head = '<script>window.BlindmasterAskJan=function(p){return parent.BlindmasterAskJan(p);};<\/script>' +
+      '<style>header.top{display:none!important}</style>'; // the app's own header replaces the page's
+    var html = qt.html.replace(/<head>/i, '<head>' + head);
+    // Owner view (price build-up, discount and margin overrides): Simon and Troy only. The page looks for ?owner in its address, which a frame doesn't have.
+    if (qt.owner) html = html.replace('OWNER=/[?&]owner/.test(location.search)', 'OWNER=true');
+    return html;
+  }
+
+  function renderQuote(apptId, date) {
+    if (!canQuote()) {
+      var no = '<div class="empty stack"><h2>Quotes are for sales and office staff</h2><p class="muted" style="margin:0">Ask the office if you need access.</p></div>';
+      app.innerHTML = wide() ? shell('quote', null, no) : topbar() + '<main>' + no + '</main>' + tabbar('quote');
+      return;
+    }
+    loading('Opening the quote builder…');
+    var key = apptId ? apptId + '/' + date : '';
+    var pAppt = apptId ? loadVisit(apptId, date, false).then(function (v) { return v && v.appointment; }, function () { return null; }) : Promise.resolve(null);
+    var pPage = qt.html ? Promise.resolve() : api({ action: 'quotePage' }).then(function (d) { state.user = d.user || state.user; qt.html = d.html; qt.owner = !!d.owner; });
+    Promise.all([pPage, pAppt]).then(function (r) {
+      if (route().name !== 'quote') return;
+      if (key !== qt.apptKey) { qt.msg = ''; qt.err = ''; qt.panel = ''; }
+      qt.appt = r[1]; qt.apptKey = key;
+      drawQuote(apptId, date);
+    }, function (e) { showError(e, function () { renderQuote(apptId, date); }); });
+  }
+
+  function drawQuote(apptId, date) {
+    var a = qt.appt;
+    var bar = '<section class="qt-bar"><div class="qt-title"><span class="small" style="font-weight:700">Quote' + (a ? ' · ' + esc(a.customer || a.title) : '') + '</span><h1>markilux quote</h1>' +
+        '<span class="small" id="qtWhere"></span></div>' +
+      '<div class="qt-tools"><button type="button" class="btn btn-sand" id="qtOpen">' + I.folder + 'Open saved</button>' +
+        '<button type="button" class="btn btn-sand" id="qtNew">New quote</button>' +
+        '<button type="button" class="btn btn-dark" id="qtSave">' + I.download + 'Save to opportunity folder</button></div>' +
+      '<div class="qt-panel" id="qtPanel" aria-live="polite"></div></section>';
+    var body = '<div class="qt-page">' + bar + '<iframe id="qtFrame" class="qt-frame" title="markilux quote builder"></iframe></div>';
+    var back = a ? ['#/visit/' + encodeURIComponent(apptId) + '/' + date, 'Visit'] : null;
+    app.innerHTML = wide() ? shell('quote', null, body) : topbar(back ? { back: back[0], backLabel: back[1] } : null) + '<main class="qt-main">' + body + '</main>' + tabbar('quote');
+    var fr = qtFrame();
+    fr.onload = function () { qtPrefill(); qtWhere(); qtSize(); try { fr.contentDocument.addEventListener('input', function (e) { if (e.target && e.target.dataset && /address/i.test(e.target.dataset.job || '')) qtWhere(); }); } catch (e) {} };
+    fr.srcdoc = qtSrcdoc();
+    qtSize();
+    window.removeEventListener('resize', qtSize); window.addEventListener('resize', qtSize);
+    document.getElementById('qtSave').onclick = function () { qtSave({}); };
+    document.getElementById('qtOpen').onclick = qtOpenList;
+    document.getElementById('qtNew').onclick = function () {
+      var s = qtState();
+      if (qtHasLines(s) && !confirm('Start a new quote? The one on screen is cleared' + (s.saved ? ' (it\'s saved in ' + s.saved.folderName + ')' : ', and it hasn\'t been saved') + '.')) return;
+      qtReset(); qt.msg = ''; qt.err = ''; qt.panel = ''; qtPanel();
+    };
+    qtPanel();
+  }
+
+  function qtSize() {
+    var fr = qtFrame(); if (!fr) return;
+    var tb = document.querySelector('.tabbar'), top = fr.getBoundingClientRect().top + (window.scrollY || 0);
+    fr.style.height = Math.max(560, window.innerHeight - (wide() ? 24 : top) - (tb ? tb.offsetHeight : 0) - (wide() ? 0 : 8)) + 'px';
+  }
+
+  /** A fresh quote, filled in from the appointment and the person's own details. */
+  function qtReset() {
+    try { localStorage.removeItem('markilux_quote_v1'); } catch (e) {} // where the page keeps the quote on this device
+    var fr = qtFrame(); if (fr) fr.srcdoc = qtSrcdoc();                 // reload it clean; onload fills in the details
+  }
+  function qtPrefill() {
+    var ap = qtApp(); if (!ap) return;
+    var s = ap.state, a = qt.appt, u = state.user || {}, j = s.job, changed = false;
+    if (a && a.address && qtHasLines(s) && qtAddress(s) && !addrSame(qtAddress(s), a.address)) {
+      // the quote on this device is for a different site
+      qt.panel = 'other'; qtPanel(); return;
+    }
+    function fill(k, v) { if (v && !j[k]) { j[k] = v; changed = true; } }
+    if (a) { fill('customer', a.customer); fill('projectAddress', a.address); fill('phone', a.phone); }
+    fill('by', u.name); fill('byEmail', u.email);
+    if (changed) ap.render();
+  }
+  function addrSame(x, y) {
+    var n = function (s) { return String(s || '').toLowerCase().split(',')[0].replace(/\bst\b/g, 'street').replace(/\brd\b/g, 'road').replace(/\bave?\b/g, 'avenue').replace(/[^a-z0-9\/]+/g, ' ').trim(); };
+    return n(x) === n(y);
+  }
+  function qtWhere() {
+    var w = document.getElementById('qtWhere'); if (!w) return;
+    var s = qtState() || {};
+    w.textContent = s.saved ? 'Saved in ' + s.saved.folderName + ' › Collateral › Costings · ' + s.saved.at + ' · save again after changes'
+      : qtAddress(s) ? 'For ' + qtAddress(s) + ' · not saved yet' : 'Fill in the project address, then save it to the opportunity folder.';
+  }
+
+  function qtPanel() {
+    var p = document.getElementById('qtPanel'); if (!p) return;
+    var h = '';
+    if (qt.err) h += '<p class="notice error" role="alert" style="margin:0">' + esc(qt.err) + '</p>';
+    if (qt.msg) h += '<p class="notice" style="margin:0">' + qt.msg + '</p>';
+    if (qt.panel === 'other') {
+      var s = qtState() || {};
+      h += '<div class="qt-box"><b>The quote on this device is for ' + esc(qtAddress(s)) + '</b><span class="small">You opened the quote builder from ' + esc(qt.appt.customer || qt.appt.title) + ', ' + esc(qt.appt.address) + '.</span>' +
+        '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-dark" data-qt="fresh">Start a quote for ' + esc(suburb(qt.appt.address) || 'this site') + '</button>' +
+        '<button type="button" class="btn btn-sand" data-qt="keep">Keep working on the other one</button></div>' +
+        (s.saved ? '' : '<span class="small">The other quote hasn\'t been saved. Save it first if you need it.</span>') + '</div>';
+    }
+    if (qt.panel === 'choose') {
+      h += '<div class="qt-box"><b>More than one opportunity folder matches ' + esc(qtAddress()) + '</b><span class="small">Pick the one this quote belongs to.</span>' +
+        qt.folders.map(function (f, i) { return '<button type="button" class="qt-row" data-qtf="' + i + '"><b>' + esc(f.name) + '</b><span>' + esc([f.customer, f.date].filter(String).join(' · ')) + '</span></button>'; }).join('') + '</div>';
+    }
+    if (qt.panel === 'link') {
+      h += '<div class="qt-box"><b>' + (qtAddress() ? 'No opportunity folder found for ' + esc(qtAddress()) : 'Which opportunity is this for?') + '</b>' +
+        '<span class="small">The app looks for an appointment at this address with a Folder link. Paste the opportunity folder\'s Google Drive link instead:</span>' +
+        '<div class="row" style="gap:8px;flex-wrap:wrap"><input id="qtLink" type="url" placeholder="https://drive.google.com/drive/folders/…" style="flex:1;min-width:220px">' +
+        '<button type="button" class="btn btn-dark" data-qt="link">Save here</button><button type="button" class="btn btn-sand" data-qt="cancel">Cancel</button></div></div>';
+    }
+    if (qt.panel === 'files') {
+      h += '<div class="qt-box"><div class="spread"><b>Saved quotes' + (qt.folders.length === 1 ? ' · ' + esc(qt.folders[0].name) : '') + '</b><button type="button" class="link-btn" data-qt="cancel">Close</button></div>' +
+        (qt.files.length ? qt.files.map(function (f) { return '<button type="button" class="qt-row" data-qtopen="' + esc(f.id) + '"><b>' + esc(f.name.replace(/\.json$/i, '')) + '</b><span>' + esc(f.updated + (qt.folders.length > 1 ? ' · ' + f.folder : '')) + '</span></button>'; }).join('')
+          : '<span class="small">' + (qt.folders.length ? 'No markilux quotes saved in ' + esc(qt.folders.map(function (f) { return f.name; }).join(', ')) + ' › Collateral › Costings yet.' : 'No opportunity folder found for ' + esc(qtAddress() || 'this quote') + '. Fill in the project address first.') + '</span>') + '</div>';
+    }
+    p.innerHTML = h;
+    p.style.display = h ? '' : 'none';
+    Array.prototype.forEach.call(p.querySelectorAll('[data-qt]'), function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute('data-qt');
+        if (k === 'cancel' || k === 'keep') { qt.panel = ''; qtPanel(); }
+        if (k === 'fresh') { qt.panel = ''; qtPanel(); qtReset(); }
+        if (k === 'link') { var v = document.getElementById('qtLink').value.trim(); if (!/drive\.google\.com|^[\w-]{20,}$/.test(v)) { qt.err = 'Paste a Google Drive folder link.'; return qtPanel(); } qtSave({ folderUrl: /^http/.test(v) ? v : '', folderId: /^http/.test(v) ? '' : v }); }
+      };
+    });
+    Array.prototype.forEach.call(p.querySelectorAll('[data-qtf]'), function (b) { b.onclick = function () { qtSave({ folderId: qt.folders[+b.getAttribute('data-qtf')].id }); }; });
+    Array.prototype.forEach.call(p.querySelectorAll('[data-qtopen]'), function (b) { b.onclick = function () { qtOpenFile(b.getAttribute('data-qtopen')); }; });
+    qtSize();
+  }
+
+  function qtBusy(on, label) {
+    qt.busy = on;
+    var b = document.getElementById('qtSave'); if (b) { b.disabled = on; b.innerHTML = on ? esc(label || 'Saving…') : I.download + 'Save to opportunity folder'; }
+  }
+
+  function qtSave(pick) {
+    var ap = qtApp(), s = ap && ap.state;
+    if (!s || qt.busy) return;
+    qt.err = ''; qt.msg = '';
+    if (!qtHasLines(s)) { qt.err = 'Add at least one product before saving.'; return qtPanel(); }
+    var a = qt.appt, saved = s.saved || {};
+    var body = { action: 'quoteSave', state: JSON.parse(JSON.stringify(s)), address: qtAddress(s) };
+    if (pick.folderId || pick.folderUrl) { body.folderId = pick.folderId; body.folderUrl = pick.folderUrl; }
+    else if (saved.folderId) body.folderId = saved.folderId; // saving again: same folder, same file
+    else if (a && addrSame(a.address, qtAddress(s) || a.address)) { body.apptId = qt.apptKey.split('/')[0]; body.date = qt.apptKey.split('/')[1]; }
+    if (saved.fileId && (!body.folderId || body.folderId === saved.folderId)) body.fileId = saved.fileId;
+    if (!body.folderId && !body.folderUrl && !body.apptId && !body.address) { qt.panel = 'link'; return qtPanel(); }
+    qtBusy(true);
+    apiPost(body).then(function (r) {
+      qtBusy(false);
+      if (r.choose) { qt.folders = r.choose; qt.panel = 'choose'; return qtPanel(); }
+      if (r.needsFolder) { qt.panel = 'link'; return qtPanel(); }
+      var cur = qtApp(); if (!cur) return;
+      cur.state.saved = { fileId: r.fileId, folderId: r.folderId, folderName: r.folderName, at: r.at, url: r.url };
+      cur.render();
+      qt.panel = ''; qt.msg = 'Saved to <a href="' + esc(r.costingsUrl) + '" target="_blank" rel="noopener">' + esc(r.folderName) + ' › Collateral › Costings</a> as ' + esc(r.name) + '.';
+      qtPanel(); qtWhere();
+    }, function (e) { qtBusy(false); qt.err = e.message; qtPanel(); });
+  }
+
+  function qtOpenList() {
+    var s = qtState() || {}, q = { action: 'quoteList' }, saved = s.saved || {};
+    if (saved.folderId) q.folderId = saved.folderId;
+    else if (qt.appt && (!qtAddress(s) || addrSame(qt.appt.address, qtAddress(s)))) { q.apptId = qt.apptKey.split('/')[0]; q.date = qt.apptKey.split('/')[1]; }
+    else q.address = qtAddress(s);
+    if (!q.folderId && !q.apptId && !q.address) { qt.err = 'Fill in the project address (or open the quote builder from the appointment) to find its saved quotes.'; return qtPanel(); }
+    qt.err = ''; qt.msg = 'Looking in the opportunity folder…'; qtPanel();
+    api(q).then(function (r) { qt.msg = ''; qt.folders = r.folders || []; qt.files = r.files || []; qt.panel = 'files'; qtPanel(); },
+      function (e) { qt.msg = ''; qt.err = e.message; qtPanel(); });
+  }
+
+  function qtOpenFile(id) {
+    var cur = qtState();
+    if (qtHasLines(cur) && !(cur.saved && cur.saved.fileId === id) && !confirm('Open this saved quote? The quote on screen is replaced' + (cur.saved ? '' : ' (it hasn\'t been saved)') + '.')) return;
+    qt.msg = 'Opening…'; qtPanel();
+    api({ action: 'quoteFile', fileId: id }).then(function (r) {
+      var ap = qtApp(); if (!ap) return;
+      var st = r.state; delete st.savedBy; delete st.savedByEmail; delete st.savedAt;
+      var f = qt.folders.filter(function (x) { return x.id === r.folderId; })[0];
+      st.saved = { fileId: r.fileId, folderId: r.folderId, folderName: f ? f.name : 'the opportunity folder', at: 'opened ' + new Date().toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) };
+      st.view = st.view || 'edit'; st.sel = 0;
+      ap.state = st; ap.render();
+      qt.panel = ''; qt.msg = 'Opened ' + esc(r.name.replace(/\.json$/i, '')) + '.'; qtPanel(); qtWhere();
+    }, function (e) { qt.msg = ''; qt.err = e.message; qtPanel(); });
   }
 
   /* ---------- Staff directory and vehicles (managers: Simon and Troy) ---------- */

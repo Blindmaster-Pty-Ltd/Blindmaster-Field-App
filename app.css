@@ -1281,3 +1281,25 @@ body:not(.mode-desktop) .sc-main { padding: 16px; }
 .sc-legend .k-tent + .k-bar { margin-left: -4px; }
 .sc-jobs-m .sc-jobs-head h2 { display: none; }
 .sc-jobs-m .sc-jobs-head { justify-content: flex-end; }
+
+/* ---------- markilux quote (the quote builder runs in a frame) ---------- */
+.qt-page { display: flex; flex-direction: column; gap: 0; }
+.qt-bar { background: var(--sandstone); padding: 16px 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; align-items: end; }
+.qt-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qt-title h1 { font-size: 24px; }
+.qt-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.qt-tools .btn { white-space: nowrap; }
+.qt-tools .btn svg { width: 18px; height: 18px; margin-right: 6px; }
+.qt-panel { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
+.qt-panel .notice a { color: inherit; font-weight: 700; }
+.qt-box { background: var(--natural-white); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.qt-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%; min-height: 48px; padding: 8px 12px; border: 1px solid var(--sandstone); background: #fff; font: inherit; color: var(--ink); cursor: pointer; }
+.qt-row:hover, .qt-row:focus-visible { border-color: var(--monument-grey); }
+.qt-row span { font-size: 13px; color: #5c5d5d; }
+.qt-frame { display: block; width: 100%; border: 0; background: var(--natural-white); min-height: 560px; }
+.qt-main { padding: 0 !important; }
+@media (max-width: 700px) {
+  .qt-bar { grid-template-columns: 1fr; padding: 14px 16px; }
+  .qt-tools { justify-content: stretch; }
+  .qt-tools .btn { flex: 1 1 auto; }
+}
